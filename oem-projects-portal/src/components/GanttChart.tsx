@@ -7,7 +7,7 @@ interface GanttChartProps {
   displayRows: DisplayRow[];
 }
 
-type ZoomLevel = "day" | "week" | "month";
+type ZoomLevel = "day" | "week" | "month" | "quarter";
 
 const ZOOM_CONFIG: Record<ZoomLevel, { dayWidth: number; headerFormat: (d: Date) => string; subFormat: (d: Date) => string; subUnit: "day" | "week" }> = {
   day: {
@@ -26,7 +26,13 @@ const ZOOM_CONFIG: Record<ZoomLevel, { dayWidth: number; headerFormat: (d: Date)
     dayWidth: 3,
     headerFormat: (d) => String(d.getFullYear()),
     subFormat: (d) => d.toLocaleDateString("en-GB", { month: "short" }),
-    subUnit: "day", // unused for month
+    subUnit: "day",
+  },
+  quarter: {
+    dayWidth: 1.2,
+    headerFormat: (d) => String(d.getFullYear()),
+    subFormat: (d) => d.toLocaleDateString("en-GB", { month: "short" }),
+    subUnit: "day",
   },
 };
 
@@ -260,22 +266,16 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
   }
 
   // Generate timeline headers
-  const { quarterHeaders, mainHeaders, subHeaders } = useMemo(() => {
+  const { yearHeaders, quarterHeaders, mainHeaders, subHeaders } = useMemo(() => {
     const mains: { label: string; left: number; width: number }[] = [];
     const subs: { label: string; left: number; width: number }[] = [];
 
-    if (zoom === "month") {
-      // Main: years, Sub: months
+    if (zoom === "quarter") {
+      // Quarter view: no main/sub headers beyond Year+Quarter (already handled)
+    } else if (zoom === "month") {
+      // Sub: months
       const cursor = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
       while (cursor <= maxDate) {
-        const yearStart = new Date(cursor.getFullYear(), 0, 1);
-        const yearEnd = new Date(cursor.getFullYear() + 1, 0, 1);
-        const left = dayOffset(yearStart < minDate ? minDate : yearStart);
-        const right = dayOffset(yearEnd > maxDate ? maxDate : yearEnd);
-        if (mains.length === 0 || mains[mains.length - 1].label !== String(cursor.getFullYear())) {
-          mains.push({ label: String(cursor.getFullYear()), left, width: right - left });
-        }
-
         const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
         const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
         const ml = dayOffset(monthStart < minDate ? minDate : monthStart);
@@ -285,7 +285,6 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
           left: ml,
           width: mr - ml,
         });
-
         cursor.setMonth(cursor.getMonth() + 1);
       }
     } else if (zoom === "week") {
@@ -327,23 +326,34 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
       }
     }
 
-    // Quarter headers (always shown regardless of zoom)
+    // Year headers (always top row)
+    const yrs: { label: string; left: number; width: number }[] = [];
+    const yCursor = new Date(minDate.getFullYear(), 0, 1);
+    while (yCursor <= maxDate) {
+      const yearStart = new Date(yCursor.getFullYear(), 0, 1);
+      const yearEnd = new Date(yCursor.getFullYear() + 1, 0, 1);
+      const yl = dayOffset(yearStart < minDate ? minDate : yearStart);
+      const yr = dayOffset(yearEnd > maxDate ? maxDate : yearEnd);
+      yrs.push({ label: String(yCursor.getFullYear()), left: yl, width: yr - yl });
+      yCursor.setFullYear(yCursor.getFullYear() + 1);
+    }
+
+    // Quarter headers (always second row, just Q1/Q2/Q3/Q4)
     const qtrs: { label: string; left: number; width: number }[] = [];
     const qCursor = new Date(minDate.getFullYear(), Math.floor(minDate.getMonth() / 3) * 3, 1);
     while (qCursor <= maxDate) {
-      const qStart = new Date(qCursor);
       const qEnd = new Date(qCursor.getFullYear(), qCursor.getMonth() + 3, 1);
-      const ql = dayOffset(qStart < minDate ? minDate : qStart);
+      const ql = dayOffset(qCursor < minDate ? minDate : qCursor);
       const qr = dayOffset(qEnd > maxDate ? maxDate : qEnd);
       qtrs.push({
-        label: `Q${Math.floor(qCursor.getMonth() / 3) + 1} ${qCursor.getFullYear()}`,
+        label: `Q${Math.floor(qCursor.getMonth() / 3) + 1}`,
         left: ql,
         width: qr - ql,
       });
       qCursor.setMonth(qCursor.getMonth() + 3);
     }
 
-    return { quarterHeaders: qtrs, mainHeaders: mains, subHeaders: subs };
+    return { yearHeaders: yrs, quarterHeaders: qtrs, mainHeaders: mains, subHeaders: subs };
   }, [minDate, maxDate, zoom, config, totalDays]);
 
   // Weekly separator lines
@@ -468,7 +478,7 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
         <span style={{ fontSize: 12, color: theme.textMuted, marginRight: 4 }}>
           Zoom:
         </span>
-        {(["day", "week", "month"] as const).map((level) => (
+        {(["day", "week", "month", "quarter"] as const).map((level) => (
           <button
             key={level}
             onClick={() => setZoom(level)}
@@ -483,7 +493,7 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
               fontWeight: zoom === level ? 600 : 400,
             }}
           >
-            {level === "day" ? "Day" : level === "week" ? "Week" : "Month"}
+            {level === "day" ? "Day" : level === "week" ? "Week" : level === "month" ? "Month" : "Quarter"}
           </button>
         ))}
         {/* Go to today */}
@@ -587,7 +597,7 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
             display: "flex",
             background: "white",
             borderRight: `2px solid ${theme.borderLight}`,
-            height: 78,
+            height: 22 * 2 + (mainHeaders.length > 0 ? 22 : 0) + (subHeaders.length > 0 ? 22 : 0) + 2,
             alignItems: "center",
           }}
         >
@@ -614,16 +624,16 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
           style={{ flex: 1, overflow: "hidden" }}
         >
           <div style={{ width: totalWidth, position: "relative" }}>
-            {/* Main headers */}
-            <div style={{ height: 26, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
-              {mainHeaders.map((h, i) => (
+            {/* Year row */}
+            <div style={{ height: 22, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
+              {yearHeaders.map((h, i) => (
                 <div
                   key={i}
                   style={{
                     position: "absolute",
                     left: h.left,
                     width: h.width,
-                    height: 26,
+                    height: 22,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -638,29 +648,81 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
                 </div>
               ))}
             </div>
-            {/* Sub headers */}
-            <div style={{ height: 26, position: "relative" }}>
-              {subHeaders.map((h, i) => (
+            {/* Quarter row */}
+            <div style={{ height: 22, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
+              {quarterHeaders.map((h, i) => (
                 <div
                   key={i}
                   style={{
                     position: "absolute",
                     left: h.left,
                     width: h.width,
-                    height: 26,
+                    height: 22,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: 10,
-                    color: theme.textMuted,
-                    borderRight: `1px solid ${theme.borderRow}`,
-                    background: "white",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: theme.primary,
+                    borderRight: `1px solid ${theme.borderLight}`,
+                    background: theme.filterBarBg,
                   }}
                 >
                   {h.label}
                 </div>
               ))}
             </div>
+            {/* Main headers (month names for week/day views) */}
+            {mainHeaders.length > 0 && (
+              <div style={{ height: 22, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
+                {mainHeaders.map((h, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      position: "absolute",
+                      left: h.left,
+                      width: h.width,
+                      height: 22,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: theme.textDark,
+                      borderRight: `1px solid ${theme.borderLight}`,
+                      background: "white",
+                    }}
+                  >
+                    {h.label}
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Sub headers (months, weeks, or days) */}
+            {subHeaders.length > 0 && (
+              <div style={{ height: 22, position: "relative" }}>
+                {subHeaders.map((h, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      position: "absolute",
+                      left: h.left,
+                      width: h.width,
+                      height: 22,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 10,
+                      color: theme.textMuted,
+                      borderRight: `1px solid ${theme.borderRow}`,
+                      background: "white",
+                    }}
+                  >
+                    {h.label}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
