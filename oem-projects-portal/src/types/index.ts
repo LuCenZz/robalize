@@ -24,6 +24,14 @@ export interface ActiveFilter {
   values: string[];
 }
 
+export interface DisplayRow {
+  type: "initiative" | "epic";
+  epic: EpicTask;
+  initiativeKey?: string;
+  initiativeName?: string;
+  children?: EpicTask[];
+}
+
 export const PHASE_CONFIG = [
   {
     name: "Analysis",

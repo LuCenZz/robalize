@@ -312,7 +312,23 @@ export function GanttChart({ tasks }: GanttChartProps) {
       }
     }
 
-    return { mainHeaders: mains, subHeaders: subs };
+    // Quarter headers (always shown regardless of zoom)
+    const qtrs: { label: string; left: number; width: number }[] = [];
+    const qCursor = new Date(minDate.getFullYear(), Math.floor(minDate.getMonth() / 3) * 3, 1);
+    while (qCursor <= maxDate) {
+      const qStart = new Date(qCursor);
+      const qEnd = new Date(qCursor.getFullYear(), qCursor.getMonth() + 3, 1);
+      const ql = dayOffset(qStart < minDate ? minDate : qStart);
+      const qr = dayOffset(qEnd > maxDate ? maxDate : qEnd);
+      qtrs.push({
+        label: `Q${Math.floor(qCursor.getMonth() / 3) + 1} ${qCursor.getFullYear()}`,
+        left: ql,
+        width: qr - ql,
+      });
+      qCursor.setMonth(qCursor.getMonth() + 3);
+    }
+
+    return { quarterHeaders: qtrs, mainHeaders: mains, subHeaders: subs };
   }, [minDate, maxDate, zoom, config, totalDays]);
 
   // Weekly separator lines
@@ -556,7 +572,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
             display: "flex",
             background: "white",
             borderRight: `2px solid ${theme.borderLight}`,
-            height: 54,
+            height: 78,
             alignItems: "center",
           }}
         >

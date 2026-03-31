@@ -1,4 +1,4 @@
-import type { RawRow, EpicTask, PhaseSegment } from "../types";
+import type { RawRow, EpicTask, PhaseSegment, DisplayRow } from "../types";
 import { PHASE_CONFIG } from "../types";
 
 function parseJiraDate(value: string): Date | null {
@@ -89,6 +89,71 @@ function getEarliestPhaseStart(epic: EpicTask): number {
     if (phase) return phase.startDate.getTime();
   }
   return epic.phases[0].startDate.getTime();
+}
+
+export function buildDisplayRows(epicTasks: EpicTask[]): DisplayRow[] {
+  const rows: DisplayRow[] = [];
+  const grouped = new Map<string, { name: string; children: EpicTask[] }>();
+  const orphans: EpicTask[] = [];
+
+  for (const epic of epicTasks) {
+    const parentKey = (epic.rawData["Parent key"] || "").trim();
+    const parentName = (epic.rawData["Parent summary"] || "").trim();
+    if (parentKey) {
+      const group = grouped.get(parentKey) || { name: parentName, children: [] };
+      group.children.push(epic);
+      grouped.set(parentKey, group);
+    } else {
+      orphans.push(epic);
+    }
+  }
+
+  // Build initiative rows with children
+  for (const [key, group] of grouped) {
+    // Create a synthetic initiative epic with phases spanning all children
+    const allPhases: PhaseSegment[] = [];
+    for (const child of group.children) {
+      for (const phase of child.phases) {
+        allPhases.push(phase);
+      }
+    }
+
+    const initiativeEpic: EpicTask = {
+      id: -Math.abs(hashCode(key)),
+      epicKey: key,
+      epicName: group.name || key,
+      status: "",
+      phases: allPhases,
+      rawData: group.children[0]?.rawData || {},
+    };
+
+    rows.push({
+      type: "initiative",
+      epic: initiativeEpic,
+      initiativeKey: key,
+      initiativeName: group.name || key,
+      children: group.children,
+    });
+
+    for (const child of group.children) {
+      rows.push({ type: "epic", epic: child, initiativeKey: key });
+    }
+  }
+
+  // Orphan epics (no parent)
+  for (const epic of orphans) {
+    rows.push({ type: "epic", epic });
+  }
+
+  return rows;
+}
+
+function hashCode(s: string): number {
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+  }
+  return hash;
 }
 
 export function extractColumns(rows: RawRow[]): string[] {

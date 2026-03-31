@@ -9,6 +9,7 @@ const GanttChart = lazy(() =>
 );
 import {
   transformToEpicTasks,
+  buildDisplayRows,
   extractColumns,
   extractUniqueValues,
 } from "../utils/transformData";
@@ -48,6 +49,11 @@ export function App() {
   const epicTasks: EpicTask[] = useMemo(
     () => transformToEpicTasks(filteredRows),
     [filteredRows]
+  );
+
+  const displayRows = useMemo(
+    () => buildDisplayRows(epicTasks),
+    [epicTasks]
   );
 
   const getUniqueValues = useCallback(
