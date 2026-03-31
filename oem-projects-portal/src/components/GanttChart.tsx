@@ -420,226 +420,239 @@ export function GanttChart({ tasks }: GanttChartProps) {
         </div>
       </div>
 
-      {/* Single scroll container — grid is sticky left, timeline scrolls horizontally */}
-      <div
-        ref={scrollRef}
-        onScroll={(e) => {
-          if (timelineHeaderRef.current) {
-            timelineHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
-          }
-        }}
-        style={{ flex: 1, overflow: "auto" }}
-      >
-        <div style={{ display: "inline-flex", minWidth: "100%", minHeight: "min-content" }}>
-          {/* Left grid — sticky */}
-          <div
-            style={{
-              position: "sticky",
-              left: 0,
-              zIndex: 10,
-              width: gridTotalWidth,
-              flexShrink: 0,
-              background: "white",
-              borderRight: `2px solid ${theme.borderLight}`,
-            }}
-          >
-            {/* Grid header */}
-            <div
-              style={{
-                position: "sticky",
-                top: 0,
-                zIndex: 12,
-                display: "flex",
-                background: "white",
-                borderBottom: `2px solid ${theme.borderLight}`,
-                height: 54,
-                alignItems: "center",
-              }}
-            >
-              <div style={{ width: colWidths.product, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, borderRight: `1px solid ${theme.borderRow}`, height: "100%", display: "flex", alignItems: "center" }}>
-                Product
-                <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("product", e)} />
-              </div>
-              <div style={{ width: colWidths.acto, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, borderRight: `1px solid ${theme.borderRow}`, height: "100%", display: "flex", alignItems: "center" }}>
-                ACTO
-                <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("acto", e)} />
-              </div>
-              <div style={{ width: colWidths.epicName, position: "relative", padding: "0 12px", fontWeight: 700, fontSize: 12, color: theme.textDark, borderRight: `1px solid ${theme.borderRow}`, height: "100%", display: "flex", alignItems: "center" }}>
-                Epic Name
-                <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("epicName", e)} />
-              </div>
-              <div style={{ width: colWidths.status, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 12, color: theme.textDark, textAlign: "left", height: "100%", display: "flex", alignItems: "center" }}>
-                Status
-                <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("status", e)} />
-              </div>
-            </div>
-            {/* Grid rows */}
-            {tasks.map((epic, i) => {
-              const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
-              const info = isInconsistent ? inconsistencies.get(epic.id) : null;
-              const defaultBg = i % 2 === 0 ? "white" : theme.rowAlt;
-              return (
-                <div
-                  key={epic.id}
-                  title={info ? info.details.join("\n") : undefined}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    height: ROW_HEIGHT,
-                    borderBottom: `1px solid ${theme.borderRow}`,
-                    background: isInconsistent ? "#fff0f0" : defaultBg,
-                    borderLeft: isInconsistent ? "3px solid #e03131" : "3px solid transparent",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: colWidths.product,
-                      fontSize: 11,
-                      color: theme.textDark,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      padding: "0 8px",
-                      borderRight: `1px solid ${theme.borderRow}`,
-                      boxSizing: "border-box",
-                    }}
-                    title={epic.rawData["Custom field (Product)"] || ""}
-                  >
-                    {epic.rawData["Custom field (Product)"] || "—"}
-                  </div>
-                  <div
-                    style={{
-                      width: colWidths.acto,
-                      fontSize: 11,
-                      color: theme.textDark,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      paddingLeft: 8,
-                      paddingRight: 8,
-                      borderRight: `1px solid ${theme.borderRow}`,
-                    }}
-                    title={epic.rawData["Issue key"] || ""}
-                  >
-                    {epic.rawData["Issue key"] || "—"}
-                  </div>
-                  <div
-                    style={{
-                      width: colWidths.epicName,
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: isInconsistent ? "#e03131" : theme.textDark,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      padding: "0 12px",
-                      borderRight: `1px solid ${theme.borderRow}`,
-                      boxSizing: "border-box",
-                    }}
-                    title={epic.epicName}
-                  >
-                    {epic.epicName}
-                  </div>
-                  <div style={{ width: colWidths.status, textAlign: "left", padding: "0 8px", boxSizing: "border-box" }}>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        background: `${theme.primary}22`,
-                        color: theme.primary,
-                        padding: "3px 8px",
-                        borderRadius: 10,
-                        fontWeight: 500,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {epic.status}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+      {/* Fixed headers row */}
+      <div style={{ display: "flex", flexShrink: 0, borderBottom: `2px solid ${theme.borderLight}` }}>
+        {/* Grid header */}
+        <div
+          style={{
+            width: gridTotalWidth,
+            flexShrink: 0,
+            display: "flex",
+            background: "white",
+            borderRight: `2px solid ${theme.borderLight}`,
+            height: 54,
+            alignItems: "center",
+          }}
+        >
+          <div style={{ width: colWidths.product, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, borderRight: `1px solid ${theme.borderRow}`, height: "100%", display: "flex", alignItems: "center" }}>
+            Product
+            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("product", e)} />
           </div>
-
-          {/* Right: Timeline */}
-          <div style={{ width: totalWidth }}>
-            {/* Timeline header — sticky top */}
-            <div
-              ref={timelineHeaderRef}
-              style={{
-                position: "sticky",
-                top: 0,
-                zIndex: 11,
-                background: "white",
-                borderBottom: `2px solid ${theme.borderLight}`,
-              }}
-            >
-              {/* Main headers */}
-              <div style={{ height: 26, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
-                {mainHeaders.map((h, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      position: "absolute",
-                      left: h.left,
-                      width: h.width,
-                      height: 26,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: theme.textDark,
-                      borderRight: `1px solid ${theme.borderLight}`,
-                      background: "white",
-                    }}
-                  >
-                    {h.label}
-                  </div>
-                ))}
-              </div>
-              {/* Sub headers */}
-              <div style={{ height: 26, position: "relative" }}>
-                {subHeaders.map((h, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      position: "absolute",
-                      left: h.left,
-                      width: h.width,
-                      height: 26,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 10,
-                      color: theme.textMuted,
-                      borderRight: `1px solid ${theme.borderRow}`,
-                      background: "white",
-                    }}
-                  >
-                    {h.label}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Timeline rows with weekly separators */}
-            <div style={{ position: "relative" }}>
-              {/* Weekly separator lines */}
-              {weekLines.map((x, idx) => (
+          <div style={{ width: colWidths.acto, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, borderRight: `1px solid ${theme.borderRow}`, height: "100%", display: "flex", alignItems: "center" }}>
+            ACTO
+            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("acto", e)} />
+          </div>
+          <div style={{ width: colWidths.epicName, position: "relative", padding: "0 12px", fontWeight: 700, fontSize: 12, color: theme.textDark, borderRight: `1px solid ${theme.borderRow}`, height: "100%", display: "flex", alignItems: "center" }}>
+            Epic Name
+            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("epicName", e)} />
+          </div>
+          <div style={{ width: colWidths.status, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 12, color: theme.textDark, textAlign: "left", height: "100%", display: "flex", alignItems: "center" }}>
+            Status
+            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("status", e)} />
+          </div>
+        </div>
+        {/* Timeline header — synced with horizontal scroll */}
+        <div
+          ref={timelineHeaderRef}
+          style={{ flex: 1, overflow: "hidden" }}
+        >
+          <div style={{ width: totalWidth, position: "relative" }}>
+            {/* Main headers */}
+            <div style={{ height: 26, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
+              {mainHeaders.map((h, i) => (
                 <div
-                  key={`wl-${idx}`}
+                  key={i}
                   style={{
                     position: "absolute",
-                    left: x,
-                    top: 0,
-                    height: tasks.length * ROW_HEIGHT,
-                    width: 1,
-                    background: theme.borderRow,
-                    zIndex: 0,
-                    pointerEvents: "none",
+                    left: h.left,
+                    width: h.width,
+                    height: 26,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: theme.textDark,
+                    borderRight: `1px solid ${theme.borderLight}`,
+                    background: "white",
                   }}
-                />
+                >
+                  {h.label}
+                </div>
               ))}
+            </div>
+            {/* Sub headers */}
+            <div style={{ height: 26, position: "relative" }}>
+              {subHeaders.map((h, i) => (
+                <div
+                  key={i}
+                  style={{
+                    position: "absolute",
+                    left: h.left,
+                    width: h.width,
+                    height: 26,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 10,
+                    color: theme.textMuted,
+                    borderRight: `1px solid ${theme.borderRow}`,
+                    background: "white",
+                  }}
+                >
+                  {h.label}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Scrollable body — vertical scroll for all, horizontal scroll for timeline only */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        {/* Left grid rows — vertical scroll only, scrollbar hidden */}
+        <div
+          ref={gridScrollRef}
+          style={{
+            width: gridTotalWidth,
+            flexShrink: 0,
+            borderRight: `2px solid ${theme.borderLight}`,
+            overflowY: "scroll",
+            overflowX: "hidden",
+            marginRight: -20,
+            paddingRight: 20,
+          }}
+        >
+          {tasks.map((epic, i) => {
+            const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
+            const info = isInconsistent ? inconsistencies.get(epic.id) : null;
+            const defaultBg = i % 2 === 0 ? "white" : theme.rowAlt;
+            return (
+              <div
+                key={epic.id}
+                title={info ? info.details.join("\n") : undefined}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  height: ROW_HEIGHT,
+                  borderBottom: `1px solid ${theme.borderRow}`,
+                  background: isInconsistent ? "#fff0f0" : defaultBg,
+                  borderLeft: isInconsistent ? "3px solid #e03131" : "3px solid transparent",
+                }}
+              >
+                <div
+                  style={{
+                    width: colWidths.product,
+                    fontSize: 11,
+                    color: theme.textDark,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    padding: "0 8px",
+                    borderRight: `1px solid ${theme.borderRow}`,
+                    boxSizing: "border-box",
+                  }}
+                  title={epic.rawData["Custom field (Product)"] || ""}
+                >
+                  {epic.rawData["Custom field (Product)"] || "—"}
+                </div>
+                <div
+                  style={{
+                    width: colWidths.acto,
+                    fontSize: 11,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    paddingLeft: 8,
+                    paddingRight: 8,
+                    borderRight: `1px solid ${theme.borderRow}`,
+                  }}
+                  title={epic.rawData["Issue key"] || ""}
+                >
+                  {epic.rawData["Issue key"] ? (
+                    <a
+                      href={`https://imawebgroup.atlassian.net/browse/${epic.rawData["Issue key"]}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: theme.primary,
+                        textDecoration: "none",
+                        fontWeight: 500,
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
+                      onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+                    >
+                      {epic.rawData["Issue key"]}
+                    </a>
+                  ) : "—"}
+                </div>
+                <div
+                  style={{
+                    width: colWidths.epicName,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: isInconsistent ? "#e03131" : theme.textDark,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    padding: "0 12px",
+                    borderRight: `1px solid ${theme.borderRow}`,
+                    boxSizing: "border-box",
+                  }}
+                  title={epic.epicName}
+                >
+                  {epic.epicName}
+                </div>
+                <div style={{ width: colWidths.status, textAlign: "left", padding: "0 8px", boxSizing: "border-box" }}>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      background: `${theme.primary}22`,
+                      color: theme.primary,
+                      padding: "3px 8px",
+                      borderRadius: 10,
+                      fontWeight: 500,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {epic.status}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Right: Timeline — horizontal + vertical scroll */}
+        <div
+          ref={scrollRef}
+          onScroll={(e) => {
+            if (timelineHeaderRef.current) {
+              timelineHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
+            }
+            if (gridScrollRef.current) {
+              gridScrollRef.current.scrollTop = e.currentTarget.scrollTop;
+            }
+          }}
+          style={{ flex: 1, overflow: "auto" }}
+        >
+          <div style={{ width: totalWidth, position: "relative" }}>
+            {/* Weekly separator lines */}
+            {weekLines.map((x, idx) => (
+              <div
+                key={`wl-${idx}`}
+                style={{
+                  position: "absolute",
+                  left: x,
+                  top: 0,
+                  height: tasks.length * ROW_HEIGHT,
+                  width: 1,
+                  background: theme.borderRow,
+                  zIndex: 0,
+                  pointerEvents: "none",
+                }}
+              />
+            ))}
 
             {tasks.map((epic, i) => {
               const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
@@ -655,10 +668,21 @@ export function GanttChart({ tasks }: GanttChartProps) {
                     background: isInconsistent ? "#fff0f0" : defaultBg,
                   }}
                 >
-                  {/* Project outline spanning all phases */}
+                  {/* Project outline — only shown when phases are close together */}
                   {epic.phases.length > 0 && (() => {
-                    const minLeft = Math.min(...epic.phases.map((p) => dayOffset(p.startDate)));
-                    const maxRight = Math.max(...epic.phases.map((p) => dayOffset(p.endDate)));
+                    const visible = epic.phases
+                      .filter((p) => dayOffset(p.endDate) - dayOffset(p.startDate) > 0)
+                      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+                    if (visible.length < 2) return null;
+                    // Check max gap between consecutive phases (in pixels)
+                    const MAX_GAP_PX = 60;
+                    for (let j = 0; j < visible.length - 1; j++) {
+                      const endCurrent = dayOffset(visible[j].endDate);
+                      const startNext = dayOffset(visible[j + 1].startDate);
+                      if (startNext - endCurrent > MAX_GAP_PX) return null;
+                    }
+                    const minLeft = dayOffset(visible[0].startDate);
+                    const maxRight = dayOffset(visible[visible.length - 1].endDate);
                     return (
                       <div
                         style={{
@@ -722,7 +746,6 @@ export function GanttChart({ tasks }: GanttChartProps) {
                 </div>
               );
             })}
-            </div>
           </div>
         </div>
       </div>
