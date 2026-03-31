@@ -33,10 +33,63 @@ const ROW_HEIGHT = 40;
 const BAR_HEIGHT = 20;
 const BAR_TOP = (ROW_HEIGHT - BAR_HEIGHT) / 2;
 
+// Expected phase order: each phase must start after the previous one starts,
+// and must start after the previous one ends.
+const PHASE_ORDER = ["Analysis", "Development", "QA / Test", "Customer UAT", "Pilot"];
+
+interface InconsistencyInfo {
+  epicId: number;
+  conflictingPhases: Set<string>; // phase names involved in conflicts
+  details: string[];
+}
+
+function detectInconsistencies(tasks: EpicTask[]): Map<number, InconsistencyInfo> {
+  const result = new Map<number, InconsistencyInfo>();
+
+  for (const epic of tasks) {
+    const phaseMap = new Map(epic.phases.map((p) => [p.phaseName, p]));
+    const presentPhases = PHASE_ORDER.filter((name) => phaseMap.has(name));
+    const conflicts = new Set<string>();
+    const details: string[] = [];
+
+    for (let i = 0; i < presentPhases.length - 1; i++) {
+      const current = phaseMap.get(presentPhases[i])!;
+      const next = phaseMap.get(presentPhases[i + 1])!;
+
+      // Rule 1: next phase starts before current phase starts
+      if (next.startDate < current.startDate) {
+        conflicts.add(current.phaseName);
+        conflicts.add(next.phaseName);
+        details.push(
+          `${next.phaseName} starts before ${current.phaseName} starts`
+        );
+      }
+
+      // Rule 2: next phase starts before current phase ends
+      if (next.startDate < current.endDate) {
+        conflicts.add(current.phaseName);
+        conflicts.add(next.phaseName);
+        details.push(
+          `${next.phaseName} starts before ${current.phaseName} ends`
+        );
+      }
+    }
+
+    if (conflicts.size > 0) {
+      result.set(epic.id, { epicId: epic.id, conflictingPhases: conflicts, details });
+    }
+  }
+
+  return result;
+}
+
 export function GanttChart({ tasks }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("month");
+  const [showInconsistencies, setShowInconsistencies] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const gridScrollRef = useRef<HTMLDivElement>(null);
+
+  const inconsistencies = useMemo(() => detectInconsistencies(tasks), [tasks]);
 
   // Compute global date range
   const { minDate, maxDate } = useMemo(() => {
@@ -182,6 +235,27 @@ export function GanttChart({ tasks }: GanttChartProps) {
             {level === "day" ? "Day" : level === "week" ? "Week" : "Month"}
           </button>
         ))}
+        {/* Inconsistency toggle */}
+        <button
+          onClick={() => setShowInconsistencies(!showInconsistencies)}
+          style={{
+            marginLeft: 16,
+            padding: "4px 14px",
+            borderRadius: 6,
+            border: showInconsistencies ? "2px solid #e03131" : `1px solid ${theme.borderLight}`,
+            background: showInconsistencies ? "#fff5f5" : "white",
+            color: showInconsistencies ? "#e03131" : theme.textDark,
+            fontSize: 12,
+            cursor: "pointer",
+            fontWeight: showInconsistencies ? 600 : 400,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          {showInconsistencies ? `⚠ ${inconsistencies.size} inconsistencies` : "⚠ Check dates"}
+        </button>
+
         {/* Legend */}
         <div style={{ marginLeft: "auto", display: "flex", gap: 16, alignItems: "center" }}>
           {[
@@ -232,49 +306,56 @@ export function GanttChart({ tasks }: GanttChartProps) {
           </div>
           {/* Grid rows */}
           <div style={{ flex: 1, overflowY: "auto" }}>
-            {tasks.map((epic, i) => (
-              <div
-                key={epic.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  height: ROW_HEIGHT,
-                  borderBottom: `1px solid ${theme.borderRow}`,
-                  background: i % 2 === 0 ? "white" : theme.rowAlt,
-                  padding: "0 12px",
-                }}
-              >
+            {tasks.map((epic, i) => {
+              const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
+              const info = isInconsistent ? inconsistencies.get(epic.id) : null;
+              const defaultBg = i % 2 === 0 ? "white" : theme.rowAlt;
+              return (
                 <div
+                  key={epic.id}
+                  title={info ? info.details.join("\n") : undefined}
                   style={{
-                    flex: 1,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: theme.textDark,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
+                    display: "flex",
+                    alignItems: "center",
+                    height: ROW_HEIGHT,
+                    borderBottom: `1px solid ${theme.borderRow}`,
+                    background: isInconsistent ? "#fff0f0" : defaultBg,
+                    borderLeft: isInconsistent ? "3px solid #e03131" : "3px solid transparent",
+                    padding: "0 12px",
                   }}
-                  title={epic.epicName}
                 >
-                  {epic.epicName}
-                </div>
-                <div style={{ width: 90, textAlign: "center" }}>
-                  <span
+                  <div
                     style={{
-                      fontSize: 10,
-                      background: `${theme.primary}22`,
-                      color: theme.primary,
-                      padding: "3px 8px",
-                      borderRadius: 10,
+                      flex: 1,
+                      fontSize: 13,
                       fontWeight: 500,
+                      color: isInconsistent ? "#e03131" : theme.textDark,
                       whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
+                    title={epic.epicName}
                   >
-                    {epic.status}
-                  </span>
+                    {epic.epicName}
+                  </div>
+                  <div style={{ width: 90, textAlign: "center" }}>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        background: `${theme.primary}22`,
+                        color: theme.primary,
+                        padding: "3px 8px",
+                        borderRadius: 10,
+                        fontWeight: 500,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {epic.status}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -340,57 +421,64 @@ export function GanttChart({ tasks }: GanttChartProps) {
             style={{ flex: 1, overflow: "auto" }}
           >
             <div style={{ width: totalWidth, position: "relative" }}>
-              {tasks.map((epic, i) => (
-                <div
-                  key={epic.id}
-                  style={{
-                    height: ROW_HEIGHT,
-                    position: "relative",
-                    borderBottom: `1px solid ${theme.borderRow}`,
-                    background: i % 2 === 0 ? "white" : theme.rowAlt,
-                  }}
-                >
-                  {epic.phases.map((phase) => {
-                    const left = dayOffset(phase.startDate);
-                    const width = dayOffset(phase.endDate) - left;
-                    if (width <= 0) return null;
-                    return (
-                      <div
-                        key={phase.id}
-                        title={`${phase.phaseName}: ${phase.startDate.toLocaleDateString("en-GB")} — ${phase.endDate.toLocaleDateString("en-GB")}`}
-                        style={{
-                          position: "absolute",
-                          left,
-                          top: BAR_TOP,
-                          width,
-                          height: BAR_HEIGHT,
-                          background: phase.color,
-                          borderRadius: 4,
-                          boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          overflow: "hidden",
-                        }}
-                      >
-                        {width > 50 && (
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 600,
-                              color: phase.color === "#ffd43b" ? "#7a6400" : "white",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {phase.phaseName}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+              {tasks.map((epic, i) => {
+                const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
+                const info = isInconsistent ? inconsistencies.get(epic.id) : null;
+                const defaultBg = i % 2 === 0 ? "white" : theme.rowAlt;
+                return (
+                  <div
+                    key={epic.id}
+                    style={{
+                      height: ROW_HEIGHT,
+                      position: "relative",
+                      borderBottom: `1px solid ${theme.borderRow}`,
+                      background: isInconsistent ? "#fff0f0" : defaultBg,
+                    }}
+                  >
+                    {epic.phases.map((phase) => {
+                      const left = dayOffset(phase.startDate);
+                      const width = dayOffset(phase.endDate) - left;
+                      if (width <= 0) return null;
+                      const isConflicting = info?.conflictingPhases.has(phase.phaseName);
+                      return (
+                        <div
+                          key={phase.id}
+                          title={`${phase.phaseName}: ${phase.startDate.toLocaleDateString("en-GB")} — ${phase.endDate.toLocaleDateString("en-GB")}`}
+                          style={{
+                            position: "absolute",
+                            left,
+                            top: BAR_TOP,
+                            width,
+                            height: BAR_HEIGHT,
+                            background: phase.color,
+                            borderRadius: 4,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            overflow: "hidden",
+                            border: isConflicting ? "2px solid #e03131" : "none",
+                          }}
+                        >
+                          {width > 50 && (
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                color: phase.color === "#ffd43b" ? "#7a6400" : "white",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {phase.phaseName}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
