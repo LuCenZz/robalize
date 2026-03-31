@@ -1,9 +1,12 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, lazy, Suspense } from "react";
 import { TopBar } from "./TopBar";
 import { FileUploader } from "./FileUploader";
 import { FilterBar } from "./FilterBar";
-import { GanttChart } from "./GanttChart";
 import { parseFile } from "../utils/parseFile";
+
+const GanttChart = lazy(() =>
+  import("./GanttChart").then((m) => ({ default: m.GanttChart }))
+);
 import {
   transformToEpicTasks,
   extractColumns,
@@ -120,7 +123,11 @@ export function App() {
         </div>
       )}
 
-      {!loading && rawData.length > 0 && <GanttChart tasks={epicTasks} />}
+      {!loading && rawData.length > 0 && (
+        <Suspense fallback={<div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: theme.textMuted }}>Loading Gantt...</div>}>
+          <GanttChart tasks={epicTasks} />
+        </Suspense>
+      )}
 
       <FileUploader
         open={uploaderOpen}

@@ -3,7 +3,6 @@ import { gantt } from "dhtmlx-gantt";
 import "dhtmlx-gantt/codebase/dhtmlxgantt.css";
 import type { EpicTask } from "../types";
 import { theme } from "../styles/theme";
-import { PHASE_CONFIG } from "../types";
 
 interface GanttChartProps {
   tasks: EpicTask[];
@@ -12,8 +11,9 @@ interface GanttChartProps {
 export function GanttChart({ tasks }: GanttChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
-  const layerAdded = useRef(false);
-  const [zoomLevel, setZoomLevel] = useState<"day" | "week" | "month">("month");
+  const [zoomLevel, setZoomLevel] = useState<"day" | "week" | "month">(
+    "month"
+  );
 
   function applyZoom(level: "day" | "week" | "month") {
     setZoomLevel(level);
@@ -48,16 +48,17 @@ export function GanttChart({ tasks }: GanttChartProps) {
       gantt.config.drag_resize = false;
       gantt.config.drag_links = false;
       gantt.config.show_links = false;
-      gantt.config.row_height = 40;
-      gantt.config.bar_height = 22;
+      gantt.config.row_height = 36;
+      gantt.config.bar_height = 20;
       gantt.config.scale_height = 40;
+      gantt.config.open_tree_initially = true;
 
       gantt.config.columns = [
         {
           name: "text",
-          label: "Epic Name",
-          tree: false,
-          width: 250,
+          label: "Epic / Phase",
+          tree: true,
+          width: 280,
           resize: true,
         },
         {
@@ -85,18 +86,33 @@ export function GanttChart({ tasks }: GanttChartProps) {
         { unit: "week", step: 1, format: "W%W" },
       ];
 
-      // Hide the default task bar (we draw custom phase bars instead)
-      gantt.templates.task_class = () => "gantt-hidden-bar";
+      // Tooltip
+      gantt.templates.tooltip_text = (
+        start: Date,
+        end: Date,
+        task: any
+      ) => {
+        const startStr = start.toLocaleDateString("en-GB");
+        const endStr = end.toLocaleDateString("en-GB");
+        return `<b>${task.text}</b><br/>${startStr} — ${endStr}`;
+      };
 
-      // Tooltip for custom layers is handled via title attribute
-      gantt.templates.tooltip_text = () => "";
-
+      // White headers
       gantt.templates.scale_cell_class = () => "gantt-white-header";
 
-      gantt.templates.grid_row_class = (_start: Date, _end: Date, task: any) => {
+      // Row alternation
+      gantt.templates.grid_row_class = (
+        _start: Date,
+        _end: Date,
+        task: any
+      ) => {
         return task.$index % 2 === 0 ? "" : "gantt-row-alt";
       };
-      gantt.templates.task_row_class = (_start: Date, _end: Date, task: any) => {
+      gantt.templates.task_row_class = (
+        _start: Date,
+        _end: Date,
+        task: any
+      ) => {
         return task.$index % 2 === 0 ? "" : "gantt-row-alt";
       };
 
@@ -104,62 +120,14 @@ export function GanttChart({ tasks }: GanttChartProps) {
       initialized.current = true;
     }
 
-    // Add custom task layer to draw colored phase bars (GPL-compatible)
-    if (!layerAdded.current) {
-      PHASE_CONFIG.forEach((phase) => {
-        gantt.addTaskLayer({
-          renderer: {
-            render: (task: any) => {
-              const phases = task.phases;
-              if (!phases) return false;
-
-              const phaseData = phases.find(
-                (p: any) => p.phaseName === phase.name
-              );
-              if (!phaseData) return false;
-
-              const startDate = new Date(phaseData.startDate);
-              const endDate = new Date(phaseData.endDate);
-
-              const startPos = gantt.posFromDate(startDate);
-              const endPos = gantt.posFromDate(endDate);
-              const width = endPos - startPos;
-
-              if (width <= 0) return false;
-
-              const taskTop = gantt.getTaskPosition(task, startDate, endDate);
-
-              const el = document.createElement("div");
-              el.className = "gantt-phase-bar";
-              el.title = `${phase.name}: ${startDate.toLocaleDateString("en-GB")} — ${endDate.toLocaleDateString("en-GB")}`;
-              el.style.cssText = `
-                position: absolute;
-                left: ${startPos}px;
-                top: ${taskTop.top + 9}px;
-                width: ${width}px;
-                height: 22px;
-                background: ${phase.color};
-                border-radius: 4px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-                cursor: pointer;
-                z-index: 1;
-              `;
-
-              return el;
-            },
-            getRectangle: () => { return; },
-            getVisibleRange: () => { return; },
-          },
-        });
-      });
-      layerAdded.current = true;
-    }
-
-    // Convert EpicTasks to DHTMLX format — one row per epic, no children
+    // Build gantt data: one parent per epic, one child per phase
     const ganttData: any[] = [];
+    let idCounter = 1;
 
     tasks.forEach((epic) => {
-      // Find the overall date range across all phases
+      const epicId = idCounter++;
+
+      // Find overall date range for the project bar
       let minDate: Date | null = null;
       let maxDate: Date | null = null;
       for (const phase of epic.phases) {
@@ -167,16 +135,28 @@ export function GanttChart({ tasks }: GanttChartProps) {
         if (!maxDate || phase.endDate > maxDate) maxDate = phase.endDate;
       }
 
-      if (minDate && maxDate) {
+      // Parent: epic row (project type = no bar rendered)
+      ganttData.push({
+        id: epicId,
+        text: epic.epicName,
+        status: epic.status,
+        start_date: minDate ? formatDate(minDate) : undefined,
+        end_date: maxDate ? formatDate(maxDate) : undefined,
+        type: "project",
+        open: true,
+      });
+
+      // Children: one task per phase with its color
+      epic.phases.forEach((phase) => {
         ganttData.push({
-          id: epic.id,
-          text: epic.epicName,
-          status: epic.status,
-          start_date: formatDate(minDate),
-          end_date: formatDate(maxDate),
-          phases: epic.phases,
+          id: idCounter++,
+          text: phase.phaseName,
+          start_date: formatDate(phase.startDate),
+          end_date: formatDate(phase.endDate),
+          parent: epicId,
+          color: phase.color,
         });
-      }
+      });
     });
 
     gantt.clearAll();
@@ -207,19 +187,16 @@ export function GanttChart({ tasks }: GanttChartProps) {
         .gantt-row-alt {
           background: ${theme.rowAlt} !important;
         }
-        .gantt-hidden-bar .gantt_task_line,
-        .gantt_task_line.gantt-hidden-bar {
-          background: transparent !important;
-          box-shadow: none !important;
-          border: none !important;
-        }
         .gantt_task_line {
-          background: transparent !important;
+          border-radius: 4px !important;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important;
           border: none !important;
-          box-shadow: none !important;
         }
-        .gantt-phase-bar:hover {
-          opacity: 0.85;
+        .gantt_task_content {
+          color: white !important;
+          font-size: 11px !important;
+          font-weight: 500 !important;
+          font-family: ${theme.fontFamily} !important;
         }
         .gantt_grid_data .gantt_cell {
           border-color: ${theme.borderRow} !important;
@@ -232,11 +209,11 @@ export function GanttChart({ tasks }: GanttChartProps) {
         .gantt_scale_cell {
           font-family: ${theme.fontFamily} !important;
         }
-        .gantt_task_content {
-          display: none !important;
-        }
         .gantt_tree_icon {
-          display: none !important;
+          cursor: pointer;
+        }
+        .gantt_grid_data .gantt_row.gantt_project .gantt_cell {
+          font-weight: 600 !important;
         }
       `}</style>
       <div
@@ -249,7 +226,9 @@ export function GanttChart({ tasks }: GanttChartProps) {
           background: "white",
         }}
       >
-        <span style={{ fontSize: 12, color: theme.textMuted, marginRight: 4 }}>
+        <span
+          style={{ fontSize: 12, color: theme.textMuted, marginRight: 4 }}
+        >
           Zoom:
         </span>
         {(["day", "week", "month"] as const).map((level) => (
