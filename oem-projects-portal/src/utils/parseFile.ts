@@ -1,6 +1,6 @@
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
-import { RawRow } from "../types";
+import type { RawRow } from "../types";
 
 export function parseFile(file: File): Promise<RawRow[]> {
   const extension = file.name.split(".").pop()?.toLowerCase();

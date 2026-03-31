@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { gantt } from "dhtmlx-gantt";
 import "dhtmlx-gantt/codebase/dhtmlxgantt.css";
-import { EpicTask } from "../types";
+import type { EpicTask } from "../types";
 import { theme } from "../styles/theme";
 
 interface GanttChartProps {
@@ -65,7 +65,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
       ];
 
       // Custom task color based on phase
-      gantt.templates.task_class = (start: Date, end: Date, task: any) => {
+      gantt.templates.task_class = (_start: Date, _end: Date, task: any) => {
         return task.phaseClass || "";
       };
 
@@ -85,10 +85,10 @@ export function GanttChart({ tasks }: GanttChartProps) {
       gantt.templates.scale_cell_class = () => "gantt-white-header";
 
       // Row alternation
-      gantt.templates.grid_row_class = (start: Date, end: Date, task: any) => {
+      gantt.templates.grid_row_class = (_start: Date, _end: Date, task: any) => {
         return task.$index % 2 === 0 ? "" : "gantt-row-alt";
       };
-      gantt.templates.task_row_class = (start: Date, end: Date, task: any) => {
+      gantt.templates.task_row_class = (_start: Date, _end: Date, task: any) => {
         return task.$index % 2 === 0 ? "" : "gantt-row-alt";
       };
 
@@ -117,7 +117,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
         ganttData.push({
           id: phase.id,
           text: "",
-          phaseName: phase.name,
+          phaseName: phase.phaseName,
           start_date: formatDate(phase.startDate),
           end_date: formatDate(phase.endDate),
           parent: epic.id,

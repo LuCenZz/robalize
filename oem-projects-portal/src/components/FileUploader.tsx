@@ -1,4 +1,4 @@
-import { useRef, useState, DragEvent } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import { theme } from "../styles/theme";
 
 interface FileUploaderProps {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActiveFilter } from "../types";
+import type { ActiveFilter } from "../types";
 import { theme } from "../styles/theme";
 
 interface FilterBarProps {

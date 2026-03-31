@@ -1,4 +1,4 @@
-import { RawRow, ActiveFilter } from "../types";
+import type { RawRow, ActiveFilter } from "../types";
 
 export function applyFilters(
   rows: RawRow[],

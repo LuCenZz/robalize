@@ -1,4 +1,5 @@
-import { RawRow, EpicTask, PhaseSegment, PHASE_CONFIG } from "../types";
+import type { RawRow, EpicTask, PhaseSegment } from "../types";
+import { PHASE_CONFIG } from "../types";
 
 function parseJiraDate(value: string): Date | null {
   if (!value || !value.trim()) return null;
