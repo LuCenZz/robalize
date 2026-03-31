@@ -98,6 +98,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
   const [popover, setPopover] = useState<PopoverInfo | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const gridScrollRef = useRef<HTMLDivElement>(null);
+  const timelineHeaderRef = useRef<HTMLDivElement>(null);
 
   const inconsistencies = useMemo(() => detectInconsistencies(tasks), [tasks]);
 
@@ -197,10 +198,13 @@ export function GanttChart({ tasks }: GanttChartProps) {
     return { mainHeaders: mains, subHeaders: subs };
   }, [minDate, maxDate, zoom, config, totalDays]);
 
-  // Sync scroll between grid and timeline
+  // Sync vertical scroll between grid and timeline, and horizontal scroll between timeline header and body
   function handleTimelineScroll(e: React.UIEvent<HTMLDivElement>) {
     if (gridScrollRef.current) {
       gridScrollRef.current.scrollTop = e.currentTarget.scrollTop;
+    }
+    if (timelineHeaderRef.current) {
+      timelineHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
     }
   }
 
@@ -379,15 +383,13 @@ export function GanttChart({ tasks }: GanttChartProps) {
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {/* Left grid: Epic names */}
         <div
-          ref={gridScrollRef}
-          onScroll={handleGridScroll}
           style={{
             width: 500,
             flexShrink: 0,
             borderRight: `2px solid ${theme.borderLight}`,
-            overflow: "hidden",
             display: "flex",
             flexDirection: "column",
+            overflow: "hidden",
           }}
         >
           {/* Grid header */}
@@ -412,8 +414,12 @@ export function GanttChart({ tasks }: GanttChartProps) {
               Status
             </div>
           </div>
-          {/* Grid rows */}
-          <div style={{ flex: 1, overflowY: "auto" }}>
+          {/* Grid rows — scroll synced with timeline */}
+          <div
+            ref={gridScrollRef}
+            onScroll={handleGridScroll}
+            style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}
+          >
             {tasks.map((epic, i) => {
               const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
               const info = isInconsistent ? inconsistencies.get(epic.id) : null;
@@ -501,7 +507,10 @@ export function GanttChart({ tasks }: GanttChartProps) {
         {/* Right: Timeline */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {/* Timeline header */}
-          <div style={{ overflowX: "hidden", flexShrink: 0 }}>
+          <div
+            ref={timelineHeaderRef}
+            style={{ overflowX: "hidden", flexShrink: 0 }}
+          >
             <div style={{ width: totalWidth, position: "relative" }}>
               {/* Main headers */}
               <div style={{ height: 26, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
