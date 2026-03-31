@@ -513,14 +513,14 @@ export function GanttChart({ tasks }: GanttChartProps) {
         {/* Left grid rows — vertical scroll only, scrollbar hidden */}
         <div
           ref={gridScrollRef}
+          className="hide-scrollbar"
           style={{
             width: gridTotalWidth,
             flexShrink: 0,
             borderRight: `2px solid ${theme.borderLight}`,
-            overflowY: "scroll",
+            overflowY: "auto",
             overflowX: "hidden",
-            marginRight: -20,
-            paddingRight: 20,
+            scrollbarWidth: "none",
           }}
         >
           {tasks.map((epic, i) => {
@@ -668,20 +668,12 @@ export function GanttChart({ tasks }: GanttChartProps) {
                     background: isInconsistent ? "#fff0f0" : defaultBg,
                   }}
                 >
-                  {/* Project outline — only shown when phases are close together */}
+                  {/* Project outline spanning all visible phases */}
                   {epic.phases.length > 0 && (() => {
                     const visible = epic.phases
                       .filter((p) => dayOffset(p.endDate) - dayOffset(p.startDate) > 0)
                       .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
                     if (visible.length < 2) return null;
-                    // Check max gap between consecutive phases (in days)
-                    const MAX_GAP_DAYS = 90;
-                    for (let j = 0; j < visible.length - 1; j++) {
-                      const endCurrent = visible[j].endDate.getTime();
-                      const startNext = visible[j + 1].startDate.getTime();
-                      const gapDays = (startNext - endCurrent) / 86400000;
-                      if (gapDays > MAX_GAP_DAYS) return null;
-                    }
                     const minLeft = dayOffset(visible[0].startDate);
                     const maxRight = dayOffset(visible[visible.length - 1].endDate);
                     return (
