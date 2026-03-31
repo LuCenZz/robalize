@@ -106,12 +106,12 @@ export function GanttChart({ tasks }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("month");
   const [showInconsistencies, setShowInconsistencies] = useState(false);
   const [popover, setPopover] = useState<PopoverInfo | null>(null);
-  const [colWidths, setColWidths] = useState({ product: 100, acto: 80, status: 90 });
+  const [colWidths, setColWidths] = useState({ product: 100, acto: 80, epicName: 250, status: 120 });
   const scrollRef = useRef<HTMLDivElement>(null);
   const timelineHeaderRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ col: keyof typeof colWidths; startX: number; startW: number } | null>(null);
 
-  const gridTotalWidth = colWidths.product + colWidths.acto + colWidths.status + 200;
+  const gridTotalWidth = colWidths.product + colWidths.acto + colWidths.epicName + colWidths.status;
 
   function startResize(col: keyof typeof colWidths, e: React.MouseEvent) {
     e.preventDefault();
@@ -414,10 +414,11 @@ export function GanttChart({ tasks }: GanttChartProps) {
             ACTO
             <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("acto", e)} />
           </div>
-          <div style={{ flex: 1, padding: "8px 12px", fontWeight: 700, fontSize: 12, color: theme.textDark, lineHeight: "52px" }}>
+          <div style={{ width: colWidths.epicName, position: "relative", padding: "8px 12px", fontWeight: 700, fontSize: 12, color: theme.textDark, lineHeight: "52px", borderRight: `1px solid ${theme.borderRow}` }}>
             Epic Name
+            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("epicName", e)} />
           </div>
-          <div style={{ width: colWidths.status, position: "relative", padding: "8px 4px", fontWeight: 700, fontSize: 12, color: theme.textDark, textAlign: "center", lineHeight: "52px" }}>
+          <div style={{ width: colWidths.status, position: "relative", padding: "8px 8px", fontWeight: 700, fontSize: 12, color: theme.textDark, textAlign: "center", lineHeight: "52px" }}>
             Status
             <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("status", e)} />
           </div>
@@ -549,7 +550,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
                   </div>
                   <div
                     style={{
-                      flex: 1,
+                      width: colWidths.epicName,
                       fontSize: 13,
                       fontWeight: 500,
                       color: isInconsistent ? "#e03131" : theme.textDark,
@@ -557,12 +558,14 @@ export function GanttChart({ tasks }: GanttChartProps) {
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       padding: "0 12px",
+                      borderRight: `1px solid ${theme.borderRow}`,
+                      boxSizing: "border-box",
                     }}
                     title={epic.epicName}
                   >
                     {epic.epicName}
                   </div>
-                  <div style={{ width: colWidths.status, textAlign: "center" }}>
+                  <div style={{ width: colWidths.status, textAlign: "center", padding: "0 8px", boxSizing: "border-box" }}>
                     <span
                       style={{
                         fontSize: 10,
