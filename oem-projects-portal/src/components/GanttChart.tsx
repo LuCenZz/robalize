@@ -96,6 +96,71 @@ function detectInconsistencies(tasks: EpicTask[]): Map<number, InconsistencyInfo
   return result;
 }
 
+interface AlertInfo {
+  epicId: number;
+  details: string[];
+}
+
+/**
+ * Detect status/date mismatches based on today's date.
+ * Rules:
+ * - Analysis end date passed → status should NOT be "Backlog", "Scoping RFC", "In definition"
+ * - Development start date passed → status should be at least "In Progress"
+ * - QA start date passed → status should be at least "In Progress"
+ * - Customer UAT start date passed → status should be "Pending Customer UAT" or "Pending Internal UAT"
+ * - Pilot start date passed → project should be done with UAT
+ */
+function detectAlerts(tasks: EpicTask[]): Map<number, AlertInfo> {
+  const result = new Map<number, AlertInfo>();
+  const today = toDayValue(new Date());
+
+  const PRE_ANALYSIS = ["Backlog", "Scoping RFC", "In definition", "To Do"];
+  const PRE_DEV = ["Backlog", "Scoping RFC", "In definition", "To Do"];
+  const PRE_UAT = ["Backlog", "Scoping RFC", "In definition", "To Do", "In Progress"];
+
+  for (const epic of tasks) {
+    const phaseMap = new Map(epic.phases.map((p) => [p.phaseName, p]));
+    const status = epic.status.trim();
+    const details: string[] = [];
+
+    // Analysis should be done → status should not be pre-analysis
+    const analysis = phaseMap.get("Analysis");
+    if (analysis && toDayValue(analysis.endDate) < today && PRE_ANALYSIS.includes(status)) {
+      details.push(`Analysis ended ${analysis.endDate.toLocaleDateString("en-GB")} but status is still "${status}"`);
+    }
+
+    // Dev should have started → status should be at least In Progress
+    const dev = phaseMap.get("Development");
+    if (dev && toDayValue(dev.startDate) < today && PRE_DEV.includes(status)) {
+      details.push(`Development started ${dev.startDate.toLocaleDateString("en-GB")} but status is still "${status}"`);
+    }
+
+    // QA should have started → status should be at least In Progress
+    const qa = phaseMap.get("QA / Test");
+    if (qa && toDayValue(qa.startDate) < today && PRE_DEV.includes(status)) {
+      details.push(`QA started ${qa.startDate.toLocaleDateString("en-GB")} but status is still "${status}"`);
+    }
+
+    // UAT should have started → status should be Pending Customer UAT or Pending Internal UAT
+    const uat = phaseMap.get("Customer UAT");
+    if (uat && toDayValue(uat.startDate) < today && PRE_UAT.includes(status)) {
+      details.push(`Customer UAT started ${uat.startDate.toLocaleDateString("en-GB")} but status is still "${status}"`);
+    }
+
+    // Pilot should have started → status should not be pre-UAT
+    const pilot = phaseMap.get("Pilot");
+    if (pilot && toDayValue(pilot.startDate) < today && PRE_UAT.includes(status)) {
+      details.push(`Pilot started ${pilot.startDate.toLocaleDateString("en-GB")} but status is still "${status}"`);
+    }
+
+    if (details.length > 0) {
+      result.set(epic.id, { epicId: epic.id, details });
+    }
+  }
+
+  return result;
+}
+
 interface PopoverInfo {
   phaseId: string;
   phaseName: string;
@@ -118,6 +183,7 @@ const RESIZE_HANDLE: React.CSSProperties = {
 export function GanttChart({ tasks }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("month");
   const [showInconsistencies, setShowInconsistencies] = useState(false);
+  const [showAlerts, setShowAlerts] = useState(false);
   const [popover, setPopover] = useState<PopoverInfo | null>(null);
   const [colWidths, setColWidths] = useState({ product: 100, acto: 80, epicName: 250, status: 120 });
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -145,6 +211,13 @@ export function GanttChart({ tasks }: GanttChartProps) {
   }
 
   const inconsistencies = useMemo(() => detectInconsistencies(tasks), [tasks]);
+  const alerts = useMemo(() => detectAlerts(tasks), [tasks]);
+
+  const displayedTasks = useMemo(() => {
+    if (showInconsistencies) return tasks.filter((t) => inconsistencies.has(t.id));
+    if (showAlerts) return tasks.filter((t) => alerts.has(t.id));
+    return tasks;
+  }, [tasks, showInconsistencies, showAlerts, inconsistencies, alerts]);
 
   // Compute global date range
   const { minDate, maxDate } = useMemo(() => {
@@ -318,7 +391,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
             }}
           />
           <div style={{ fontSize: 13, fontWeight: 700, color: theme.textDark, marginBottom: 8 }}>
-            {popover.phaseName}
+            {popover.phaseName === "QA / Test" ? "QA" : popover.phaseName}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 12 }}>
@@ -382,9 +455,39 @@ export function GanttChart({ tasks }: GanttChartProps) {
             {level === "day" ? "Day" : level === "week" ? "Week" : "Month"}
           </button>
         ))}
+        {/* Go to today */}
+        <button
+          onClick={() => {
+            if (scrollRef.current) {
+              const todayX = dayOffset(new Date());
+              const containerWidth = scrollRef.current.clientWidth;
+              scrollRef.current.scrollLeft = todayX - containerWidth / 2;
+            }
+          }}
+          style={{
+            marginLeft: 16,
+            padding: "4px 14px",
+            borderRadius: 6,
+            border: `1px solid #e03131`,
+            background: "white",
+            color: "#e03131",
+            fontSize: 12,
+            cursor: "pointer",
+            fontWeight: 500,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <span style={{ fontSize: 14, lineHeight: 1 }}>|</span> Today
+        </button>
+
         {/* Inconsistency toggle */}
         <button
-          onClick={() => setShowInconsistencies(!showInconsistencies)}
+          onClick={() => {
+            setShowInconsistencies(!showInconsistencies);
+            if (!showInconsistencies) setShowAlerts(false);
+          }}
           style={{
             marginLeft: 16,
             padding: "4px 14px",
@@ -401,6 +504,29 @@ export function GanttChart({ tasks }: GanttChartProps) {
           }}
         >
           {showInconsistencies ? `⚠ ${inconsistencies.size} inconsistencies` : "⚠ Check dates"}
+        </button>
+
+        {/* Alert toggle */}
+        <button
+          onClick={() => {
+            setShowAlerts(!showAlerts);
+            if (!showAlerts) setShowInconsistencies(false);
+          }}
+          style={{
+            padding: "4px 14px",
+            borderRadius: 6,
+            border: showAlerts ? "2px solid #e67700" : `1px solid ${theme.borderLight}`,
+            background: showAlerts ? "#fff8e1" : "white",
+            color: showAlerts ? "#e67700" : theme.textDark,
+            fontSize: 12,
+            cursor: "pointer",
+            fontWeight: showAlerts ? 600 : 400,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          {showAlerts ? `🔔 ${alerts.size} alerts` : "🔔 Alerts"}
         </button>
 
         {/* Legend */}
@@ -523,21 +649,26 @@ export function GanttChart({ tasks }: GanttChartProps) {
             scrollbarWidth: "none",
           }}
         >
-          {tasks.map((epic, i) => {
+          {displayedTasks.map((epic, i) => {
             const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
             const info = isInconsistent ? inconsistencies.get(epic.id) : null;
+            const isAlerted = showAlerts && alerts.has(epic.id);
+            const alertInfo = isAlerted ? alerts.get(epic.id) : null;
+            const isHighlighted = isInconsistent || isAlerted;
+            const highlightColor = isInconsistent ? "#e03131" : "#e67700";
+            const highlightBg = isInconsistent ? "#fff0f0" : "#fff8e1";
             const defaultBg = i % 2 === 0 ? "white" : theme.rowAlt;
             return (
               <div
                 key={epic.id}
-                title={info ? info.details.join("\n") : undefined}
+                title={info ? info.details.join("\n") : alertInfo ? alertInfo.details.join("\n") : undefined}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   height: ROW_HEIGHT,
                   borderBottom: `1px solid ${theme.borderRow}`,
-                  background: isInconsistent ? "#fff0f0" : defaultBg,
-                  borderLeft: isInconsistent ? "3px solid #e03131" : "3px solid transparent",
+                  background: isHighlighted ? highlightBg : defaultBg,
+                  borderLeft: isHighlighted ? `3px solid ${highlightColor}` : "3px solid transparent",
                 }}
               >
                 <div
@@ -591,7 +722,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
                     width: colWidths.epicName,
                     fontSize: 13,
                     fontWeight: 500,
-                    color: isInconsistent ? "#e03131" : theme.textDark,
+                    color: isHighlighted ? highlightColor : theme.textDark,
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -637,6 +768,40 @@ export function GanttChart({ tasks }: GanttChartProps) {
           style={{ flex: 1, overflow: "auto" }}
         >
           <div style={{ width: totalWidth, position: "relative" }}>
+            {/* Today indicator */}
+            {(() => {
+              const todayX = dayOffset(new Date());
+              if (todayX >= 0 && todayX <= totalWidth) {
+                return (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: todayX,
+                      top: 0,
+                      height: displayedTasks.length * ROW_HEIGHT,
+                      width: 2,
+                      background: "#e03131",
+                      zIndex: 5,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: -6,
+                        left: -4,
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        background: "#e03131",
+                      }}
+                    />
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             {/* Weekly separator lines */}
             {weekLines.map((x, idx) => (
               <div
@@ -645,7 +810,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
                   position: "absolute",
                   left: x,
                   top: 0,
-                  height: tasks.length * ROW_HEIGHT,
+                  height: displayedTasks.length * ROW_HEIGHT,
                   width: 1,
                   background: theme.borderRow,
                   zIndex: 0,
@@ -654,7 +819,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
               />
             ))}
 
-            {tasks.map((epic, i) => {
+            {displayedTasks.map((epic, i) => {
               const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
               const info = isInconsistent ? inconsistencies.get(epic.id) : null;
               const defaultBg = i % 2 === 0 ? "white" : theme.rowAlt;
@@ -665,7 +830,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
                     height: ROW_HEIGHT,
                     position: "relative",
                     borderBottom: `1px solid ${theme.borderRow}`,
-                    background: isInconsistent ? "#fff0f0" : defaultBg,
+                    background: isHighlighted ? highlightBg : defaultBg,
                   }}
                 >
                   {/* Project outline spanning all visible phases */}
@@ -702,7 +867,6 @@ export function GanttChart({ tasks }: GanttChartProps) {
                         key={phase.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          const rect = e.currentTarget.getBoundingClientRect();
                           setPopover(
                             popover?.phaseId === phase.id
                               ? null
@@ -711,8 +875,8 @@ export function GanttChart({ tasks }: GanttChartProps) {
                                   phaseName: phase.phaseName,
                                   startDate: phase.startDate,
                                   endDate: phase.endDate,
-                                  x: rect.left + rect.width / 2,
-                                  y: rect.top,
+                                  x: e.clientX,
+                                  y: e.clientY - 10,
                                 }
                           );
                         }}
