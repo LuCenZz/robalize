@@ -674,12 +674,13 @@ export function GanttChart({ tasks }: GanttChartProps) {
                       .filter((p) => dayOffset(p.endDate) - dayOffset(p.startDate) > 0)
                       .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
                     if (visible.length < 2) return null;
-                    // Check max gap between consecutive phases (in pixels)
-                    const MAX_GAP_PX = 60;
+                    // Check max gap between consecutive phases (in days)
+                    const MAX_GAP_DAYS = 90;
                     for (let j = 0; j < visible.length - 1; j++) {
-                      const endCurrent = dayOffset(visible[j].endDate);
-                      const startNext = dayOffset(visible[j + 1].startDate);
-                      if (startNext - endCurrent > MAX_GAP_PX) return null;
+                      const endCurrent = visible[j].endDate.getTime();
+                      const startNext = visible[j + 1].startDate.getTime();
+                      const gapDays = (startNext - endCurrent) / 86400000;
+                      if (gapDays > MAX_GAP_DAYS) return null;
                     }
                     const minLeft = dayOffset(visible[0].startDate);
                     const maxRight = dayOffset(visible[visible.length - 1].endDate);
