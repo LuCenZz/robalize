@@ -242,6 +242,18 @@ export function GanttChart({ tasks }: GanttChartProps) {
     return { mainHeaders: mains, subHeaders: subs };
   }, [minDate, maxDate, zoom, config, totalDays]);
 
+  // Weekly separator lines
+  const weekLines = useMemo(() => {
+    const lines: number[] = [];
+    const cursor = new Date(minDate);
+    // Advance to next Monday
+    cursor.setDate(cursor.getDate() + ((8 - cursor.getDay()) % 7));
+    while (cursor <= maxDate) {
+      lines.push(dayOffset(cursor));
+      cursor.setDate(cursor.getDate() + 7);
+    }
+    return lines;
+  }, [minDate, maxDate, config.dayWidth]);
 
   // Close popover on click outside
   useEffect(() => {
@@ -396,7 +408,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
           {[
             { label: "Analysis", color: "#ffd43b" },
             { label: "Development", color: "#ff922b" },
-            { label: "QA / Test", color: "#51cf66" },
+            { label: "QA", color: "#51cf66" },
             { label: "Customer UAT", color: "#339af0" },
             { label: "Pilot", color: "#1864ab" },
           ].map((p) => (
@@ -609,6 +621,23 @@ export function GanttChart({ tasks }: GanttChartProps) {
                 ))}
               </div>
             </div>
+
+            {/* Weekly separator lines */}
+            {weekLines.map((x, idx) => (
+              <div
+                key={`wl-${idx}`}
+                style={{
+                  position: "absolute",
+                  left: x,
+                  top: 0,
+                  height: tasks.length * ROW_HEIGHT,
+                  width: 1,
+                  background: theme.borderRow,
+                  zIndex: 0,
+                  pointerEvents: "none",
+                }}
+              />
+            ))}
 
             {/* Timeline rows */}
             {tasks.map((epic, i) => {
