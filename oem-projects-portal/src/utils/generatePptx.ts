@@ -1,40 +1,41 @@
 import PptxGenJS from "pptxgenjs";
 import type { EpicTask } from "../types";
 
-// Colors matching the original iCar Roadmap slide exactly
-const TITLE_COLOR = "7B2D8E"; // purple for title
-const BAR_COLOR = "26C6DA"; // cyan/teal for project bars
-const DOT_COLOR = "4CAF50"; // green end dot
-const HEADER_BG = "BDBDBD"; // gray header background
-const HEADER_TEXT = "424242"; // dark gray header text
-const TODAY_COLOR = "8B0000"; // dark red for TODAY line
-const CLIENT_BG = "B2EBF2"; // light cyan for client column
-const CLIENT_TEXT = "006064"; // dark teal for client text
+// ── Colors from original slide ──
+const PURPLE = "6B2CF5"; // title
+const BAR_COLOR = "87CEEB"; // light sky blue bars
+const DOT_BLUE = "1E90FF"; // blue dot (delivery complete)
+const DOT_GREEN = "2E8B57"; // green dot (on schedule)
+const HEADER_BG = "B0B0B0"; // gray header background
+const HEADER_TEXT = "FFFFFF"; // white header text
+const TODAY_COLOR = "8B0000"; // dark red
+const CLIENT_BG = "A8E0F0"; // light cyan for client column
+const CLIENT_TEXT = "333333"; // dark text for client
 const WHITE = "FFFFFF";
+const BLACK = "333333";
 
-// Slide dimensions (widescreen 13.33 x 7.5)
+// ── Layout ──
 const SLIDE_W = 13.33;
 const SLIDE_H = 7.5;
-
-// Layout
-const TITLE_Y = 0.2;
-const TITLE_H = 0.7;
-const HEADER_Y = TITLE_Y + TITLE_H + 0.1;
-const Q_ROW_H = 0.32;
-const M_ROW_H = 0.32;
-const HEADER_TOTAL_H = Q_ROW_H + M_ROW_H;
-const CHART_Y = HEADER_Y + HEADER_TOTAL_H;
-const CHART_BOTTOM = SLIDE_H - 0.4;
-const CHART_H = CHART_BOTTOM - CHART_Y;
-const LEFT_COL_W = 1.0;
+const TITLE_Y = 0.1;
+const TITLE_H = 0.65;
+const HEADER_Y = TITLE_Y + TITLE_H + 0.05;
+const Q_ROW_H = 0.35;
+const M_ROW_H = 0.35;
+const CHART_Y = HEADER_Y + Q_ROW_H + M_ROW_H + 0.05;
+const LEGEND_H = 0.65;
+const CHART_BOTTOM = SLIDE_H - LEGEND_H - 0.15;
+const LEFT_COL_W = 0.9;
 const CHART_X = LEFT_COL_W;
-const CHART_W = SLIDE_W - CHART_X - 0.15;
+const CHART_W = SLIDE_W - CHART_X - 0.1;
+const MAX_ROWS_PER_SLIDE = 10;
 
 interface ProjectBar {
   epicName: string;
   client: string;
   startDate: Date;
   endDate: Date;
+  hasUat: boolean;
 }
 
 export function generatePptx(tasks: EpicTask[]) {
@@ -48,9 +49,7 @@ export function generatePptx(tasks: EpicTask[]) {
 
     for (const phase of epic.phases) {
       if (!minStart || phase.startDate < minStart) minStart = phase.startDate;
-      if (phase.phaseName === "Customer UAT") {
-        uatStart = phase.startDate;
-      }
+      if (phase.phaseName === "Customer UAT") uatStart = phase.startDate;
     }
 
     if (!minStart) continue;
@@ -62,14 +61,12 @@ export function generatePptx(tasks: EpicTask[]) {
       }
     }
 
-    const client =
-      epic.rawData["Custom field (Client)"]?.trim() || "Other";
-
     bars.push({
       epicName: epic.epicName,
-      client,
+      client: epic.rawData["Custom field (Client)"]?.trim() || "Other",
       startDate: minStart,
       endDate: endDate!,
+      hasUat: !!uatStart,
     });
   }
 
@@ -79,7 +76,7 @@ export function generatePptx(tasks: EpicTask[]) {
     return a.startDate.getTime() - b.startDate.getTime();
   });
 
-  // Timeline range: round to quarter boundaries
+  // ── Timeline range (quarter boundaries) ──
   let timelineStart: Date;
   let timelineEnd: Date;
 
@@ -88,8 +85,7 @@ export function generatePptx(tasks: EpicTask[]) {
     const maxTime = Math.max(...bars.map((b) => b.endDate.getTime()));
     const minD = new Date(minTime);
     const maxD = new Date(maxTime);
-    const startQ = Math.floor(minD.getMonth() / 3) * 3;
-    timelineStart = new Date(minD.getFullYear(), startQ, 1);
+    timelineStart = new Date(minD.getFullYear(), Math.floor(minD.getMonth() / 3) * 3, 1);
     const endQ = Math.ceil((maxD.getMonth() + 1) / 3) * 3;
     timelineEnd = new Date(
       endQ > 11 ? maxD.getFullYear() + 1 : maxD.getFullYear(),
@@ -102,237 +98,218 @@ export function generatePptx(tasks: EpicTask[]) {
     timelineEnd.setFullYear(timelineEnd.getFullYear() + 1);
   }
 
-  const totalDays =
-    (timelineEnd.getTime() - timelineStart.getTime()) / 86400000;
+  const totalDays = (timelineEnd.getTime() - timelineStart.getTime()) / 86400000;
 
   function dateToX(date: Date): number {
     const days = (date.getTime() - timelineStart.getTime()) / 86400000;
     return CHART_X + (days / totalDays) * CHART_W;
   }
 
-  const pptx = new PptxGenJS();
-  pptx.layout = "LAYOUT_WIDE";
-
-  const rowH = Math.min(0.38, CHART_H / Math.max(bars.length, 1));
-  const maxRowsPerSlide = Math.floor(CHART_H / rowH);
-
-  const pages: ProjectBar[][] = [];
-  for (let i = 0; i < bars.length; i += maxRowsPerSlide) {
-    pages.push(bars.slice(i, i + maxRowsPerSlide));
-  }
-  if (pages.length === 0) pages.push([]);
-
-  // Quarter & month header data
+  // ── Quarter & month headers ──
   const quarters: { label: string; x: number; w: number }[] = [];
-  const monthHeaders: { label: string; x: number; w: number }[] = [];
+  const months: { label: string; x: number; w: number }[] = [];
 
   const qCursor = new Date(timelineStart);
   while (qCursor < timelineEnd) {
     const qMonth = qCursor.getMonth();
     const qEnd = new Date(qCursor.getFullYear(), qMonth + 3, 1);
-    const qLabel = `Q${Math.floor(qMonth / 3) + 1} ${qCursor.getFullYear()}`;
-    const x1 = dateToX(qCursor < timelineStart ? timelineStart : qCursor);
-    const x2 = dateToX(qEnd > timelineEnd ? timelineEnd : qEnd);
-    quarters.push({ label: qLabel, x: x1, w: x2 - x1 });
-
+    quarters.push({
+      label: `Q${Math.floor(qMonth / 3) + 1} ${qCursor.getFullYear()}`,
+      x: dateToX(qCursor),
+      w: dateToX(qEnd > timelineEnd ? timelineEnd : qEnd) - dateToX(qCursor),
+    });
     for (let m = 0; m < 3; m++) {
       const mStart = new Date(qCursor.getFullYear(), qMonth + m, 1);
       const mEnd = new Date(qCursor.getFullYear(), qMonth + m + 1, 1);
       if (mStart >= timelineEnd) break;
-      const mx1 = dateToX(mStart < timelineStart ? timelineStart : mStart);
-      const mx2 = dateToX(mEnd > timelineEnd ? timelineEnd : mEnd);
-      monthHeaders.push({
+      months.push({
         label: mStart.toLocaleDateString("en-GB", { month: "short" }),
-        x: mx1,
-        w: mx2 - mx1,
+        x: dateToX(mStart),
+        w: dateToX(mEnd > timelineEnd ? timelineEnd : mEnd) - dateToX(mStart),
       });
     }
     qCursor.setMonth(qCursor.getMonth() + 3);
   }
 
   const today = new Date();
-  const todayX =
-    today >= timelineStart && today <= timelineEnd ? dateToX(today) : null;
+  const todayInRange = today >= timelineStart && today <= timelineEnd;
+  const todayX = todayInRange ? dateToX(today) : null;
+
+  // ── Paginate: 10 per slide ──
+  const pages: ProjectBar[][] = [];
+  for (let i = 0; i < bars.length; i += MAX_ROWS_PER_SLIDE) {
+    pages.push(bars.slice(i, i + MAX_ROWS_PER_SLIDE));
+  }
+  if (pages.length === 0) pages.push([]);
+
+  const pptx = new PptxGenJS();
+  pptx.layout = "LAYOUT_WIDE";
 
   for (const pageBars of pages) {
     const slide = pptx.addSlide();
     slide.background = { color: WHITE };
 
-    // ─── Title (italic bold purple) ───
+    const chartH = CHART_BOTTOM - CHART_Y;
+    const rowH = Math.min(chartH / pageBars.length, 0.5);
+    const barH = rowH * 0.45;
+
+    // ═══ Title ═══
     slide.addText("iCar Roadmap – OEM Projects", {
       x: 0.3,
       y: TITLE_Y,
       w: SLIDE_W - 0.6,
       h: TITLE_H,
-      fontSize: 32,
+      fontSize: 36,
       fontFace: "Arial",
       bold: true,
       italic: true,
-      color: TITLE_COLOR,
+      color: PURPLE,
     });
 
-    // ─── Quarter header row ───
+    // ═══ Quarter headers ═══
     for (const q of quarters) {
       slide.addShape(pptx.ShapeType.rect, {
-        x: q.x,
-        y: HEADER_Y,
-        w: q.w,
-        h: Q_ROW_H,
+        x: q.x, y: HEADER_Y, w: q.w, h: Q_ROW_H,
         fill: { color: HEADER_BG },
         line: { color: WHITE, width: 1.5 },
       });
       slide.addText(q.label, {
-        x: q.x,
-        y: HEADER_Y,
-        w: q.w,
-        h: Q_ROW_H,
-        fontSize: 12,
-        fontFace: "Arial",
-        bold: true,
-        color: HEADER_TEXT,
-        align: "center",
-        valign: "middle",
+        x: q.x, y: HEADER_Y, w: q.w, h: Q_ROW_H,
+        fontSize: 14, fontFace: "Arial", bold: true,
+        color: HEADER_TEXT, align: "center", valign: "middle",
       });
     }
 
-    // ─── Month header row ───
-    for (const m of monthHeaders) {
+    // ═══ Month headers ═══
+    for (const m of months) {
       slide.addShape(pptx.ShapeType.rect, {
-        x: m.x,
-        y: HEADER_Y + Q_ROW_H,
-        w: m.w,
-        h: M_ROW_H,
+        x: m.x, y: HEADER_Y + Q_ROW_H, w: m.w, h: M_ROW_H,
         fill: { color: HEADER_BG },
         line: { color: WHITE, width: 1.5 },
       });
       slide.addText(m.label, {
-        x: m.x,
-        y: HEADER_Y + Q_ROW_H,
-        w: m.w,
-        h: M_ROW_H,
-        fontSize: 10,
-        fontFace: "Arial",
-        bold: true,
-        color: HEADER_TEXT,
-        align: "center",
-        valign: "middle",
+        x: m.x, y: HEADER_Y + Q_ROW_H, w: m.w, h: M_ROW_H,
+        fontSize: 11, fontFace: "Arial", bold: true,
+        color: HEADER_TEXT, align: "center", valign: "middle",
       });
     }
 
-    // ─── Client column: group bars by client ───
+    // ═══ Client column ═══
     let currentClient = "";
     let clientStartRow = 0;
-    const barH = 0.18;
 
     for (let r = 0; r < pageBars.length; r++) {
       const bar = pageBars[r];
-      const rowY = CHART_Y + r * rowH;
 
-      // Client grouping
       if (bar.client !== currentClient) {
         if (currentClient !== "") {
-          drawClientLabel(
-            slide,
-            pptx,
-            currentClient,
-            CHART_Y + clientStartRow * rowH,
-            (r - clientStartRow) * rowH
-          );
+          addClientBlock(slide, pptx, currentClient, CHART_Y + clientStartRow * rowH, (r - clientStartRow) * rowH);
         }
         currentClient = bar.client;
         clientStartRow = r;
       }
 
-      // ─── Project bar ───
-      const barStart =
-        bar.startDate < timelineStart ? timelineStart : bar.startDate;
-      const barEnd =
-        bar.endDate > timelineEnd ? timelineEnd : bar.endDate;
-      const x1 = dateToX(barStart);
-      const x2 = dateToX(barEnd);
-      const barW = Math.max(x2 - x1, 0.15);
+      // ═══ Project bar ═══
+      const rowY = CHART_Y + r * rowH;
+      const bStart = bar.startDate < timelineStart ? timelineStart : bar.startDate;
+      const bEnd = bar.endDate > timelineEnd ? timelineEnd : bar.endDate;
+      const x1 = dateToX(bStart);
+      const x2 = dateToX(bEnd);
+      const barW = Math.max(x2 - x1, 0.2);
       const barPadY = (rowH - barH) / 2;
 
-      // Cyan rounded bar
+      // Bar
       slide.addShape(pptx.ShapeType.roundRect, {
-        x: x1,
-        y: rowY + barPadY,
-        w: barW,
-        h: barH,
+        x: x1, y: rowY + barPadY, w: barW, h: barH,
         fill: { color: BAR_COLOR },
-        rectRadius: 0.04,
+        rectRadius: 0.03,
         line: { width: 0 },
       });
 
-      // Green end dot
-      const dotSize = 0.14;
+      // End dot: green if has UAT (on schedule), blue otherwise (complete)
+      const dotSize = barH * 0.85;
+      const dotColor = bar.hasUat ? DOT_GREEN : DOT_BLUE;
       slide.addShape(pptx.ShapeType.ellipse, {
-        x: x1 + barW - dotSize / 2,
+        x: x1 + barW - dotSize * 0.4,
         y: rowY + barPadY + (barH - dotSize) / 2,
-        w: dotSize,
-        h: dotSize,
-        fill: { color: DOT_COLOR },
+        w: dotSize, h: dotSize,
+        fill: { color: dotColor },
         line: { width: 0 },
       });
 
-      // Project name on the bar
-      const shortName = bar.epicName
-        .replace(/^ICAR\s*[-–—]?\s*/i, "")
-        .trim();
-      const labelW = barW - 0.15;
-      if (labelW > 0.3) {
-        slide.addText(shortName, {
-          x: x1 + 0.05,
-          y: rowY + barPadY,
-          w: labelW,
-          h: barH,
-          fontSize: 7,
-          fontFace: "Arial",
-          bold: true,
-          color: WHITE,
-          valign: "middle",
-        });
-      }
+      // Project name — on the bar in bold
+      const shortName = bar.epicName.replace(/^ICAR\s*[-–—]?\s*/i, "").trim();
+      slide.addText(shortName, {
+        x: x1 + 0.08,
+        y: rowY + barPadY - 0.01,
+        w: Math.max(barW - 0.2, 1.5),
+        h: barH + 0.02,
+        fontSize: 8,
+        fontFace: "Arial",
+        bold: true,
+        color: BLACK,
+        valign: "middle",
+      });
     }
 
-    // Draw last client label
+    // Last client block
     if (currentClient !== "") {
-      drawClientLabel(
-        slide,
-        pptx,
-        currentClient,
-        CHART_Y + clientStartRow * rowH,
-        (pageBars.length - clientStartRow) * rowH
-      );
+      addClientBlock(slide, pptx, currentClient, CHART_Y + clientStartRow * rowH, (pageBars.length - clientStartRow) * rowH);
     }
 
-    // ─── TODAY dashed line ───
+    // ═══ TODAY line ═══
     if (todayX !== null) {
       const lineTop = HEADER_Y;
-      const lineBottom = CHART_Y + pageBars.length * rowH + 0.1;
-      const segH = 0.12;
+      const lineBottom = CHART_Y + pageBars.length * rowH;
+      const segH = 0.15;
       const gapH = 0.08;
       for (let y = lineTop; y < lineBottom; y += segH + gapH) {
-        const h = Math.min(segH, lineBottom - y);
         slide.addShape(pptx.ShapeType.rect, {
-          x: todayX - 0.015,
-          y: y,
-          w: 0.03,
-          h: h,
+          x: todayX - 0.02, y, w: 0.04, h: Math.min(segH, lineBottom - y),
           fill: { color: TODAY_COLOR },
           line: { width: 0 },
         });
       }
       slide.addText("TODAY", {
-        x: todayX - 0.3,
-        y: lineBottom,
-        w: 0.6,
-        h: 0.2,
-        fontSize: 8,
-        fontFace: "Arial",
-        bold: true,
-        color: TODAY_COLOR,
-        align: "center",
+        x: todayX - 0.3, y: lineBottom + 0.02, w: 0.6, h: 0.2,
+        fontSize: 9, fontFace: "Arial", bold: true,
+        color: TODAY_COLOR, align: "center",
+      });
+    }
+
+    // ═══ Legend at bottom ═══
+    const legendY = SLIDE_H - LEGEND_H;
+
+    // Nextlane logo text
+    slide.addText("nextlane", {
+      x: 0.3, y: legendY + 0.05, w: 1.5, h: LEGEND_H - 0.1,
+      fontSize: 18, fontFace: "Arial", bold: true, italic: true,
+      color: PURPLE, valign: "middle",
+    });
+
+    // Key label
+    slide.addText("Key:", {
+      x: 2.2, y: legendY + 0.05, w: 0.5, h: 0.3,
+      fontSize: 10, fontFace: "Arial", bold: true,
+      color: BLACK, valign: "middle",
+    });
+
+    // Legend items
+    const legendItems = [
+      { color: DOT_BLUE, label: "Delivery Complete", row: 0 },
+      { color: DOT_GREEN, label: "On Schedule", row: 1 },
+    ];
+    for (const item of legendItems) {
+      const lx = 2.8;
+      const ly = legendY + 0.05 + item.row * 0.28;
+      slide.addShape(pptx.ShapeType.ellipse, {
+        x: lx, y: ly + 0.04, w: 0.18, h: 0.18,
+        fill: { color: item.color },
+        line: { width: 0 },
+      });
+      slide.addText(item.label, {
+        x: lx + 0.25, y: ly, w: 1.5, h: 0.26,
+        fontSize: 9, fontFace: "Arial", color: BLACK, valign: "middle",
       });
     }
   }
@@ -340,36 +317,23 @@ export function generatePptx(tasks: EpicTask[]) {
   pptx.writeFile({ fileName: "iCar_Roadmap_OEM_Projects.pptx" });
 }
 
-function drawClientLabel(
+function addClientBlock(
   slide: PptxGenJS.Slide,
   pptx: PptxGenJS,
   client: string,
   y: number,
   h: number
 ) {
-  // Light cyan background rectangle with rounded corners
   slide.addShape(pptx.ShapeType.roundRect, {
-    x: 0.08,
-    y: y + 0.04,
-    w: LEFT_COL_W - 0.16,
-    h: h - 0.08,
+    x: 0.05, y: y + 0.03, w: LEFT_COL_W - 0.1, h: h - 0.06,
     fill: { color: CLIENT_BG },
-    rectRadius: 0.06,
+    rectRadius: 0.05,
     line: { width: 0 },
   });
-
-  // Client name (rotated vertically)
   slide.addText(client, {
-    x: 0.08,
-    y: y + 0.04,
-    w: LEFT_COL_W - 0.16,
-    h: h - 0.08,
-    fontSize: 11,
-    fontFace: "Arial",
-    bold: true,
-    color: CLIENT_TEXT,
-    align: "center",
-    valign: "middle",
+    x: 0.05, y: y + 0.03, w: LEFT_COL_W - 0.1, h: h - 0.06,
+    fontSize: 12, fontFace: "Arial", bold: true,
+    color: CLIENT_TEXT, align: "center", valign: "middle",
     rotate: 270,
   });
 }
