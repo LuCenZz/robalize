@@ -4,9 +4,11 @@ interface TopBarProps {
   projectCount: number;
   onUploadClick: () => void;
   onGeneratePptx?: () => void;
+  searchTerm: string;
+  onSearchChange: (value: string) => void;
 }
 
-export function TopBar({ projectCount, onUploadClick, onGeneratePptx }: TopBarProps) {
+export function TopBar({ projectCount, onUploadClick, onGeneratePptx, searchTerm, onSearchChange }: TopBarProps) {
   return (
     <div
       style={{
@@ -33,6 +35,59 @@ export function TopBar({ projectCount, onUploadClick, onGeneratePptx }: TopBarPr
         </span>
       </div>
       <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+        {projectCount > 0 && (
+          <div style={{ position: "relative" }}>
+            <input
+              type="text"
+              placeholder="Search ACTO or name..."
+              value={searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+              style={{
+                padding: "7px 12px 7px 32px",
+                borderRadius: 20,
+                border: "none",
+                fontSize: 12,
+                width: 220,
+                outline: "none",
+                background: "rgba(255,255,255,0.9)",
+                color: theme.textDark,
+              }}
+            />
+            <span
+              style={{
+                position: "absolute",
+                left: 12,
+                top: "50%",
+                transform: "translateY(-50%)",
+                fontSize: 13,
+                color: theme.textMuted,
+                pointerEvents: "none",
+              }}
+            >
+              🔍
+            </span>
+            {searchTerm && (
+              <button
+                onClick={() => onSearchChange("")}
+                style={{
+                  position: "absolute",
+                  right: 8,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  color: theme.textMuted,
+                  cursor: "pointer",
+                  fontSize: 14,
+                  padding: 0,
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
         {projectCount > 0 && (
           <span style={{ opacity: 0.8, fontSize: 12 }}>
             {projectCount} projects loaded

@@ -24,6 +24,7 @@ export function App() {
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [uploaderOpen, setUploaderOpen] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const handleFileSelected = useCallback(async (file: File) => {
     setLoading(true);
@@ -51,10 +52,28 @@ export function App() {
     [filteredRows]
   );
 
-  const displayRows = useMemo(
+  const allDisplayRows = useMemo(
     () => buildDisplayRows(epicTasks),
     [epicTasks]
   );
+
+  const displayRows = useMemo(() => {
+    if (!searchTerm.trim()) return allDisplayRows;
+    const q = searchTerm.toLowerCase().trim();
+    return allDisplayRows.filter((row) => {
+      const epic = row.epic;
+      const key = (epic.epicKey || "").toLowerCase();
+      const name = (epic.epicName || "").toLowerCase();
+      if (key.includes(q) || name.includes(q)) return true;
+      // For initiatives, also match if any child matches
+      if (row.children) {
+        return row.children.some(
+          (c) => c.epicKey.toLowerCase().includes(q) || c.epicName.toLowerCase().includes(q)
+        );
+      }
+      return false;
+    });
+  }, [allDisplayRows, searchTerm]);
 
   const getUniqueValues = useCallback(
     (column: string) => extractUniqueValues(rawData, column),
@@ -75,6 +94,8 @@ export function App() {
         projectCount={epicTasks.length}
         onUploadClick={() => setUploaderOpen(true)}
         onGeneratePptx={() => generatePptx(epicTasks)}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
       />
 
       <FilterBar
@@ -133,7 +154,7 @@ export function App() {
 
       {!loading && rawData.length > 0 && (
         <Suspense fallback={<div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: theme.textMuted }}>Loading Gantt...</div>}>
-          <GanttChart tasks={epicTasks} />
+          <GanttChart tasks={epicTasks} displayRows={displayRows} />
         </Suspense>
       )}
 

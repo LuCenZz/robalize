@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { EpicTask } from "../types";
+import type { EpicTask, DisplayRow } from "../types";
 import { theme } from "../styles/theme";
 
 interface GanttChartProps {
   tasks: EpicTask[];
+  displayRows: DisplayRow[];
 }
 
 type ZoomLevel = "day" | "week" | "month";
@@ -180,7 +181,7 @@ const RESIZE_HANDLE: React.CSSProperties = {
   zIndex: 2,
 };
 
-export function GanttChart({ tasks }: GanttChartProps) {
+export function GanttChart({ tasks, displayRows }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("month");
   const [showInconsistencies, setShowInconsistencies] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
@@ -213,11 +214,25 @@ export function GanttChart({ tasks }: GanttChartProps) {
   const inconsistencies = useMemo(() => detectInconsistencies(tasks), [tasks]);
   const alerts = useMemo(() => detectAlerts(tasks), [tasks]);
 
-  const displayedTasks = useMemo(() => {
-    if (showInconsistencies) return tasks.filter((t) => inconsistencies.has(t.id));
-    if (showAlerts) return tasks.filter((t) => alerts.has(t.id));
-    return tasks;
-  }, [tasks, showInconsistencies, showAlerts, inconsistencies, alerts]);
+  const displayedRows: DisplayRow[] = useMemo(() => {
+    if (showInconsistencies) {
+      return displayRows.filter((r) => {
+        if (r.type === "initiative") {
+          return r.children?.some((c) => inconsistencies.has(c.id));
+        }
+        return inconsistencies.has(r.epic.id);
+      });
+    }
+    if (showAlerts) {
+      return displayRows.filter((r) => {
+        if (r.type === "initiative") {
+          return r.children?.some((c) => alerts.has(c.id));
+        }
+        return alerts.has(r.epic.id);
+      });
+    }
+    return displayRows;
+  }, [displayRows, showInconsistencies, showAlerts, inconsistencies, alerts]);
 
   // Compute global date range
   const { minDate, maxDate } = useMemo(() => {
@@ -245,7 +260,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
   }
 
   // Generate timeline headers
-  const { mainHeaders, subHeaders } = useMemo(() => {
+  const { quarterHeaders, mainHeaders, subHeaders } = useMemo(() => {
     const mains: { label: string; left: number; width: number }[] = [];
     const subs: { label: string; left: number; width: number }[] = [];
 
@@ -585,7 +600,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
             <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("acto", e)} />
           </div>
           <div style={{ width: colWidths.epicName, position: "relative", padding: "0 12px", fontWeight: 700, fontSize: 12, color: theme.textDark, borderRight: `1px solid ${theme.borderRow}`, height: "100%", display: "flex", alignItems: "center" }}>
-            Epic Name
+            Project Name
             <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("epicName", e)} />
           </div>
           <div style={{ width: colWidths.status, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 12, color: theme.textDark, textAlign: "left", height: "100%", display: "flex", alignItems: "center" }}>
@@ -665,7 +680,9 @@ export function GanttChart({ tasks }: GanttChartProps) {
             scrollbarWidth: "none",
           }}
         >
-          {displayedTasks.map((epic, i) => {
+          {displayedRows.map((row, i) => {
+            const epic = row.epic;
+            const isInitiative = row.type === "initiative";
             const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
             const info = isInconsistent ? inconsistencies.get(epic.id) : null;
             const isAlerted = showAlerts && alerts.has(epic.id);
@@ -673,10 +690,10 @@ export function GanttChart({ tasks }: GanttChartProps) {
             const isHighlighted = isInconsistent || isAlerted;
             const highlightColor = isInconsistent ? "#e03131" : "#e67700";
             const highlightBg = isInconsistent ? "#fff0f0" : "#fff8e1";
-            const defaultBg = i % 2 === 0 ? "white" : theme.rowAlt;
+            const defaultBg = isInitiative ? "#f0ecff" : i % 2 === 0 ? "white" : theme.rowAlt;
             return (
               <div
-                key={epic.id}
+                key={`${row.type}-${epic.id}`}
                 title={info ? info.details.join("\n") : alertInfo ? alertInfo.details.join("\n") : undefined}
                 style={{
                   display: "flex",
@@ -684,13 +701,14 @@ export function GanttChart({ tasks }: GanttChartProps) {
                   height: ROW_HEIGHT,
                   borderBottom: `1px solid ${theme.borderRow}`,
                   background: isHighlighted ? highlightBg : defaultBg,
-                  borderLeft: isHighlighted ? `3px solid ${highlightColor}` : "3px solid transparent",
+                  borderLeft: isHighlighted ? `3px solid ${highlightColor}` : isInitiative ? `3px solid ${theme.primary}` : "3px solid transparent",
                 }}
               >
                 <div
                   style={{
                     width: colWidths.product,
                     fontSize: 11,
+                    fontWeight: isInitiative ? 700 : 400,
                     color: theme.textDark,
                     whiteSpace: "nowrap",
                     overflow: "hidden",
@@ -701,12 +719,13 @@ export function GanttChart({ tasks }: GanttChartProps) {
                   }}
                   title={epic.rawData["Custom field (Product)"] || ""}
                 >
-                  {epic.rawData["Custom field (Product)"] || "—"}
+                  {isInitiative ? "" : (epic.rawData["Custom field (Product)"] || "—")}
                 </div>
                 <div
                   style={{
                     width: colWidths.acto,
                     fontSize: 11,
+                    fontWeight: isInitiative ? 700 : 400,
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -714,35 +733,35 @@ export function GanttChart({ tasks }: GanttChartProps) {
                     paddingRight: 8,
                     borderRight: `1px solid ${theme.borderRow}`,
                   }}
-                  title={epic.rawData["Issue key"] || ""}
+                  title={epic.epicKey || ""}
                 >
-                  {epic.rawData["Issue key"] ? (
+                  {epic.epicKey ? (
                     <a
-                      href={`https://imawebgroup.atlassian.net/browse/${epic.rawData["Issue key"]}`}
+                      href={`https://imawebgroup.atlassian.net/browse/${epic.epicKey}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
                         color: theme.primary,
                         textDecoration: "none",
-                        fontWeight: 500,
+                        fontWeight: isInitiative ? 700 : 500,
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
                       onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
                     >
-                      {epic.rawData["Issue key"]}
+                      {epic.epicKey}
                     </a>
                   ) : "—"}
                 </div>
                 <div
                   style={{
                     width: colWidths.epicName,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: isHighlighted ? highlightColor : theme.textDark,
+                    fontSize: isInitiative ? 13 : 13,
+                    fontWeight: isInitiative ? 700 : 500,
+                    color: isHighlighted ? highlightColor : isInitiative ? theme.primary : theme.textDark,
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
-                    padding: "0 12px",
+                    padding: isInitiative ? "0 12px" : "0 12px 0 24px",
                     borderRight: `1px solid ${theme.borderRow}`,
                     boxSizing: "border-box",
                   }}
@@ -751,19 +770,21 @@ export function GanttChart({ tasks }: GanttChartProps) {
                   {epic.epicName}
                 </div>
                 <div style={{ width: colWidths.status, textAlign: "left", padding: "0 8px", boxSizing: "border-box" }}>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      background: `${theme.primary}22`,
-                      color: theme.primary,
-                      padding: "3px 8px",
-                      borderRadius: 10,
-                      fontWeight: 500,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {epic.status}
-                  </span>
+                  {epic.status && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        background: `${theme.primary}22`,
+                        color: theme.primary,
+                        padding: "3px 8px",
+                        borderRadius: 10,
+                        fontWeight: 500,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {epic.status}
+                    </span>
+                  )}
                 </div>
               </div>
             );
@@ -794,7 +815,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
                       position: "absolute",
                       left: todayX,
                       top: 0,
-                      height: displayedTasks.length * ROW_HEIGHT,
+                      height: displayedRows.length * ROW_HEIGHT,
                       width: 2,
                       background: "#e03131",
                       zIndex: 5,
@@ -826,7 +847,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
                   position: "absolute",
                   left: x,
                   top: 0,
-                  height: displayedTasks.length * ROW_HEIGHT,
+                  height: displayedRows.length * ROW_HEIGHT,
                   width: 1,
                   background: theme.borderRow,
                   zIndex: 0,
@@ -835,16 +856,18 @@ export function GanttChart({ tasks }: GanttChartProps) {
               />
             ))}
 
-            {displayedTasks.map((epic, i) => {
+            {displayedRows.map((row, i) => {
+              const epic = row.epic;
+              const isInitiative = row.type === "initiative";
               const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
               const info = isInconsistent ? inconsistencies.get(epic.id) : null;
               const isAlerted = showAlerts && alerts.has(epic.id);
               const isHighlighted = isInconsistent || isAlerted;
               const highlightBg = isInconsistent ? "#fff0f0" : "#fff8e1";
-              const defaultBg = i % 2 === 0 ? "white" : theme.rowAlt;
+              const defaultBg = isInitiative ? "#f0ecff" : i % 2 === 0 ? "white" : theme.rowAlt;
               return (
                 <div
-                  key={epic.id}
+                  key={`${row.type}-${epic.id}`}
                   style={{
                     height: ROW_HEIGHT,
                     position: "relative",
@@ -852,73 +875,102 @@ export function GanttChart({ tasks }: GanttChartProps) {
                     background: isHighlighted ? highlightBg : defaultBg,
                   }}
                 >
-                  {/* Project outline spanning all visible phases */}
-                  {epic.phases.length > 0 && (() => {
-                    const visible = epic.phases
-                      .filter((p) => dayOffset(p.endDate) - dayOffset(p.startDate) > 0)
-                      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
-                    if (visible.length < 2) return null;
-                    const minLeft = dayOffset(visible[0].startDate);
-                    const maxRight = dayOffset(visible[visible.length - 1].endDate);
+                  {/* Initiative: show a bar spanning all children phases */}
+                  {isInitiative && epic.phases.length > 0 && (() => {
+                    const allDates = epic.phases.flatMap((p) => [p.startDate, p.endDate]);
+                    const minLeft = dayOffset(new Date(Math.min(...allDates.map((d) => d.getTime()))));
+                    const maxRight = dayOffset(new Date(Math.max(...allDates.map((d) => d.getTime()))));
+                    const w = maxRight - minLeft;
+                    if (w <= 0) return null;
                     return (
                       <div
                         style={{
                           position: "absolute",
-                          left: minLeft - 2,
-                          top: BAR_TOP - 2,
-                          width: maxRight - minLeft + 4,
-                          height: BAR_HEIGHT + 4,
-                          borderRadius: 6,
-                          border: `1.5px solid ${isInconsistent ? "#e03131" : "#c9c9d0"}`,
+                          left: minLeft,
+                          top: BAR_TOP,
+                          width: w,
+                          height: BAR_HEIGHT,
+                          borderRadius: 4,
+                          background: `${theme.primary}30`,
+                          border: `2px solid ${theme.primary}`,
                           pointerEvents: "none",
-                          zIndex: 0,
+                          zIndex: 1,
                         }}
                       />
                     );
                   })()}
-                  {epic.phases.map((phase) => {
-                    const left = dayOffset(phase.startDate);
-                    const width = dayOffset(phase.endDate) - left;
-                    if (width <= 0) return null;
-                    const isConflicting = info?.conflictingPhases.has(phase.phaseName);
-                    return (
-                      <div
-                        key={phase.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPopover(
-                            popover?.phaseId === phase.id
-                              ? null
-                              : {
-                                  phaseId: phase.id,
-                                  phaseName: phase.phaseName,
-                                  startDate: phase.startDate,
-                                  endDate: phase.endDate,
-                                  x: e.clientX,
-                                  y: e.clientY - 10,
-                                }
-                          );
-                        }}
-                        style={{
-                          position: "absolute",
-                          left,
-                          top: BAR_TOP,
-                          width,
-                          height: BAR_HEIGHT,
-                          background: phase.color,
-                          borderRadius: 4,
-                          boxShadow: popover?.phaseId === phase.id ? `0 0 0 2px ${theme.primary}` : "0 1px 3px rgba(0,0,0,0.12)",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          overflow: "hidden",
-                          border: isConflicting ? "2px solid #e03131" : "none",
-                        }}
-                      >
-                      </div>
-                    );
-                  })}
+                  {/* Epic: show individual phase bars */}
+                  {!isInitiative && (
+                    <>
+                      {/* Project outline spanning all visible phases */}
+                      {epic.phases.length > 0 && (() => {
+                        const visible = epic.phases
+                          .filter((p) => dayOffset(p.endDate) - dayOffset(p.startDate) > 0)
+                          .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+                        if (visible.length < 2) return null;
+                        const minLeft = dayOffset(visible[0].startDate);
+                        const maxRight = dayOffset(visible[visible.length - 1].endDate);
+                        return (
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: minLeft - 2,
+                              top: BAR_TOP - 2,
+                              width: maxRight - minLeft + 4,
+                              height: BAR_HEIGHT + 4,
+                              borderRadius: 6,
+                              border: `1.5px solid ${isInconsistent ? "#e03131" : "#c9c9d0"}`,
+                              pointerEvents: "none",
+                              zIndex: 0,
+                            }}
+                          />
+                        );
+                      })()}
+                      {epic.phases.map((phase) => {
+                        const left = dayOffset(phase.startDate);
+                        const width = dayOffset(phase.endDate) - left;
+                        if (width <= 0) return null;
+                        const isConflicting = info?.conflictingPhases.has(phase.phaseName);
+                        return (
+                          <div
+                            key={phase.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPopover(
+                                popover?.phaseId === phase.id
+                                  ? null
+                                  : {
+                                      phaseId: phase.id,
+                                      phaseName: phase.phaseName,
+                                      startDate: phase.startDate,
+                                      endDate: phase.endDate,
+                                      x: e.clientX,
+                                      y: e.clientY - 10,
+                                    }
+                              );
+                            }}
+                            style={{
+                              position: "absolute",
+                              left,
+                              top: BAR_TOP,
+                              width,
+                              height: BAR_HEIGHT,
+                              background: phase.color,
+                              borderRadius: 4,
+                              boxShadow: popover?.phaseId === phase.id ? `0 0 0 2px ${theme.primary}` : "0 1px 3px rgba(0,0,0,0.12)",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              overflow: "hidden",
+                              border: isConflicting ? "2px solid #e03131" : "none",
+                            }}
+                          >
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
                 </div>
               );
             })}
