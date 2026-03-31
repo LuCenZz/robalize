@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { EpicTask } from "../types";
 import { theme } from "../styles/theme";
 
@@ -83,9 +83,19 @@ function detectInconsistencies(tasks: EpicTask[]): Map<number, InconsistencyInfo
   return result;
 }
 
+interface PopoverInfo {
+  phaseId: string;
+  phaseName: string;
+  startDate: Date;
+  endDate: Date;
+  x: number;
+  y: number;
+}
+
 export function GanttChart({ tasks }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("month");
   const [showInconsistencies, setShowInconsistencies] = useState(false);
+  const [popover, setPopover] = useState<PopoverInfo | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const gridScrollRef = useRef<HTMLDivElement>(null);
 
@@ -200,8 +210,100 @@ export function GanttChart({ tasks }: GanttChartProps) {
     }
   }
 
+  // Close popover on click outside
+  useEffect(() => {
+    if (!popover) return;
+    function handleClick() {
+      setPopover(null);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [popover]);
+
+  // Close popover on scroll
+  useEffect(() => {
+    if (!popover) return;
+    function handleScroll() {
+      setPopover(null);
+    }
+    const el = scrollRef.current;
+    el?.addEventListener("scroll", handleScroll);
+    return () => el?.removeEventListener("scroll", handleScroll);
+  }, [popover]);
+
+  const formatDate = (d: Date) =>
+    d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+
+  const durationDays = (start: Date, end: Date) =>
+    Math.round((end.getTime() - start.getTime()) / 86400000);
+
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* Phase popover */}
+      {popover && (
+        <div
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            left: popover.x,
+            top: popover.y - 8,
+            transform: "translate(-50%, -100%)",
+            background: "white",
+            borderRadius: 10,
+            boxShadow: "0 8px 28px rgba(0,0,0,0.18)",
+            border: `1px solid ${theme.borderLight}`,
+            padding: "12px 16px",
+            zIndex: 1000,
+            minWidth: 200,
+            fontFamily: theme.fontFamily,
+          }}
+        >
+          {/* Arrow */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: -6,
+              left: "50%",
+              transform: "translateX(-50%) rotate(45deg)",
+              width: 12,
+              height: 12,
+              background: "white",
+              borderRight: `1px solid ${theme.borderLight}`,
+              borderBottom: `1px solid ${theme.borderLight}`,
+            }}
+          />
+          <div style={{ fontSize: 13, fontWeight: 700, color: theme.textDark, marginBottom: 8 }}>
+            {popover.phaseName}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 12 }}>
+              <span style={{ color: theme.textMuted }}>Début</span>
+              <span style={{ fontWeight: 500, color: theme.textDark }}>{formatDate(popover.startDate)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 12 }}>
+              <span style={{ color: theme.textMuted }}>Fin</span>
+              <span style={{ fontWeight: 500, color: theme.textDark }}>{formatDate(popover.endDate)}</span>
+            </div>
+            <div
+              style={{
+                marginTop: 4,
+                paddingTop: 6,
+                borderTop: `1px solid ${theme.borderLight}`,
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 16,
+                fontSize: 12,
+              }}
+            >
+              <span style={{ color: theme.textMuted }}>Durée</span>
+              <span style={{ fontWeight: 500, color: theme.primary }}>
+                {durationDays(popover.startDate, popover.endDate)} jours
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Zoom controls */}
       <div
         style={{
@@ -280,7 +382,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
           ref={gridScrollRef}
           onScroll={handleGridScroll}
           style={{
-            width: 320,
+            width: 500,
             flexShrink: 0,
             borderRight: `2px solid ${theme.borderLight}`,
             overflow: "hidden",
@@ -297,6 +399,12 @@ export function GanttChart({ tasks }: GanttChartProps) {
               flexShrink: 0,
             }}
           >
+            <div style={{ width: 100, padding: "8px 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, lineHeight: "52px", borderRight: `1px solid ${theme.borderRow}` }}>
+              Product
+            </div>
+            <div style={{ width: 80, padding: "8px 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, lineHeight: "52px", borderRight: `1px solid ${theme.borderRow}` }}>
+              ACTO
+            </div>
             <div style={{ flex: 1, padding: "8px 12px", fontWeight: 700, fontSize: 12, color: theme.textDark, lineHeight: "52px" }}>
               Epic Name
             </div>
@@ -324,6 +432,37 @@ export function GanttChart({ tasks }: GanttChartProps) {
                     padding: "0 12px",
                   }}
                 >
+                  <div
+                    style={{
+                      width: 100,
+                      fontSize: 11,
+                      color: theme.textDark,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      paddingRight: 8,
+                      borderRight: `1px solid ${theme.borderRow}`,
+                    }}
+                    title={epic.rawData["Product"] || epic.rawData["product"] || ""}
+                  >
+                    {epic.rawData["Product"] || epic.rawData["product"] || "—"}
+                  </div>
+                  <div
+                    style={{
+                      width: 80,
+                      fontSize: 11,
+                      color: theme.textDark,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      paddingLeft: 8,
+                      paddingRight: 8,
+                      borderRight: `1px solid ${theme.borderRow}`,
+                    }}
+                    title={epic.rawData["ACTO"] || epic.rawData["Acto"] || ""}
+                  >
+                    {epic.rawData["ACTO"] || epic.rawData["Acto"] || "—"}
+                  </div>
                   <div
                     style={{
                       flex: 1,
@@ -443,7 +582,22 @@ export function GanttChart({ tasks }: GanttChartProps) {
                       return (
                         <div
                           key={phase.id}
-                          title={`${phase.phaseName}: ${phase.startDate.toLocaleDateString("en-GB")} — ${phase.endDate.toLocaleDateString("en-GB")}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setPopover(
+                              popover?.phaseId === phase.id
+                                ? null
+                                : {
+                                    phaseId: phase.id,
+                                    phaseName: phase.phaseName,
+                                    startDate: phase.startDate,
+                                    endDate: phase.endDate,
+                                    x: rect.left + rect.width / 2,
+                                    y: rect.top,
+                                  }
+                            );
+                          }}
                           style={{
                             position: "absolute",
                             left,
@@ -452,7 +606,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
                             height: BAR_HEIGHT,
                             background: phase.color,
                             borderRadius: 4,
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+                            boxShadow: popover?.phaseId === phase.id ? `0 0 0 2px ${theme.primary}` : "0 1px 3px rgba(0,0,0,0.12)",
                             cursor: "pointer",
                             display: "flex",
                             alignItems: "center",
@@ -461,18 +615,6 @@ export function GanttChart({ tasks }: GanttChartProps) {
                             border: isConflicting ? "2px solid #e03131" : "none",
                           }}
                         >
-                          {width > 50 && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 600,
-                                color: phase.color === "#ffd43b" ? "#7a6400" : "white",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {phase.phaseName}
-                            </span>
-                          )}
                         </div>
                       );
                     })}

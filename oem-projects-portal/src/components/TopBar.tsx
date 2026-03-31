@@ -3,9 +3,10 @@ import { theme } from "../styles/theme";
 interface TopBarProps {
   projectCount: number;
   onUploadClick: () => void;
+  onGeneratePptx?: () => void;
 }
 
-export function TopBar({ projectCount, onUploadClick }: TopBarProps) {
+export function TopBar({ projectCount, onUploadClick, onGeneratePptx }: TopBarProps) {
   return (
     <div
       style={{
@@ -36,6 +37,23 @@ export function TopBar({ projectCount, onUploadClick }: TopBarProps) {
           <span style={{ opacity: 0.8, fontSize: 12 }}>
             {projectCount} projects loaded
           </span>
+        )}
+        {onGeneratePptx && projectCount > 0 && (
+          <button
+            onClick={onGeneratePptx}
+            style={{
+              background: "white",
+              color: theme.primary,
+              border: "none",
+              padding: "7px 16px",
+              borderRadius: 20,
+              cursor: "pointer",
+              fontWeight: 600,
+              fontSize: 12,
+            }}
+          >
+            Generate PPTX
+          </button>
         )}
         <button
           onClick={onUploadClick}

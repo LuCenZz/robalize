@@ -13,6 +13,7 @@ import {
   extractUniqueValues,
 } from "../utils/transformData";
 import { applyFilters } from "../utils/filterEngine";
+import { generatePptx } from "../utils/generatePptx";
 import type { RawRow, ActiveFilter, EpicTask } from "../types";
 import { theme } from "../styles/theme";
 
@@ -67,6 +68,7 @@ export function App() {
       <TopBar
         projectCount={epicTasks.length}
         onUploadClick={() => setUploaderOpen(true)}
+        onGeneratePptx={() => generatePptx(epicTasks)}
       />
 
       <FilterBar
