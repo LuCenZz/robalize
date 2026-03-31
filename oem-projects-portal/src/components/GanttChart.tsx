@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gantt } from "dhtmlx-gantt";
 import "dhtmlx-gantt/codebase/dhtmlxgantt.css";
 import type { EpicTask } from "../types";
@@ -11,6 +11,28 @@ interface GanttChartProps {
 export function GanttChart({ tasks }: GanttChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
+  const [zoomLevel, setZoomLevel] = useState<"day" | "week" | "month">("month");
+
+  function applyZoom(level: "day" | "week" | "month") {
+    setZoomLevel(level);
+    if (level === "day") {
+      gantt.config.scales = [
+        { unit: "month", step: 1, format: "%M %Y" },
+        { unit: "day", step: 1, format: "%d" },
+      ];
+    } else if (level === "week") {
+      gantt.config.scales = [
+        { unit: "month", step: 1, format: "%M %Y" },
+        { unit: "week", step: 1, format: "W%W" },
+      ];
+    } else {
+      gantt.config.scales = [
+        { unit: "year", step: 1, format: "%Y" },
+        { unit: "month", step: 1, format: "%M" },
+      ];
+    }
+    gantt.render();
+  }
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -139,7 +161,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
   }, [tasks]);
 
   return (
-    <>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
       <style>{`
         .gantt-white-header {
           background: white !important;
@@ -186,6 +208,38 @@ export function GanttChart({ tasks }: GanttChartProps) {
         }
       `}</style>
       <div
+        style={{
+          padding: "8px 20px",
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          borderBottom: `1px solid ${theme.borderLight}`,
+          background: "white",
+        }}
+      >
+        <span style={{ fontSize: 12, color: theme.textMuted, marginRight: 4 }}>
+          Zoom :
+        </span>
+        {(["day", "week", "month"] as const).map((level) => (
+          <button
+            key={level}
+            onClick={() => applyZoom(level)}
+            style={{
+              padding: "4px 12px",
+              borderRadius: 6,
+              border: `1px solid ${theme.borderLight}`,
+              background: zoomLevel === level ? theme.primary : "white",
+              color: zoomLevel === level ? "white" : theme.textDark,
+              fontSize: 12,
+              cursor: "pointer",
+              fontWeight: zoomLevel === level ? 600 : 400,
+            }}
+          >
+            {level === "day" ? "Jour" : level === "week" ? "Semaine" : "Mois"}
+          </button>
+        ))}
+      </div>
+      <div
         ref={containerRef}
         style={{
           flex: 1,
@@ -193,7 +247,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
           fontFamily: theme.fontFamily,
         }}
       />
-    </>
+    </div>
   );
 }
 
