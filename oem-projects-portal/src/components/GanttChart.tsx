@@ -449,9 +449,9 @@ export function GanttChart({ tasks }: GanttChartProps) {
                       paddingRight: 8,
                       borderRight: `1px solid ${theme.borderRow}`,
                     }}
-                    title={epic.rawData["Product"] || epic.rawData["product"] || ""}
+                    title={epic.rawData["Custom field (Product)"] || ""}
                   >
-                    {epic.rawData["Product"] || epic.rawData["product"] || "—"}
+                    {epic.rawData["Custom field (Product)"] || "—"}
                   </div>
                   <div
                     style={{
@@ -465,9 +465,9 @@ export function GanttChart({ tasks }: GanttChartProps) {
                       paddingRight: 8,
                       borderRight: `1px solid ${theme.borderRow}`,
                     }}
-                    title={epic.rawData["ACTO"] || epic.rawData["Acto"] || ""}
+                    title={epic.rawData["Issue key"] || ""}
                   >
-                    {epic.rawData["ACTO"] || epic.rawData["Acto"] || "—"}
+                    {epic.rawData["Issue key"] || "—"}
                   </div>
                   <div
                     style={{

@@ -194,20 +194,22 @@ export function generatePptx(tasks: EpicTask[]) {
       });
     }
 
-    // ═══ Client column ═══
-    let currentClient = "";
-    let clientStartRow = 0;
+    // ═══ Single "OEM" column ═══
+    const totalRowsH = pageBars.length * rowH;
+    slide.addShape(pptx.ShapeType.rect, {
+      x: 0, y: CHART_Y, w: LEFT_COL_W, h: totalRowsH,
+      fill: { color: CLIENT_BG },
+      line: { width: 0 },
+    });
+    slide.addText("OEM", {
+      x: 0, y: CHART_Y, w: LEFT_COL_W, h: totalRowsH,
+      fontSize: 16, fontFace: "Arial", bold: true,
+      color: CLIENT_TEXT, align: "center", valign: "middle",
+      rotate: 270,
+    });
 
     for (let r = 0; r < pageBars.length; r++) {
       const bar = pageBars[r];
-
-      if (bar.client !== currentClient) {
-        if (currentClient !== "") {
-          addClientBlock(slide, pptx, currentClient, CHART_Y + clientStartRow * rowH, (r - clientStartRow) * rowH);
-        }
-        currentClient = bar.client;
-        clientStartRow = r;
-      }
 
       // ═══ Project bar ═══
       const rowY = CHART_Y + r * rowH;
@@ -250,11 +252,6 @@ export function generatePptx(tasks: EpicTask[]) {
         color: BLACK,
         valign: "middle",
       });
-    }
-
-    // Last client block
-    if (currentClient !== "") {
-      addClientBlock(slide, pptx, currentClient, CHART_Y + clientStartRow * rowH, (pageBars.length - clientStartRow) * rowH);
     }
 
     // ═══ TODAY line ═══
@@ -317,23 +314,3 @@ export function generatePptx(tasks: EpicTask[]) {
   pptx.writeFile({ fileName: "iCar_Roadmap_OEM_Projects.pptx" });
 }
 
-function addClientBlock(
-  slide: PptxGenJS.Slide,
-  pptx: PptxGenJS,
-  client: string,
-  y: number,
-  h: number
-) {
-  slide.addShape(pptx.ShapeType.roundRect, {
-    x: 0.05, y: y + 0.03, w: LEFT_COL_W - 0.1, h: h - 0.06,
-    fill: { color: CLIENT_BG },
-    rectRadius: 0.05,
-    line: { width: 0 },
-  });
-  slide.addText(client, {
-    x: 0.05, y: y + 0.03, w: LEFT_COL_W - 0.1, h: h - 0.06,
-    fontSize: 12, fontFace: "Arial", bold: true,
-    color: CLIENT_TEXT, align: "center", valign: "middle",
-    rotate: 270,
-  });
-}
