@@ -391,7 +391,7 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
   }, [popover]);
 
   const formatDate = (d: Date) =>
-    d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+    d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
   const durationDays = (start: Date, end: Date) =>
     Math.round((end.getTime() - start.getTime()) / 86400000);
