@@ -1,0 +1,9 @@
+{
+  "name": "oem-projects",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix oem-projects-portal",
+    "build": "npm run build --prefix oem-projects-portal",
+    "start": "npm run dev --prefix oem-projects-portal"
+  }
+}
