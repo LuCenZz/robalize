@@ -465,14 +465,33 @@ export function FilterBar({
     onFiltersChange(favFilters);
   }
 
-  if (columns.length === 0) return null;
+  // Drag & drop reorder
+  const dragItem = useRef<number | null>(null);
+  const dragOver = useRef<number | null>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
 
-  // Sort: favorites first, then the rest
-  const sortedFilters = [...activeFilters].sort((a, b) => {
-    const aFav = favorites.includes(a.column) ? 0 : 1;
-    const bFav = favorites.includes(b.column) ? 0 : 1;
-    return aFav - bFav;
-  });
+  function handleDragStart(idx: number) {
+    dragItem.current = idx;
+    setDragIdx(idx);
+  }
+
+  function handleDragEnter(idx: number) {
+    dragOver.current = idx;
+  }
+
+  function handleDragEnd() {
+    if (dragItem.current !== null && dragOver.current !== null && dragItem.current !== dragOver.current) {
+      const reordered = [...activeFilters];
+      const [removed] = reordered.splice(dragItem.current, 1);
+      reordered.splice(dragOver.current, 0, removed);
+      onFiltersChange(reordered);
+    }
+    dragItem.current = null;
+    dragOver.current = null;
+    setDragIdx(null);
+  }
+
+  if (columns.length === 0) return null;
 
   return (
     <div
@@ -502,16 +521,29 @@ export function FilterBar({
           Filters
         </span>
 
-        {sortedFilters.map((filter) => (
-          <CheckboxDropdown
+        {activeFilters.map((filter, idx) => (
+          <div
             key={filter.column}
-            filter={filter}
-            uniqueValues={getUniqueValues(filter.column)}
-            onUpdate={(values) => updateFilterValues(filter.column, values)}
-            onRemove={() => removeFilter(filter.column)}
-            isFavorite={favorites.includes(filter.column)}
-            onToggleFavorite={() => toggleFavorite(filter.column)}
-          />
+            draggable
+            onDragStart={() => handleDragStart(idx)}
+            onDragEnter={() => handleDragEnter(idx)}
+            onDragEnd={handleDragEnd}
+            onDragOver={(e) => e.preventDefault()}
+            style={{
+              cursor: "grab",
+              opacity: dragIdx === idx ? 0.4 : 1,
+              transition: "opacity 0.15s",
+            }}
+          >
+            <CheckboxDropdown
+              filter={filter}
+              uniqueValues={getUniqueValues(filter.column)}
+              onUpdate={(values) => updateFilterValues(filter.column, values)}
+              onRemove={() => removeFilter(filter.column)}
+              isFavorite={favorites.includes(filter.column)}
+              onToggleFavorite={() => toggleFavorite(filter.column)}
+            />
+          </div>
         ))}
 
         {/* Add filter button */}

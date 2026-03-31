@@ -57,23 +57,28 @@ export function App() {
     [epicTasks]
   );
 
+  const hasActiveFilters = activeFilters.some((f) => f.values.length > 0);
+
   const displayRows = useMemo(() => {
-    if (!searchTerm.trim()) return allDisplayRows;
-    const q = searchTerm.toLowerCase().trim();
-    return allDisplayRows.filter((row) => {
-      const epic = row.epic;
-      const key = (epic.epicKey || "").toLowerCase();
-      const name = (epic.epicName || "").toLowerCase();
-      if (key.includes(q) || name.includes(q)) return true;
-      // For initiatives, also match if any child matches
-      if (row.children) {
-        return row.children.some(
-          (c) => c.epicKey.toLowerCase().includes(q) || c.epicName.toLowerCase().includes(q)
-        );
-      }
-      return false;
-    });
-  }, [allDisplayRows, searchTerm]);
+    let rows = allDisplayRows;
+
+    // Hide initiative rows when filters or search are active
+    if (hasActiveFilters || searchTerm.trim()) {
+      rows = rows.filter((r) => r.type !== "initiative");
+    }
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      rows = rows.filter((row) => {
+        const epic = row.epic;
+        const key = (epic.epicKey || "").toLowerCase();
+        const name = (epic.epicName || "").toLowerCase();
+        return key.includes(q) || name.includes(q);
+      });
+    }
+
+    return rows;
+  }, [allDisplayRows, searchTerm, hasActiveFilters]);
 
   const getUniqueValues = useCallback(
     (column: string) => extractUniqueValues(rawData, column),
