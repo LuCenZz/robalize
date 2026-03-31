@@ -499,7 +499,7 @@ export function FilterBar({
             marginRight: 4,
           }}
         >
-          Filtres
+          Filters
         </span>
 
         {sortedFilters.map((filter) => (
@@ -529,7 +529,7 @@ export function FilterBar({
               fontWeight: 500,
             }}
           >
-            + Ajouter filtre
+            + Add filter
           </button>
           {showAddDropdown && (
             <div
@@ -551,7 +551,7 @@ export function FilterBar({
             >
               <input
                 type="text"
-                placeholder="Rechercher un champ..."
+                placeholder="Search a field..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 autoFocus
@@ -608,7 +608,7 @@ export function FilterBar({
                       textAlign: "center",
                     }}
                   >
-                    Aucun champ trouvé
+                    No field found
                   </div>
                 )}
               </div>
@@ -631,7 +631,7 @@ export function FilterBar({
               fontWeight: 500,
             }}
           >
-            Réinitialiser
+            Reset
           </button>
         )}
       </div>
