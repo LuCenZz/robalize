@@ -622,24 +622,25 @@ export function GanttChart({ tasks }: GanttChartProps) {
               </div>
             </div>
 
-            {/* Weekly separator lines */}
-            {weekLines.map((x, idx) => (
-              <div
-                key={`wl-${idx}`}
-                style={{
-                  position: "absolute",
-                  left: x,
-                  top: 0,
-                  height: tasks.length * ROW_HEIGHT,
-                  width: 1,
-                  background: theme.borderRow,
-                  zIndex: 0,
-                  pointerEvents: "none",
-                }}
-              />
-            ))}
+            {/* Timeline rows with weekly separators */}
+            <div style={{ position: "relative" }}>
+              {/* Weekly separator lines */}
+              {weekLines.map((x, idx) => (
+                <div
+                  key={`wl-${idx}`}
+                  style={{
+                    position: "absolute",
+                    left: x,
+                    top: 0,
+                    height: tasks.length * ROW_HEIGHT,
+                    width: 1,
+                    background: theme.borderRow,
+                    zIndex: 0,
+                    pointerEvents: "none",
+                  }}
+                />
+              ))}
 
-            {/* Timeline rows */}
             {tasks.map((epic, i) => {
               const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
               const info = isInconsistent ? inconsistencies.get(epic.id) : null;
@@ -654,6 +655,26 @@ export function GanttChart({ tasks }: GanttChartProps) {
                     background: isInconsistent ? "#fff0f0" : defaultBg,
                   }}
                 >
+                  {/* Project outline spanning all phases */}
+                  {epic.phases.length > 0 && (() => {
+                    const minLeft = Math.min(...epic.phases.map((p) => dayOffset(p.startDate)));
+                    const maxRight = Math.max(...epic.phases.map((p) => dayOffset(p.endDate)));
+                    return (
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: minLeft - 2,
+                          top: BAR_TOP - 2,
+                          width: maxRight - minLeft + 4,
+                          height: BAR_HEIGHT + 4,
+                          borderRadius: 6,
+                          border: `1.5px solid ${isInconsistent ? "#e03131" : "#c9c9d0"}`,
+                          pointerEvents: "none",
+                          zIndex: 0,
+                        }}
+                      />
+                    );
+                  })()}
                   {epic.phases.map((phase) => {
                     const left = dayOffset(phase.startDate);
                     const width = dayOffset(phase.endDate) - left;
@@ -701,6 +722,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
                 </div>
               );
             })}
+            </div>
           </div>
         </div>
       </div>
