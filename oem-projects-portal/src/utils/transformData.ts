@@ -14,6 +14,17 @@ function parseJiraDate(value: string): Date | null {
     if (!isNaN(parsed.getTime())) return parsed;
   }
 
+  // Try "DD/Mon/YY HH:MM AM/PM" format (e.g., "30/Mar/26 12:00 AM")
+  const slashedWithTime = trimmed.match(
+    /^(\d{1,2})\/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\/(\d{2,4})\s+/i
+  );
+  if (slashedWithTime) {
+    const year =
+      slashedWithTime[3].length === 2 ? `20${slashedWithTime[3]}` : slashedWithTime[3];
+    const parsed = new Date(`${slashedWithTime[2]} ${slashedWithTime[1]}, ${year}`);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+
   // Try "DD/Mon/YY" format (e.g., "23/Mar/26")
   const slashed = trimmed.match(
     /^(\d{1,2})\/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\/(\d{2,4})$/i
