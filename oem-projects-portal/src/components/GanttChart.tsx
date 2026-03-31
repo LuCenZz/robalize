@@ -822,6 +822,9 @@ export function GanttChart({ tasks }: GanttChartProps) {
             {displayedTasks.map((epic, i) => {
               const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
               const info = isInconsistent ? inconsistencies.get(epic.id) : null;
+              const isAlerted = showAlerts && alerts.has(epic.id);
+              const isHighlighted = isInconsistent || isAlerted;
+              const highlightBg = isInconsistent ? "#fff0f0" : "#fff8e1";
               const defaultBg = i % 2 === 0 ? "white" : theme.rowAlt;
               return (
                 <div
