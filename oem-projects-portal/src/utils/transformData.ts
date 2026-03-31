@@ -72,7 +72,23 @@ export function transformToEpicTasks(rows: RawRow[]): EpicTask[] {
         rawData: row,
       };
     })
-    .filter((epic) => epic.phases.length > 0);
+    .filter((epic) => epic.phases.length > 0)
+    .sort((a, b) => {
+      const orderA = getEarliestPhaseStart(a);
+      const orderB = getEarliestPhaseStart(b);
+      return orderA - orderB;
+    });
+}
+
+const PHASE_PRIORITY = ["Analysis", "Development", "QA / Test", "Customer UAT", "Pilot"];
+
+/** Get the start date of the earliest phase in priority order */
+function getEarliestPhaseStart(epic: EpicTask): number {
+  for (const name of PHASE_PRIORITY) {
+    const phase = epic.phases.find((p) => p.phaseName === name);
+    if (phase) return phase.startDate.getTime();
+  }
+  return epic.phases[0].startDate.getTime();
 }
 
 export function extractColumns(rows: RawRow[]): string[] {
