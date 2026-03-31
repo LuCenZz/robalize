@@ -92,13 +92,43 @@ interface PopoverInfo {
   y: number;
 }
 
+const RESIZE_HANDLE: React.CSSProperties = {
+  position: "absolute",
+  right: 0,
+  top: 0,
+  bottom: 0,
+  width: 5,
+  cursor: "col-resize",
+  zIndex: 2,
+};
+
 export function GanttChart({ tasks }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("month");
   const [showInconsistencies, setShowInconsistencies] = useState(false);
   const [popover, setPopover] = useState<PopoverInfo | null>(null);
+  const [colWidths, setColWidths] = useState({ product: 100, acto: 80, status: 90 });
   const scrollRef = useRef<HTMLDivElement>(null);
-  const gridScrollRef = useRef<HTMLDivElement>(null);
   const timelineHeaderRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ col: keyof typeof colWidths; startX: number; startW: number } | null>(null);
+
+  const gridTotalWidth = colWidths.product + colWidths.acto + colWidths.status + 200;
+
+  function startResize(col: keyof typeof colWidths, e: React.MouseEvent) {
+    e.preventDefault();
+    dragRef.current = { col, startX: e.clientX, startW: colWidths[col] };
+    function onMove(ev: MouseEvent) {
+      if (!dragRef.current) return;
+      const newW = Math.max(40, dragRef.current.startW + ev.clientX - dragRef.current.startX);
+      setColWidths((prev) => ({ ...prev, [dragRef.current!.col]: newW }));
+    }
+    function onUp() {
+      dragRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
 
   const inconsistencies = useMemo(() => detectInconsistencies(tasks), [tasks]);
 
@@ -198,21 +228,6 @@ export function GanttChart({ tasks }: GanttChartProps) {
     return { mainHeaders: mains, subHeaders: subs };
   }, [minDate, maxDate, zoom, config, totalDays]);
 
-  // Sync vertical scroll between grid and timeline, and horizontal scroll between timeline header and body
-  function handleTimelineScroll(e: React.UIEvent<HTMLDivElement>) {
-    if (gridScrollRef.current) {
-      gridScrollRef.current.scrollTop = e.currentTarget.scrollTop;
-    }
-    if (timelineHeaderRef.current) {
-      timelineHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
-    }
-  }
-
-  function handleGridScroll(e: React.UIEvent<HTMLDivElement>) {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = e.currentTarget.scrollTop;
-    }
-  }
 
   // Close popover on click outside
   useEffect(() => {
@@ -379,46 +394,109 @@ export function GanttChart({ tasks }: GanttChartProps) {
         </div>
       </div>
 
-      {/* Main area */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        {/* Left grid: Epic names */}
+      {/* Headers row (sticky) */}
+      <div style={{ display: "flex", flexShrink: 0, borderBottom: `2px solid ${theme.borderLight}` }}>
+        {/* Grid header */}
         <div
           style={{
-            width: 500,
+            width: gridTotalWidth,
             flexShrink: 0,
-            borderRight: `2px solid ${theme.borderLight}`,
             display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
+            background: "white",
+            borderRight: `2px solid ${theme.borderLight}`,
           }}
         >
-          {/* Grid header */}
-          <div
-            style={{
-              display: "flex",
-              background: "white",
-              borderBottom: `2px solid ${theme.borderLight}`,
-              flexShrink: 0,
-            }}
-          >
-            <div style={{ width: 100, padding: "8px 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, lineHeight: "52px", borderRight: `1px solid ${theme.borderRow}` }}>
-              Product
+          <div style={{ width: colWidths.product, position: "relative", padding: "8px 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, lineHeight: "52px", borderRight: `1px solid ${theme.borderRow}` }}>
+            Product
+            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("product", e)} />
+          </div>
+          <div style={{ width: colWidths.acto, position: "relative", padding: "8px 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, lineHeight: "52px", borderRight: `1px solid ${theme.borderRow}` }}>
+            ACTO
+            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("acto", e)} />
+          </div>
+          <div style={{ flex: 1, padding: "8px 12px", fontWeight: 700, fontSize: 12, color: theme.textDark, lineHeight: "52px" }}>
+            Epic Name
+          </div>
+          <div style={{ width: colWidths.status, position: "relative", padding: "8px 4px", fontWeight: 700, fontSize: 12, color: theme.textDark, textAlign: "center", lineHeight: "52px" }}>
+            Status
+            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("status", e)} />
+          </div>
+        </div>
+        {/* Timeline header */}
+        <div
+          ref={timelineHeaderRef}
+          style={{ flex: 1, overflow: "hidden" }}
+        >
+          <div style={{ width: totalWidth, position: "relative" }}>
+            {/* Main headers */}
+            <div style={{ height: 26, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
+              {mainHeaders.map((h, i) => (
+                <div
+                  key={i}
+                  style={{
+                    position: "absolute",
+                    left: h.left,
+                    width: h.width,
+                    height: 26,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: theme.textDark,
+                    borderRight: `1px solid ${theme.borderLight}`,
+                    background: "white",
+                  }}
+                >
+                  {h.label}
+                </div>
+              ))}
             </div>
-            <div style={{ width: 80, padding: "8px 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, lineHeight: "52px", borderRight: `1px solid ${theme.borderRow}` }}>
-              ACTO
-            </div>
-            <div style={{ flex: 1, padding: "8px 12px", fontWeight: 700, fontSize: 12, color: theme.textDark, lineHeight: "52px" }}>
-              Epic Name
-            </div>
-            <div style={{ width: 90, padding: "8px 4px", fontWeight: 700, fontSize: 12, color: theme.textDark, textAlign: "center", lineHeight: "52px" }}>
-              Status
+            {/* Sub headers */}
+            <div style={{ height: 26, position: "relative" }}>
+              {subHeaders.map((h, i) => (
+                <div
+                  key={i}
+                  style={{
+                    position: "absolute",
+                    left: h.left,
+                    width: h.width,
+                    height: 26,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 10,
+                    color: theme.textMuted,
+                    borderRight: `1px solid ${theme.borderRow}`,
+                    background: "white",
+                  }}
+                >
+                  {h.label}
+                </div>
+              ))}
             </div>
           </div>
-          {/* Grid rows — scroll synced with timeline */}
+        </div>
+      </div>
+
+      {/* Single scrollable body */}
+      <div
+        ref={scrollRef}
+        onScroll={(e) => {
+          if (timelineHeaderRef.current) {
+            timelineHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
+          }
+        }}
+        style={{ flex: 1, overflow: "auto" }}
+      >
+        <div style={{ display: "inline-flex", minWidth: "100%" }}>
+          {/* Left grid rows */}
           <div
-            ref={gridScrollRef}
-            onScroll={handleGridScroll}
-            style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}
+            style={{
+              width: gridTotalWidth,
+              flexShrink: 0,
+              borderRight: `2px solid ${theme.borderLight}`,
+            }}
           >
             {tasks.map((epic, i) => {
               const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
@@ -435,19 +513,19 @@ export function GanttChart({ tasks }: GanttChartProps) {
                     borderBottom: `1px solid ${theme.borderRow}`,
                     background: isInconsistent ? "#fff0f0" : defaultBg,
                     borderLeft: isInconsistent ? "3px solid #e03131" : "3px solid transparent",
-                    padding: "0 12px",
                   }}
                 >
                   <div
                     style={{
-                      width: 100,
+                      width: colWidths.product,
                       fontSize: 11,
                       color: theme.textDark,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
-                      paddingRight: 8,
+                      padding: "0 8px",
                       borderRight: `1px solid ${theme.borderRow}`,
+                      boxSizing: "border-box",
                     }}
                     title={epic.rawData["Custom field (Product)"] || ""}
                   >
@@ -455,7 +533,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
                   </div>
                   <div
                     style={{
-                      width: 80,
+                      width: colWidths.acto,
                       fontSize: 11,
                       color: theme.textDark,
                       whiteSpace: "nowrap",
@@ -478,12 +556,13 @@ export function GanttChart({ tasks }: GanttChartProps) {
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
+                      padding: "0 12px",
                     }}
                     title={epic.epicName}
                   >
                     {epic.epicName}
                   </div>
-                  <div style={{ width: 90, textAlign: "center" }}>
+                  <div style={{ width: colWidths.status, textAlign: "center" }}>
                     <span
                       style={{
                         fontSize: 10,
@@ -502,135 +581,70 @@ export function GanttChart({ tasks }: GanttChartProps) {
               );
             })}
           </div>
-        </div>
 
-        {/* Right: Timeline */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          {/* Timeline header */}
-          <div
-            ref={timelineHeaderRef}
-            style={{ overflowX: "hidden", flexShrink: 0 }}
-          >
-            <div style={{ width: totalWidth, position: "relative" }}>
-              {/* Main headers */}
-              <div style={{ height: 26, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
-                {mainHeaders.map((h, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      position: "absolute",
-                      left: h.left,
-                      width: h.width,
-                      height: 26,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: theme.textDark,
-                      borderRight: `1px solid ${theme.borderLight}`,
-                      background: "white",
-                    }}
-                  >
-                    {h.label}
-                  </div>
-                ))}
-              </div>
-              {/* Sub headers */}
-              <div style={{ height: 26, position: "relative", borderBottom: `2px solid ${theme.borderLight}` }}>
-                {subHeaders.map((h, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      position: "absolute",
-                      left: h.left,
-                      width: h.width,
-                      height: 26,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 10,
-                      color: theme.textMuted,
-                      borderRight: `1px solid ${theme.borderRow}`,
-                      background: "white",
-                    }}
-                  >
-                    {h.label}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Timeline body (scrollable) */}
-          <div
-            ref={scrollRef}
-            onScroll={handleTimelineScroll}
-            style={{ flex: 1, overflow: "auto" }}
-          >
-            <div style={{ width: totalWidth, position: "relative" }}>
-              {tasks.map((epic, i) => {
-                const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
-                const info = isInconsistent ? inconsistencies.get(epic.id) : null;
-                const defaultBg = i % 2 === 0 ? "white" : theme.rowAlt;
-                return (
-                  <div
-                    key={epic.id}
-                    style={{
-                      height: ROW_HEIGHT,
-                      position: "relative",
-                      borderBottom: `1px solid ${theme.borderRow}`,
-                      background: isInconsistent ? "#fff0f0" : defaultBg,
-                    }}
-                  >
-                    {epic.phases.map((phase) => {
-                      const left = dayOffset(phase.startDate);
-                      const width = dayOffset(phase.endDate) - left;
-                      if (width <= 0) return null;
-                      const isConflicting = info?.conflictingPhases.has(phase.phaseName);
-                      return (
-                        <div
-                          key={phase.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            setPopover(
-                              popover?.phaseId === phase.id
-                                ? null
-                                : {
-                                    phaseId: phase.id,
-                                    phaseName: phase.phaseName,
-                                    startDate: phase.startDate,
-                                    endDate: phase.endDate,
-                                    x: rect.left + rect.width / 2,
-                                    y: rect.top,
-                                  }
-                            );
-                          }}
-                          style={{
-                            position: "absolute",
-                            left,
-                            top: BAR_TOP,
-                            width,
-                            height: BAR_HEIGHT,
-                            background: phase.color,
-                            borderRadius: 4,
-                            boxShadow: popover?.phaseId === phase.id ? `0 0 0 2px ${theme.primary}` : "0 1px 3px rgba(0,0,0,0.12)",
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            overflow: "hidden",
-                            border: isConflicting ? "2px solid #e03131" : "none",
-                          }}
-                        >
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
+          {/* Right timeline rows */}
+          <div style={{ width: totalWidth, position: "relative" }}>
+            {tasks.map((epic, i) => {
+              const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
+              const info = isInconsistent ? inconsistencies.get(epic.id) : null;
+              const defaultBg = i % 2 === 0 ? "white" : theme.rowAlt;
+              return (
+                <div
+                  key={epic.id}
+                  style={{
+                    height: ROW_HEIGHT,
+                    position: "relative",
+                    borderBottom: `1px solid ${theme.borderRow}`,
+                    background: isInconsistent ? "#fff0f0" : defaultBg,
+                  }}
+                >
+                  {epic.phases.map((phase) => {
+                    const left = dayOffset(phase.startDate);
+                    const width = dayOffset(phase.endDate) - left;
+                    if (width <= 0) return null;
+                    const isConflicting = info?.conflictingPhases.has(phase.phaseName);
+                    return (
+                      <div
+                        key={phase.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setPopover(
+                            popover?.phaseId === phase.id
+                              ? null
+                              : {
+                                  phaseId: phase.id,
+                                  phaseName: phase.phaseName,
+                                  startDate: phase.startDate,
+                                  endDate: phase.endDate,
+                                  x: rect.left + rect.width / 2,
+                                  y: rect.top,
+                                }
+                          );
+                        }}
+                        style={{
+                          position: "absolute",
+                          left,
+                          top: BAR_TOP,
+                          width,
+                          height: BAR_HEIGHT,
+                          background: phase.color,
+                          borderRadius: 4,
+                          boxShadow: popover?.phaseId === phase.id ? `0 0 0 2px ${theme.primary}` : "0 1px 3px rgba(0,0,0,0.12)",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          overflow: "hidden",
+                          border: isConflicting ? "2px solid #e03131" : "none",
+                        }}
+                      >
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
