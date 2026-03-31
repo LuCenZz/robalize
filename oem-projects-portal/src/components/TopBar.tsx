@@ -34,7 +34,7 @@ export function TopBar({ projectCount, onUploadClick }: TopBarProps) {
       <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
         {projectCount > 0 && (
           <span style={{ opacity: 0.8, fontSize: 12 }}>
-            {projectCount} projets chargés
+            {projectCount} projects loaded
           </span>
         )}
         <button
@@ -50,7 +50,7 @@ export function TopBar({ projectCount, onUploadClick }: TopBarProps) {
             fontSize: 12,
           }}
         >
-          Charger CSV/Excel
+          Load CSV/Excel
         </button>
       </div>
     </div>

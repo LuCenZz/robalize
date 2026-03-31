@@ -30,7 +30,7 @@ export function App() {
       setUploaderOpen(false);
     } catch (err) {
       console.error("Error parsing file:", err);
-      alert("Erreur lors du chargement du fichier. Vérifiez le format.");
+      alert("Error loading file. Please check the format.");
     } finally {
       setLoading(false);
     }
@@ -83,7 +83,7 @@ export function App() {
             color: theme.textMuted,
           }}
         >
-          Chargement en cours...
+          Loading...
         </div>
       )}
 
@@ -100,7 +100,7 @@ export function App() {
           }}
         >
           <p style={{ fontSize: 18 }}>
-            Chargez un fichier CSV ou Excel pour commencer
+            Load a CSV or Excel file to get started
           </p>
           <button
             onClick={() => setUploaderOpen(true)}
@@ -115,7 +115,7 @@ export function App() {
               fontSize: 14,
             }}
           >
-            Charger un fichier
+            Load a file
           </button>
         </div>
       )}

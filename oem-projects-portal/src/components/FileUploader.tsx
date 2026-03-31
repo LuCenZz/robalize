@@ -55,10 +55,10 @@ export function FileUploader({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 style={{ color: theme.textDark, margin: "0 0 8px 0" }}>
-          Charger un fichier
+          Load a file
         </h2>
         <p style={{ color: theme.textMuted, margin: "0 0 24px 0" }}>
-          CSV ou Excel exporté depuis JIRA
+          CSV or Excel exported from JIRA
         </p>
         <div
           onDragOver={(e) => {
@@ -84,10 +84,10 @@ export function FileUploader({
               margin: "0 0 8px 0",
             }}
           >
-            Glissez votre fichier ici
+            Drop your file here
           </p>
           <p style={{ color: theme.textMuted, fontSize: 13, margin: 0 }}>
-            ou cliquez pour parcourir
+            or click to browse
           </p>
           <input
             ref={inputRef}

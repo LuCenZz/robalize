@@ -75,7 +75,7 @@ export function FilterBar({
             marginRight: 4,
           }}
         >
-          Filtres
+          Filters
         </span>
 
         {activeFilters.map((filter) => {
@@ -128,7 +128,7 @@ export function FilterBar({
                   fontSize: 14,
                   padding: "0 2px",
                 }}
-                title={`Supprimer filtre ${filter.column}`}
+                title={`Remove filter ${filter.column}`}
               >
                 x
               </button>
@@ -150,7 +150,7 @@ export function FilterBar({
               fontWeight: 500,
             }}
           >
-            + Ajouter filtre
+            + Add filter
           </button>
           {showAddDropdown && (
             <div
@@ -173,7 +173,7 @@ export function FilterBar({
             >
               <input
                 type="text"
-                placeholder="Rechercher un champ..."
+                placeholder="Search a field..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 autoFocus
@@ -217,7 +217,7 @@ export function FilterBar({
                       textAlign: "center",
                     }}
                   >
-                    Aucun champ trouvé
+                    No field found
                   </div>
                 )}
               </div>
@@ -239,7 +239,7 @@ export function FilterBar({
               marginLeft: "auto",
             }}
           >
-            Réinitialiser
+            Reset
           </button>
         )}
       </div>

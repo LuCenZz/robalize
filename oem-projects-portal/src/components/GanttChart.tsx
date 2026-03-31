@@ -131,7 +131,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
 
               const el = document.createElement("div");
               el.className = "gantt-phase-bar";
-              el.title = `${phase.name}: ${startDate.toLocaleDateString("fr-FR")} — ${endDate.toLocaleDateString("fr-FR")}`;
+              el.title = `${phase.name}: ${startDate.toLocaleDateString("en-GB")} — ${endDate.toLocaleDateString("en-GB")}`;
               el.style.cssText = `
                 position: absolute;
                 left: ${startPos}px;
@@ -250,7 +250,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
         }}
       >
         <span style={{ fontSize: 12, color: theme.textMuted, marginRight: 4 }}>
-          Zoom :
+          Zoom:
         </span>
         {(["day", "week", "month"] as const).map((level) => (
           <button
@@ -267,7 +267,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
               fontWeight: zoomLevel === level ? 600 : 400,
             }}
           >
-            {level === "day" ? "Jour" : level === "week" ? "Semaine" : "Mois"}
+            {level === "day" ? "Day" : level === "week" ? "Week" : "Month"}
           </button>
         ))}
       </div>
