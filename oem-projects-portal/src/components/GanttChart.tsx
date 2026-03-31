@@ -418,7 +418,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
             Epic Name
             <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("epicName", e)} />
           </div>
-          <div style={{ width: colWidths.status, position: "relative", padding: "8px 8px", fontWeight: 700, fontSize: 12, color: theme.textDark, textAlign: "center", lineHeight: "52px" }}>
+          <div style={{ width: colWidths.status, position: "relative", padding: "8px 8px", fontWeight: 700, fontSize: 12, color: theme.textDark, textAlign: "left", lineHeight: "52px" }}>
             Status
             <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("status", e)} />
           </div>
@@ -565,7 +565,7 @@ export function GanttChart({ tasks }: GanttChartProps) {
                   >
                     {epic.epicName}
                   </div>
-                  <div style={{ width: colWidths.status, textAlign: "center", padding: "0 8px", boxSizing: "border-box" }}>
+                  <div style={{ width: colWidths.status, textAlign: "left", padding: "0 8px", boxSizing: "border-box" }}>
                     <span
                       style={{
                         fontSize: 10,
