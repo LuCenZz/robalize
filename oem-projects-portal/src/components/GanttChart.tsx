@@ -433,8 +433,9 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
   const totalDays = Math.ceil((maxDate.getTime() - minDate.getTime()) / 86400000);
   const totalWidth = totalDays * config.dayWidth;
 
+  const TIMELINE_PAD = 16;
   function dayOffset(date: Date): number {
-    return Math.round((date.getTime() - minDate.getTime()) / 86400000) * config.dayWidth;
+    return TIMELINE_PAD + Math.round((date.getTime() - minDate.getTime()) / 86400000) * config.dayWidth;
   }
 
   // Generate timeline headers
@@ -908,7 +909,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
           ref={timelineHeaderRef}
           style={{ flex: 1, overflow: "hidden" }}
         >
-          <div style={{ width: totalWidth + 16, position: "relative", paddingLeft: 16 }}>
+          <div style={{ width: totalWidth + TIMELINE_PAD * 2, position: "relative" }}>
             {/* Year row */}
             <div style={{ height: 22, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
               {yearHeaders.map((h, i) => (
@@ -1253,7 +1254,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
           )}
 
           {/* Right: Timeline */}
-          <div style={{ width: totalWidth + 16, position: "relative", paddingLeft: 16 }}>
+          <div style={{ width: totalWidth + TIMELINE_PAD * 2, position: "relative" }}>
             {/* Today indicator */}
             {(() => {
               const todayX = dayOffset(new Date());
