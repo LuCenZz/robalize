@@ -1093,45 +1093,38 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                     const client = row.children?.[0]?.rawData["Custom field (Client)"]?.trim() || "";
                     const label = `${epic.epicKey} — ${epic.epicName}${client ? ` [${client}]` : ""}`;
                     return (
-                      <>
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: minLeft,
-                            top: BAR_TOP,
-                            width: w,
-                            height: BAR_HEIGHT,
-                            borderRadius: 4,
-                            background: `${theme.primary}30`,
-                            border: `2px solid ${theme.primary}`,
-                            pointerEvents: "none",
-                            zIndex: 1,
-                          }}
-                        />
-                        {/* Label always visible — positioned on top of bar */}
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: minLeft + 6,
-                            top: BAR_TOP,
-                            height: BAR_HEIGHT,
-                            display: "flex",
-                            alignItems: "center",
-                            pointerEvents: "none",
-                            zIndex: 2,
-                          }}
-                        >
-                          <span style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            color: theme.primary,
-                            whiteSpace: "nowrap",
-                            textShadow: "0 0 3px white, 0 0 6px white, 0 0 8px white",
-                          }}>
-                            {label}
-                          </span>
-                        </div>
-                      </>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: minLeft,
+                          top: BAR_TOP,
+                          width: w,
+                          height: BAR_HEIGHT,
+                          borderRadius: 4,
+                          background: `${theme.primary}30`,
+                          border: `2px solid ${theme.primary}`,
+                          pointerEvents: "none",
+                          zIndex: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {/* Sticky label — stays visible while scrolling within the bar */}
+                        <span style={{
+                          position: "sticky",
+                          left: 6,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: theme.primary,
+                          whiteSpace: "nowrap",
+                          paddingLeft: 6,
+                          paddingRight: 6,
+                          textShadow: "0 0 4px white, 0 0 8px white, 0 0 12px white",
+                        }}>
+                          {label}
+                        </span>
+                      </div>
                     );
                   })()}
                   {/* Epic: show individual phase bars */}
