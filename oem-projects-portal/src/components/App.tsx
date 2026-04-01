@@ -16,27 +16,9 @@ import {
 } from "../utils/transformData";
 import { applyFilters } from "../utils/filterEngine";
 import { generatePptx } from "../utils/generatePptx";
+import { loadJiraConfig, fetchJiraData } from "../utils/jiraFetch";
 import type { RawRow, ActiveFilter, EpicTask } from "../types";
 import { theme } from "../styles/theme";
-
-const SESSION_KEY = "oem-session-data";
-
-function saveSession(data: RawRow[]) {
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(data));
-  } catch {
-    // Ignore quota errors
-  }
-}
-
-function loadSession(): RawRow[] | null {
-  try {
-    const stored = localStorage.getItem(SESSION_KEY);
-    return stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
-}
 
 export function App() {
   const [rawData, setRawData] = useState<RawRow[]>([]);
@@ -49,21 +31,31 @@ export function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [resetKey, setResetKey] = useState(0);
 
-  // Restore session on mount
-  useEffect(() => {
-    const saved = loadSession();
-    if (saved && saved.length > 0) {
-      setRawData(saved);
-      setColumns(extractColumns(saved));
-    }
-  }, []);
-
   const loadData = useCallback((rows: RawRow[]) => {
     setRawData(rows);
     setColumns(extractColumns(rows));
     setActiveFilters([]);
     setSearchTerm("");
-    saveSession(rows);
+  }, []);
+
+  // Auto-reconnect to JIRA on mount if config exists
+  useEffect(() => {
+    const config = loadJiraConfig();
+    if (config && config.email && config.apiToken && config.jql) {
+      setLoading(true);
+      fetchJiraData(config)
+        .then((rows) => {
+          if (rows.length > 0) {
+            setRawData(rows);
+            setColumns(extractColumns(rows));
+            setJiraConnected(true);
+          }
+        })
+        .catch((err) => {
+          console.error("Auto-reconnect failed:", err);
+        })
+        .finally(() => setLoading(false));
+    }
   }, []);
 
   const handleFileSelected = useCallback(async (file: File) => {
