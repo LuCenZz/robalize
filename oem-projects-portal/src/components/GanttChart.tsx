@@ -366,14 +366,34 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
         return values.has(getCellText(r.epic, col as ColKey, false));
       });
     }
-    // Apply sort
+    // Apply sort — keep initiative + children groups together
     if (sortCol && sortDir) {
       const col = sortCol;
       const dir = sortDir === "asc" ? 1 : -1;
-      rows = [...rows].sort((a, b) => {
-        // Initiatives stay above their children — sort only among same level
-        if (a.type === "initiative" && b.type !== "initiative") return -1;
-        if (b.type === "initiative" && a.type !== "initiative") return 1;
+
+      // Group rows: [initiative + its children] or [standalone epic]
+      const groups: DisplayRow[][] = [];
+      let i = 0;
+      while (i < rows.length) {
+        if (rows[i].type === "initiative") {
+          const group = [rows[i]];
+          const initKey = rows[i].initiativeKey;
+          i++;
+          while (i < rows.length && rows[i].type === "epic" && rows[i].initiativeKey === initKey) {
+            group.push(rows[i]);
+            i++;
+          }
+          groups.push(group);
+        } else {
+          groups.push([rows[i]]);
+          i++;
+        }
+      }
+
+      // Sort groups by their first meaningful row
+      groups.sort((ga, gb) => {
+        const a = ga[0];
+        const b = gb[0];
         const ta = getCellText(a.epic, col, a.type === "initiative").toLowerCase();
         const tb = getCellText(b.epic, col, b.type === "initiative").toLowerCase();
         if (col === "progress") {
@@ -383,6 +403,8 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
         }
         return ta < tb ? -dir : ta > tb ? dir : 0;
       });
+
+      rows = groups.flat();
     }
     return rows;
   }, [displayRows, showInconsistencies, showAlerts, phaseFilter, inconsistencies, alerts, isInPhaseToday, colFilters, sortCol, sortDir]);
@@ -1044,6 +1066,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                   style={{
                     display: "flex",
                     alignItems: "center",
+                    width: gridTotalWidth,
                     height: ROW_HEIGHT,
                     borderBottom: `1px solid ${theme.borderRow}`,
                     background: isHighlighted ? highlightBg : defaultBg,
@@ -1054,6 +1077,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                   <div
                     style={{
                       width: colWidths.product,
+                      flexShrink: 0,
                       fontSize: 11,
                       fontWeight: isInitiative ? 700 : 400,
                       color: theme.textDark,
@@ -1071,6 +1095,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                   <div
                     style={{
                       width: colWidths.acto,
+                      flexShrink: 0,
                       fontSize: 11,
                       fontWeight: isInitiative ? 700 : 400,
                       whiteSpace: "nowrap",
@@ -1103,6 +1128,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                   <div
                     style={{
                       width: colWidths.epicName,
+                      flexShrink: 0,
                       fontSize: 13,
                       fontWeight: isInitiative ? 700 : 500,
                       color: isHighlighted ? highlightColor : isInitiative ? theme.primary : theme.textDark,
@@ -1117,7 +1143,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                   >
                     {epic.epicName}
                   </div>
-                  <div style={{ width: colWidths.status, textAlign: "left", padding: "0 8px", boxSizing: "border-box", borderRight: `1px solid ${theme.borderRow}` }}>
+                  <div style={{ width: colWidths.status, flexShrink: 0, textAlign: "left", padding: "0 8px", boxSizing: "border-box", borderRight: `1px solid ${theme.borderRow}` }}>
                     {epic.status && (
                       <span
                         style={{
@@ -1134,7 +1160,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                       </span>
                     )}
                   </div>
-                  <div style={{ width: colWidths.progress, textAlign: "center", padding: "0 4px", boxSizing: "border-box", fontSize: 11, color: theme.textDark }}>
+                  <div style={{ width: colWidths.progress, flexShrink: 0, textAlign: "center", padding: "0 4px", boxSizing: "border-box", fontSize: 11, color: theme.textDark }}>
                     {(() => {
                       const raw = epic.rawData["Custom field (% of progress)"];
                       if (!raw || !raw.trim() || isInitiative) return "";
