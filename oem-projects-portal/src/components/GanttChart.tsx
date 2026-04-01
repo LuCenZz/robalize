@@ -606,6 +606,12 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
                   if (!active) {
                     setShowInconsistencies(false);
                     setShowAlerts(false);
+                    // Scroll to today
+                    if (scrollRef.current) {
+                      const todayX = dayOffset(new Date());
+                      const containerWidth = scrollRef.current.clientWidth;
+                      scrollRef.current.scrollLeft = todayX - containerWidth / 2;
+                    }
                   }
                 }}
                 style={{
