@@ -47,6 +47,7 @@ export function App() {
   const [jiraConnected, setJiraConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [resetKey, setResetKey] = useState(0);
 
   // Restore session on mount
   useEffect(() => {
@@ -111,13 +112,13 @@ export function App() {
   const displayRows = useMemo(() => {
     let rows = allDisplayRows;
 
-    // When filters are active, keep epics that match + initiatives that have matching children
+    // When filters are active, keep only epics that match + initiatives that have matching children
     if (hasActiveFilters) {
       rows = rows.filter((r) => {
         if (r.type === "initiative") {
-          return r.children?.some((c) => filteredEpicIds.has(c.id));
+          return r.children?.some((c) => filteredEpicKeys.has(c.epicKey));
         }
-        return filteredEpicIds.has(r.epic.id);
+        return filteredEpicKeys.has(r.epic.epicKey);
       });
     }
 
@@ -140,7 +141,7 @@ export function App() {
     }
 
     return rows;
-  }, [allDisplayRows, searchTerm, hasActiveFilters, filteredEpicIds]);
+  }, [allDisplayRows, searchTerm, hasActiveFilters, filteredEpicKeys]);
 
   const getUniqueValues = useCallback(
     (column: string) => extractUniqueValues(rawData, column),
@@ -262,7 +263,7 @@ export function App() {
 
       {!loading && rawData.length > 0 && (
         <Suspense fallback={<div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: theme.textMuted }}>Loading Gantt...</div>}>
-          <GanttChart tasks={filteredEpicTasks} displayRows={displayRows} />
+          <GanttChart tasks={filteredEpicTasks} displayRows={displayRows} resetKey={resetKey} />
         </Suspense>
       )}
 

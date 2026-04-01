@@ -5,6 +5,7 @@ import { theme } from "../styles/theme";
 interface GanttChartProps {
   tasks: EpicTask[];
   displayRows: DisplayRow[];
+  resetKey?: number;
 }
 
 type ZoomLevel = "day" | "week" | "month" | "quarter";
@@ -187,12 +188,19 @@ const RESIZE_HANDLE: React.CSSProperties = {
   zIndex: 2,
 };
 
-export function GanttChart({ tasks, displayRows }: GanttChartProps) {
+export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("month");
   const [showInconsistencies, setShowInconsistencies] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
   const [phaseFilter, setPhaseFilter] = useState<string | null>(null);
   const [popover, setPopover] = useState<PopoverInfo | null>(null);
+
+  // Reset internal filters when resetKey changes (triggered by FilterBar "Reset")
+  useEffect(() => {
+    setPhaseFilter(null);
+    setShowInconsistencies(false);
+    setShowAlerts(false);
+  }, [resetKey]);
   const [colWidths, setColWidths] = useState({ product: 100, acto: 80, epicName: 250, status: 120 });
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -279,17 +287,22 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
     return rows;
   }, [displayRows, showInconsistencies, showAlerts, phaseFilter, inconsistencies, alerts, isInPhaseToday]);
 
-  // Compute global date range
+  // Compute global date range — clamped to reasonable bounds
   const { minDate, maxDate } = useMemo(() => {
+    const now = new Date();
+    const lowerBound = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+    const upperBound = new Date(now.getFullYear() + 2, now.getMonth(), 1);
+
     let min: Date | null = null;
     let max: Date | null = null;
     for (const task of tasks) {
       for (const phase of task.phases) {
-        if (!min || phase.startDate < min) min = phase.startDate;
-        if (!max || phase.endDate > max) max = phase.endDate;
+        const s = phase.startDate < lowerBound ? lowerBound : phase.startDate;
+        const e = phase.endDate > upperBound ? upperBound : phase.endDate;
+        if (!min || s < min) min = s;
+        if (!max || e > max) max = e;
       }
     }
-    // Add padding
     const pad = 14;
     const minD = min ? new Date(min.getTime() - pad * 86400000) : new Date();
     const maxD = max ? new Date(max.getTime() + pad * 86400000) : new Date();
