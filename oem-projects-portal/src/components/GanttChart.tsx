@@ -1251,8 +1251,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
           )}
 
           {/* Right: Timeline */}
-          <div style={{ width: totalWidth + 24 }}>
-          <div style={{ width: totalWidth, position: "relative", marginLeft: 24 }}>
+          <div style={{ width: totalWidth + 24, position: "relative", paddingLeft: 24 }}>
             {/* Today indicator */}
             {(() => {
               const todayX = dayOffset(new Date());
@@ -1333,34 +1332,52 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                     const client = row.children?.[0]?.rawData["Custom field (Client)"]?.trim() || "";
                     const label = `${epic.epicKey} — ${epic.epicName}${client ? ` [${client}]` : ""}`;
                     return (
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: minLeft,
-                          top: BAR_TOP,
-                          width: w,
-                          height: BAR_HEIGHT,
-                          borderRadius: 4,
-                          background: `${theme.primary}20`,
-                          border: `2px solid ${theme.primary}`,
-                          pointerEvents: "none",
-                          zIndex: 1,
-                          overflow: "visible",
-                        }}
-                      >
-                        <span style={{
-                          position: "sticky",
-                          left: 8,
-                          fontSize: 10,
-                          fontWeight: 700,
-                          color: theme.primary,
-                          whiteSpace: "nowrap",
-                          lineHeight: `${BAR_HEIGHT - 4}px`,
-                          paddingLeft: 4,
-                        }}>
-                          {label}
-                        </span>
-                      </div>
+                      <>
+                        {/* Initiative bar */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: minLeft,
+                            top: BAR_TOP,
+                            width: w,
+                            height: BAR_HEIGHT,
+                            borderRadius: 4,
+                            background: `${theme.primary}20`,
+                            border: `2px solid ${theme.primary}`,
+                            pointerEvents: "none",
+                            zIndex: 1,
+                          }}
+                        />
+                        {/* Initiative label — inside bar, scrollable with overflow */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: minLeft,
+                            top: BAR_TOP,
+                            width: w,
+                            height: BAR_HEIGHT,
+                            display: "flex",
+                            alignItems: "center",
+                            overflow: "hidden",
+                            pointerEvents: "none",
+                            zIndex: 2,
+                          }}
+                        >
+                          <span style={{
+                            position: "sticky",
+                            left: 8,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: theme.primary,
+                            whiteSpace: "nowrap",
+                            paddingLeft: 6,
+                            paddingRight: 6,
+                            textShadow: "0 0 4px rgba(240,236,255,0.9), 0 0 8px rgba(240,236,255,0.9)",
+                          }}>
+                            {label}
+                          </span>
+                        </div>
+                      </>
                     );
                   })()}
                   {/* Epic: show individual phase bars */}
@@ -1438,7 +1455,6 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                 </div>
               );
             })}
-          </div>
           </div>
         </div>
         </div>
