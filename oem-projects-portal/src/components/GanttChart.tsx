@@ -1093,48 +1093,33 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                     const client = row.children?.[0]?.rawData["Custom field (Client)"]?.trim() || "";
                     const label = `${epic.epicKey} — ${epic.epicName}${client ? ` [${client}]` : ""}`;
                     return (
-                      <>
-                        {/* Initiative bar background */}
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: minLeft,
-                            top: BAR_TOP,
-                            width: w,
-                            height: BAR_HEIGHT,
-                            borderRadius: 4,
-                            background: `${theme.primary}20`,
-                            border: `2px solid ${theme.primary}`,
-                            pointerEvents: "none",
-                            zIndex: 1,
-                          }}
-                        />
-                        {/* Label — always visible inside the bar, not clipped */}
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: Math.max(minLeft + 6, 6),
-                            top: BAR_TOP,
-                            height: BAR_HEIGHT,
-                            display: "flex",
-                            alignItems: "center",
-                            pointerEvents: "none",
-                            zIndex: 2,
-                          }}
-                        >
-                          <span style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            color: theme.primary,
-                            whiteSpace: "nowrap",
-                            background: `rgba(240, 236, 255, 0.9)`,
-                            padding: "1px 6px",
-                            borderRadius: 3,
-                          }}>
-                            {label}
-                          </span>
-                        </div>
-                      </>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: minLeft,
+                          top: BAR_TOP,
+                          width: w,
+                          height: BAR_HEIGHT,
+                          borderRadius: 4,
+                          background: `${theme.primary}20`,
+                          border: `2px solid ${theme.primary}`,
+                          pointerEvents: "none",
+                          zIndex: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          paddingLeft: 8,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: theme.primary,
+                          whiteSpace: "nowrap",
+                        }}>
+                          {label}
+                        </span>
+                      </div>
                     );
                   })()}
                   {/* Epic: show individual phase bars */}
