@@ -208,9 +208,58 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
   const timelineHeaderRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ col: keyof typeof colWidths; startX: number; startW: number } | null>(null);
 
+  // Sort & quick filter state
+  type SortDir = "asc" | "desc" | null;
+  type ColKey = keyof typeof colWidths;
+  const [sortCol, setSortCol] = useState<ColKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [colFilters, setColFilters] = useState<Record<string, Set<string>>>({});
+  const [filterDropdown, setFilterDropdown] = useState<{ col: ColKey; rect: DOMRect } | null>(null);
+
+  // Get cell text for a column
+  function getCellText(epic: EpicTask, col: ColKey, isInitiative: boolean): string {
+    if (isInitiative && col !== "epicName") return "";
+    switch (col) {
+      case "product": return epic.rawData["Custom field (Product)"] || "";
+      case "acto": return epic.epicKey || "";
+      case "epicName": return epic.epicName || "";
+      case "status": return epic.status || "";
+      case "progress": {
+        const raw = epic.rawData["Custom field (% of progress)"];
+        if (!raw || !raw.trim() || isInitiative) return "";
+        const val = Math.round(parseFloat(raw));
+        return isNaN(val) ? "" : String(val);
+      }
+      default: return "";
+    }
+  }
+
   const gridTotalWidth = colWidths.product + colWidths.acto + colWidths.epicName + colWidths.status + colWidths.progress;
 
-  function startResize(col: keyof typeof colWidths, e: React.MouseEvent) {
+  // Auto-fit column width on double-click
+  function autoFitColumn(col: ColKey) {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
+    const fontSize = col === "epicName" ? 13 : 11;
+    const fontWeight = 500;
+    ctx.font = `${fontWeight} ${fontSize}px ${theme.fontFamily}`;
+    let maxW = 0;
+    // Measure header text
+    const headerLabels: Record<ColKey, string> = { product: "Product", acto: "ACTO", epicName: "Project Name", status: "Status", progress: "%" };
+    ctx.font = `700 ${fontSize}px ${theme.fontFamily}`;
+    maxW = ctx.measureText(headerLabels[col]).width;
+    ctx.font = `${fontWeight} ${fontSize}px ${theme.fontFamily}`;
+    for (const row of displayRows) {
+      const text = getCellText(row.epic, col, row.type === "initiative");
+      const w = ctx.measureText(text).width;
+      if (w > maxW) maxW = w;
+    }
+    const padding = col === "epicName" ? 36 : col === "status" ? 28 : 20;
+    const newW = Math.max(40, Math.ceil(maxW + padding));
+    setColWidths((prev) => ({ ...prev, [col]: newW }));
+  }
+
+  function startResize(col: ColKey, e: React.MouseEvent) {
     e.preventDefault();
     dragRef.current = { col, startX: e.clientX, startW: colWidths[col] };
     function onMove(ev: MouseEvent) {
@@ -225,6 +274,24 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
     }
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
+  }
+
+  // Toggle sort on column header click
+  function toggleSort(col: ColKey) {
+    if (sortCol === col) {
+      if (sortDir === "asc") setSortDir("desc");
+      else if (sortDir === "desc") { setSortCol(null); setSortDir(null); }
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  }
+
+  // Open filter dropdown
+  function openFilterDropdown(col: ColKey, e: React.MouseEvent) {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setFilterDropdown((prev) => prev?.col === col ? null : { col, rect });
   }
 
   const inconsistencies = useMemo(() => detectInconsistencies(tasks), [tasks]);
@@ -285,8 +352,36 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
         return isInPhaseToday(r.epic, phaseFilter);
       });
     }
+    // Apply column quick filters
+    for (const [col, values] of Object.entries(colFilters)) {
+      if (values.size === 0) continue;
+      rows = rows.filter((r) => {
+        if (r.type === "initiative") {
+          return r.children?.some((c) => values.has(getCellText(c, col as ColKey, false)));
+        }
+        return values.has(getCellText(r.epic, col as ColKey, false));
+      });
+    }
+    // Apply sort
+    if (sortCol && sortDir) {
+      const col = sortCol;
+      const dir = sortDir === "asc" ? 1 : -1;
+      rows = [...rows].sort((a, b) => {
+        // Initiatives stay above their children — sort only among same level
+        if (a.type === "initiative" && b.type !== "initiative") return -1;
+        if (b.type === "initiative" && a.type !== "initiative") return 1;
+        const ta = getCellText(a.epic, col, a.type === "initiative").toLowerCase();
+        const tb = getCellText(b.epic, col, b.type === "initiative").toLowerCase();
+        if (col === "progress") {
+          const na = parseFloat(ta) || 0;
+          const nb = parseFloat(tb) || 0;
+          return (na - nb) * dir;
+        }
+        return ta < tb ? -dir : ta > tb ? dir : 0;
+      });
+    }
     return rows;
-  }, [displayRows, showInconsistencies, showAlerts, phaseFilter, inconsistencies, alerts, isInPhaseToday]);
+  }, [displayRows, showInconsistencies, showAlerts, phaseFilter, inconsistencies, alerts, isInPhaseToday, colFilters, sortCol, sortDir]);
 
   // Compute global date range — clamped to reasonable bounds
   const { minDate, maxDate } = useMemo(() => {
@@ -708,26 +803,65 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
             alignItems: "center",
           }}
         >
-          <div style={{ width: colWidths.product, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, borderRight: `1px solid ${theme.borderRow}`, height: "100%", display: "flex", alignItems: "center" }}>
-            Product
-            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("product", e)} />
-          </div>
-          <div style={{ width: colWidths.acto, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, borderRight: `1px solid ${theme.borderRow}`, height: "100%", display: "flex", alignItems: "center" }}>
-            ACTO
-            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("acto", e)} />
-          </div>
-          <div style={{ width: colWidths.epicName, position: "relative", padding: "0 12px", fontWeight: 700, fontSize: 12, color: theme.textDark, borderRight: `1px solid ${theme.borderRow}`, height: "100%", display: "flex", alignItems: "center" }}>
-            Project Name
-            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("epicName", e)} />
-          </div>
-          <div style={{ width: colWidths.status, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 12, color: theme.textDark, textAlign: "left", height: "100%", display: "flex", alignItems: "center", borderRight: `1px solid ${theme.borderRow}` }}>
-            Status
-            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("status", e)} />
-          </div>
-          <div style={{ width: colWidths.progress, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, textAlign: "center", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            %
-            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("progress", e)} />
-          </div>
+          {([
+            { col: "product" as ColKey, label: "Product", fontSize: 11 },
+            { col: "acto" as ColKey, label: "ACTO", fontSize: 11 },
+            { col: "epicName" as ColKey, label: "Project Name", fontSize: 12 },
+            { col: "status" as ColKey, label: "Status", fontSize: 12 },
+            { col: "progress" as ColKey, label: "%", fontSize: 11 },
+          ]).map(({ col, label, fontSize }) => {
+            const isSorted = sortCol === col;
+            const hasFilter = colFilters[col]?.size > 0;
+            return (
+              <div
+                key={col}
+                style={{
+                  width: colWidths[col],
+                  position: "relative",
+                  padding: col === "epicName" ? "0 12px" : "0 8px",
+                  fontWeight: 700,
+                  fontSize,
+                  color: theme.textDark,
+                  borderRight: col === "progress" ? undefined : `1px solid ${theme.borderRow}`,
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: col === "progress" ? "center" : undefined,
+                  cursor: "pointer",
+                  userSelect: "none",
+                  gap: 3,
+                }}
+                onClick={() => toggleSort(col)}
+              >
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{label}</span>
+                {isSorted && (
+                  <span style={{ fontSize: 9, opacity: 0.6, flexShrink: 0 }}>
+                    {sortDir === "asc" ? "\u25B2" : "\u25BC"}
+                  </span>
+                )}
+                <span
+                  onClick={(e) => openFilterDropdown(col, e)}
+                  style={{
+                    fontSize: 9,
+                    flexShrink: 0,
+                    width: 14,
+                    height: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 3,
+                    background: hasFilter ? theme.primary : "transparent",
+                    color: hasFilter ? "white" : theme.textMuted,
+                    cursor: "pointer",
+                  }}
+                  title="Filter"
+                >
+                  &#9660;
+                </span>
+                <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize(col, e)} onDoubleClick={(e) => { e.stopPropagation(); autoFitColumn(col); }} />
+              </div>
+            );
+          })}
         </div>
         )}
         {/* Timeline header — synced with horizontal scroll */}
@@ -735,7 +869,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
           ref={timelineHeaderRef}
           style={{ flex: 1, overflow: "hidden" }}
         >
-          <div style={{ width: totalWidth, position: "relative" }}>
+          <div style={{ width: totalWidth + 24, position: "relative", marginLeft: 24 }}>
             {/* Year row */}
             <div style={{ height: 22, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
               {yearHeaders.map((h, i) => (
@@ -1012,7 +1146,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
           )}
 
           {/* Right: Timeline */}
-          <div style={{ width: totalWidth, position: "relative" }}>
+          <div style={{ width: totalWidth + 24, position: "relative", marginLeft: 24 }}>
             {/* Today indicator */}
             {(() => {
               const todayX = dayOffset(new Date());
@@ -1201,6 +1335,96 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
         </div>
         </div>
       </div>
+      {/* Column filter dropdown */}
+      {filterDropdown && (() => {
+        const col = filterDropdown.col;
+        const uniqueVals = new Set<string>();
+        for (const row of displayRows) {
+          if (row.type === "initiative") continue;
+          const v = getCellText(row.epic, col, false);
+          if (v) uniqueVals.add(v);
+        }
+        const sorted = [...uniqueVals].sort((a, b) => a.localeCompare(b));
+        const selected = colFilters[col] || new Set<string>();
+        return (
+          <>
+            <div
+              style={{ position: "fixed", inset: 0, zIndex: 999 }}
+              onClick={() => setFilterDropdown(null)}
+            />
+            <div
+              style={{
+                position: "fixed",
+                top: filterDropdown.rect.bottom + 2,
+                left: filterDropdown.rect.left,
+                zIndex: 1000,
+                background: "white",
+                border: `1px solid ${theme.borderLight}`,
+                borderRadius: 8,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                padding: 8,
+                minWidth: 160,
+                maxHeight: 300,
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px 4px", borderBottom: `1px solid ${theme.borderLight}` }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: theme.textDark }}>Filter</span>
+                {selected.size > 0 && (
+                  <span
+                    onClick={() => { setColFilters((prev) => { const next = { ...prev }; delete next[col]; return next; }); setFilterDropdown(null); }}
+                    style={{ fontSize: 10, color: theme.primary, cursor: "pointer", fontWeight: 600 }}
+                  >
+                    Clear
+                  </span>
+                )}
+              </div>
+              <div style={{ overflow: "auto", maxHeight: 240 }}>
+                {sorted.map((val) => {
+                  const checked = selected.has(val);
+                  return (
+                    <label
+                      key={val}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "3px 4px",
+                        fontSize: 11,
+                        color: theme.textDark,
+                        cursor: "pointer",
+                        borderRadius: 4,
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = theme.rowAlt)}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setColFilters((prev) => {
+                            const cur = new Set(prev[col] || []);
+                            if (cur.has(val)) cur.delete(val);
+                            else cur.add(val);
+                            const next = { ...prev };
+                            if (cur.size === 0) delete next[col];
+                            else next[col] = cur;
+                            return next;
+                          });
+                        }}
+                        style={{ margin: 0 }}
+                      />
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{val}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
