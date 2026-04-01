@@ -6,12 +6,13 @@ interface TopBarProps {
   onJiraClick: () => void;
   jiraConnected: boolean;
   userName?: string;
+  onLogout: () => void;
   onGeneratePptx?: () => void;
   searchTerm: string;
   onSearchChange: (value: string) => void;
 }
 
-export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected, userName, onGeneratePptx, searchTerm, onSearchChange }: TopBarProps) {
+export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected, userName, onLogout, onGeneratePptx, searchTerm, onSearchChange }: TopBarProps) {
   return (
     <div
       style={{
@@ -163,6 +164,24 @@ export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected
               {userName.charAt(0).toUpperCase()}
             </div>
             <span style={{ fontSize: 12, opacity: 0.9 }}>{userName}</span>
+            <button
+              onClick={onLogout}
+              title="Disconnect"
+              style={{
+                background: "rgba(255,255,255,0.15)",
+                border: "none",
+                color: "white",
+                padding: "5px 10px",
+                borderRadius: 14,
+                cursor: "pointer",
+                fontSize: 11,
+                opacity: 0.8,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.8")}
+            >
+              Logout
+            </button>
           </div>
         )}
       </div>

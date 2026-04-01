@@ -7,5 +7,5 @@ export const theme = {
   rowAlt: "#fdfcff",
   textDark: "#1a1a2e",
   textMuted: "#8b7bb5",
-  fontFamily: "system-ui, -apple-system, sans-serif",
+  fontFamily: "'Poppins', system-ui, -apple-system, sans-serif",
 } as const;
