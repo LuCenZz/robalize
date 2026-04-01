@@ -1384,7 +1384,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                         const visible = epic.phases
                           .filter((p) => dayOffset(p.endDate) - dayOffset(p.startDate) > 0)
                           .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
-                        if (visible.length < 2) return null;
+                        if (visible.length === 0) return null;
                         const minLeft = dayOffset(visible[0].startDate);
                         const maxRight = dayOffset(visible[visible.length - 1].endDate);
                         return (
