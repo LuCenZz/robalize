@@ -908,7 +908,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
           ref={timelineHeaderRef}
           style={{ flex: 1, overflow: "hidden" }}
         >
-          <div style={{ width: totalWidth, position: "relative" }}>
+          <div style={{ width: totalWidth + 16, position: "relative", marginLeft: 16 }}>
             {/* Year row */}
             <div style={{ height: 22, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
               {yearHeaders.map((h, i) => (
@@ -1253,7 +1253,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
           )}
 
           {/* Right: Timeline */}
-          <div style={{ width: totalWidth, position: "relative" }}>
+          <div style={{ width: totalWidth + 16, position: "relative", marginLeft: 16 }}>
             {/* Today indicator */}
             {(() => {
               const todayX = dayOffset(new Date());
