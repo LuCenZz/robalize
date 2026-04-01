@@ -192,6 +192,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
   const [popover, setPopover] = useState<PopoverInfo | null>(null);
   const [gridCollapsed, setGridCollapsed] = useState(false);
   const [tooltipRow, setTooltipRow] = useState<{ epicId: number; x: number; y: number } | null>(null);
+  const [scrollLeft, setScrollLeft] = useState(0);
 
   // Reset internal filters when resetKey changes (triggered by FilterBar "Reset")
   useEffect(() => {
@@ -569,6 +570,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
       if (timelineHeaderRef.current && el) {
         timelineHeaderRef.current.scrollLeft = el.scrollLeft;
       }
+      if (el) setScrollLeft(el.scrollLeft);
     }
     el.addEventListener("scroll", handleScroll);
     return () => el.removeEventListener("scroll", handleScroll);
@@ -1347,17 +1349,21 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                             zIndex: 1,
                           }}
                         />
-                        {/* Initiative label — centered in bar, follows scroll */}
+                        {/* Initiative label — centered in visible portion of bar */}
+                        {(() => {
+                          const visibleLeft = Math.max(minLeft, scrollLeft);
+                          const visibleRight = minLeft + w;
+                          const labelLeft = visibleLeft + (visibleRight - visibleLeft) / 2;
+                          return (
                         <div
                           style={{
                             position: "absolute",
-                            left: minLeft,
+                            left: labelLeft,
                             top: BAR_TOP,
-                            width: w,
                             height: BAR_HEIGHT,
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "center",
+                            transform: "translateX(-50%)",
                             pointerEvents: "none",
                             zIndex: 2,
                           }}
@@ -1372,6 +1378,8 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                             {label}
                           </span>
                         </div>
+                          );
+                        })()}
                       </>
                     );
                   })()}
