@@ -433,7 +433,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
   const totalDays = Math.ceil((maxDate.getTime() - minDate.getTime()) / 86400000);
   const totalWidth = totalDays * config.dayWidth;
 
-  const TIMELINE_PAD = 16;
+  const TIMELINE_PAD = 32;
   function dayOffset(date: Date): number {
     return TIMELINE_PAD + Math.round((date.getTime() - minDate.getTime()) / 86400000) * config.dayWidth;
   }
