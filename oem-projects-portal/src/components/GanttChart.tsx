@@ -192,6 +192,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
   const [popover, setPopover] = useState<PopoverInfo | null>(null);
   const [gridCollapsed, setGridCollapsed] = useState(false);
   const [tooltipRow, setTooltipRow] = useState<{ epicId: number; x: number; y: number } | null>(null);
+  const [scrollLeft, setScrollLeft] = useState(0);
 
   // Reset internal filters when resetKey changes (triggered by FilterBar "Reset")
   useEffect(() => {
@@ -561,7 +562,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
     return () => el?.removeEventListener("scroll", handleScroll);
   }, [popover]);
 
-  // Sync timeline header horizontal scroll with body scroll
+  // Sync timeline header horizontal scroll with body scroll + track scrollLeft
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -569,6 +570,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
       if (timelineHeaderRef.current && el) {
         timelineHeaderRef.current.scrollLeft = el.scrollLeft;
       }
+      if (el) setScrollLeft(el.scrollLeft);
     }
     el.addEventListener("scroll", handleScroll);
     return () => el.removeEventListener("scroll", handleScroll);
@@ -1348,30 +1350,24 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                             zIndex: 1,
                           }}
                         />
-                        {/* Initiative label — inside bar, scrollable with overflow */}
+                        {/* Initiative label — follows scroll position */}
                         <div
                           style={{
                             position: "absolute",
-                            left: minLeft,
+                            left: Math.max(minLeft + 6, scrollLeft + 6),
                             top: BAR_TOP,
-                            width: w,
                             height: BAR_HEIGHT,
                             display: "flex",
                             alignItems: "center",
-                            overflow: "hidden",
                             pointerEvents: "none",
                             zIndex: 2,
                           }}
                         >
                           <span style={{
-                            position: "sticky",
-                            left: 8,
                             fontSize: 10,
                             fontWeight: 700,
                             color: theme.primary,
                             whiteSpace: "nowrap",
-                            paddingLeft: 6,
-                            paddingRight: 6,
                             textShadow: "0 0 4px rgba(240,236,255,0.9), 0 0 8px rgba(240,236,255,0.9)",
                           }}>
                             {label}
