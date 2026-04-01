@@ -6,11 +6,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/jira-api': {
-        target: 'https://imawebgroup.atlassian.net',
+      '/api/jira': {
+        target: 'http://localhost:3001',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/jira-api/, ''),
-        secure: true,
       },
     },
   },

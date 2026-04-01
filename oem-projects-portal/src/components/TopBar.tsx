@@ -4,12 +4,13 @@ interface TopBarProps {
   projectCount: number;
   onUploadClick: () => void;
   onJiraClick: () => void;
+  jiraConnected: boolean;
   onGeneratePptx?: () => void;
   searchTerm: string;
   onSearchChange: (value: string) => void;
 }
 
-export function TopBar({ projectCount, onUploadClick, onJiraClick, onGeneratePptx, searchTerm, onSearchChange }: TopBarProps) {
+export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected, onGeneratePptx, searchTerm, onSearchChange }: TopBarProps) {
   return (
     <div
       style={{
@@ -114,17 +115,21 @@ export function TopBar({ projectCount, onUploadClick, onJiraClick, onGeneratePpt
         <button
           onClick={onJiraClick}
           style={{
-            background: "white",
-            color: theme.primary,
+            background: jiraConnected ? "#2b8a3e" : "white",
+            color: jiraConnected ? "white" : theme.primary,
             border: "none",
             padding: "7px 16px",
             borderRadius: 20,
             cursor: "pointer",
             fontWeight: 600,
             fontSize: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
           }}
         >
-          Connect Jira
+          {jiraConnected && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#69db7c", display: "inline-block" }} />}
+          {jiraConnected ? "Connected" : "Connect Jira"}
         </button>
         <button
           onClick={onUploadClick}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { theme } from "../styles/theme";
 import {
   fetchJiraData,
@@ -12,16 +12,21 @@ interface JiraConnectorProps {
   open: boolean;
   onClose: () => void;
   onDataLoaded: (rows: RawRow[]) => void;
+  connected: boolean;
+  onConnectionChange: (connected: boolean) => void;
 }
 
-export function JiraConnector({ open, onClose, onDataLoaded }: JiraConnectorProps) {
+export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnectionChange }: JiraConnectorProps) {
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [jql, setJql] = useState('project = "ACTO" AND issuetype = Epic ORDER BY key ASC');
   const [maxRows, setMaxRows] = useState(5000);
+  const [refreshInterval, setRefreshInterval] = useState(0);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [error, setError] = useState("");
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const saved = loadJiraConfig();
@@ -30,39 +35,72 @@ export function JiraConnector({ open, onClose, onDataLoaded }: JiraConnectorProp
       setApiToken(saved.apiToken);
       setJql(saved.jql);
       setMaxRows(saved.maxRows);
+      setRefreshInterval(saved.refreshInterval || 0);
     }
   }, []);
 
-  async function handleFetch() {
+  const doFetch = useCallback(async (silent = false) => {
     if (!email || !apiToken || !jql) {
-      setError("Please fill in all fields.");
+      if (!silent) setError("Please fill in all fields.");
       return;
     }
 
-    setError("");
+    if (!silent) {
+      setError("");
+      setProgress(null);
+    }
     setLoading(true);
-    setProgress(null);
 
-    const config: JiraConfig = { email, apiToken, jql, maxRows };
+    const config: JiraConfig = { email, apiToken, jql, maxRows, refreshInterval };
     saveJiraConfig(config);
 
     try {
       const rows = await fetchJiraData(config, (loaded, total) => {
-        setProgress({ loaded, total });
+        if (!silent) setProgress({ loaded, total });
       });
 
       if (rows.length === 0) {
-        setError("No results found for this JQL query.");
+        if (!silent) setError("No results found for this JQL query.");
         setLoading(false);
         return;
       }
 
       onDataLoaded(rows);
-      onClose();
+      onConnectionChange(true);
+      setLastRefresh(new Date());
+      if (!silent) onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Connection failed.");
+      if (!silent) setError(err instanceof Error ? err.message : "Connection failed.");
+      onConnectionChange(false);
     } finally {
       setLoading(false);
+    }
+  }, [email, apiToken, jql, maxRows, refreshInterval, onDataLoaded, onClose, onConnectionChange]);
+
+  // Auto-refresh timer
+  useEffect(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    if (connected && refreshInterval > 0) {
+      timerRef.current = setInterval(() => {
+        doFetch(true);
+      }, refreshInterval * 1000);
+    }
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [connected, refreshInterval, doFetch]);
+
+  function handleDisconnect() {
+    onConnectionChange(false);
+    setLastRefresh(null);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
   }
 
@@ -98,7 +136,7 @@ export function JiraConnector({ open, onClose, onDataLoaded }: JiraConnectorProp
         {/* Header */}
         <div
           style={{
-            background: theme.primary,
+            background: connected ? "#2b8a3e" : theme.primary,
             color: "white",
             padding: "16px 20px",
             borderRadius: "14px 14px 0 0",
@@ -107,7 +145,9 @@ export function JiraConnector({ open, onClose, onDataLoaded }: JiraConnectorProp
             alignItems: "center",
           }}
         >
-          <span style={{ fontWeight: 700, fontSize: 15 }}>Import from Jira</span>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>
+            {connected ? "Connected to Jira" : "Import from Jira"}
+          </span>
           <button
             onClick={onClose}
             style={{
@@ -126,6 +166,28 @@ export function JiraConnector({ open, onClose, onDataLoaded }: JiraConnectorProp
 
         {/* Body */}
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Connection status */}
+          {connected && lastRefresh && (
+            <div
+              style={{
+                background: "#ebfbee",
+                border: "1px solid #b2f2bb",
+                borderRadius: 8,
+                padding: "10px 12px",
+                fontSize: 12,
+                color: "#2b8a3e",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>Last refresh: {lastRefresh.toLocaleTimeString()}</span>
+              {refreshInterval > 0 && (
+                <span style={{ opacity: 0.7 }}>Auto-refresh every {refreshInterval}s</span>
+              )}
+            </div>
+          )}
+
           {/* Email */}
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: theme.textDark, display: "block", marginBottom: 4 }}>
@@ -216,26 +278,52 @@ export function JiraConnector({ open, onClose, onDataLoaded }: JiraConnectorProp
             </a>
           </div>
 
-          {/* Max rows */}
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: theme.textDark, display: "block", marginBottom: 4 }}>
-              Max rows
-            </label>
-            <input
-              type="number"
-              value={maxRows}
-              onChange={(e) => setMaxRows(Number(e.target.value) || 1000)}
-              min={1}
-              max={10000}
-              style={{
-                width: 100,
-                padding: "9px 12px",
-                border: `1.5px solid ${theme.borderLight}`,
-                borderRadius: 8,
-                fontSize: 13,
-                outline: "none",
-              }}
-            />
+          {/* Max rows + Refresh interval */}
+          <div style={{ display: "flex", gap: 16 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: theme.textDark, display: "block", marginBottom: 4 }}>
+                Max rows
+              </label>
+              <input
+                type="number"
+                value={maxRows}
+                onChange={(e) => setMaxRows(Number(e.target.value) || 1000)}
+                min={1}
+                max={10000}
+                style={{
+                  width: 100,
+                  padding: "9px 12px",
+                  border: `1.5px solid ${theme.borderLight}`,
+                  borderRadius: 8,
+                  fontSize: 13,
+                  outline: "none",
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: theme.textDark, display: "block", marginBottom: 4 }}>
+                Auto-refresh (seconds)
+              </label>
+              <input
+                type="number"
+                value={refreshInterval || ""}
+                onChange={(e) => setRefreshInterval(e.target.value === "" ? 0 : parseInt(e.target.value, 10) || 0)}
+                min={0}
+                step={30}
+                placeholder="0 = off"
+                style={{
+                  width: 120,
+                  padding: "9px 12px",
+                  border: `1.5px solid ${theme.borderLight}`,
+                  borderRadius: 8,
+                  fontSize: 13,
+                  outline: "none",
+                }}
+              />
+              <span style={{ fontSize: 10, color: theme.textMuted, display: "block", marginTop: 2 }}>
+                0 = disabled
+              </span>
+            </div>
           </div>
 
           {/* Error */}
@@ -280,24 +368,43 @@ export function JiraConnector({ open, onClose, onDataLoaded }: JiraConnectorProp
             </div>
           )}
 
-          {/* Submit */}
-          <button
-            onClick={handleFetch}
-            disabled={loading}
-            style={{
-              background: loading ? theme.textMuted : theme.primary,
-              color: "white",
-              border: "none",
-              padding: "11px 20px",
-              borderRadius: 10,
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: loading ? "not-allowed" : "pointer",
-              marginTop: 4,
-            }}
-          >
-            {loading ? "Loading..." : "Get Data Now"}
-          </button>
+          {/* Buttons */}
+          <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+            <button
+              onClick={() => doFetch(false)}
+              disabled={loading}
+              style={{
+                flex: 1,
+                background: loading ? theme.textMuted : theme.primary,
+                color: "white",
+                border: "none",
+                padding: "11px 20px",
+                borderRadius: 10,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: loading ? "not-allowed" : "pointer",
+              }}
+            >
+              {loading ? "Loading..." : connected ? "Refresh Now" : "Get Data Now"}
+            </button>
+            {connected && (
+              <button
+                onClick={handleDisconnect}
+                style={{
+                  background: "white",
+                  border: "1.5px solid #e03131",
+                  color: "#e03131",
+                  padding: "11px 16px",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Disconnect
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

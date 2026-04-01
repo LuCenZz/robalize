@@ -195,7 +195,7 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
   const [popover, setPopover] = useState<PopoverInfo | null>(null);
   const [colWidths, setColWidths] = useState({ product: 100, acto: 80, epicName: 250, status: 120 });
   const scrollRef = useRef<HTMLDivElement>(null);
-  const gridScrollRef = useRef<HTMLDivElement>(null);
+
   const timelineHeaderRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ col: keyof typeof colWidths; startX: number; startW: number } | null>(null);
 
@@ -428,6 +428,15 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
     el?.addEventListener("scroll", handleScroll);
     return () => el?.removeEventListener("scroll", handleScroll);
   }, [popover]);
+
+  // Scroll to today on initial load and when data changes
+  useEffect(() => {
+    if (scrollRef.current && displayedRows.length > 0) {
+      const todayX = dayOffset(new Date());
+      const containerWidth = scrollRef.current.clientWidth;
+      scrollRef.current.scrollLeft = todayX - containerWidth / 3;
+    }
+  }, [displayedRows.length, zoom]);
 
   const formatDate = (d: Date) =>
     d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -797,147 +806,139 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
         </div>
       </div>
 
-      {/* Scrollable body — vertical scroll for all, horizontal scroll for timeline only */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        {/* Left grid rows — vertical scroll only, scrollbar hidden */}
-        <div
-          ref={gridScrollRef}
-          className="hide-scrollbar"
-          style={{
-            width: gridTotalWidth,
-            flexShrink: 0,
-            borderRight: `2px solid ${theme.borderLight}`,
-            overflowY: "auto",
-            overflowX: "hidden",
-            scrollbarWidth: "none",
-          }}
-        >
-          {displayedRows.map((row, i) => {
-            const epic = row.epic;
-            const isInitiative = row.type === "initiative";
-            const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
-            const info = isInconsistent ? inconsistencies.get(epic.id) : null;
-            const isAlerted = showAlerts && alerts.has(epic.id);
-            const alertInfo = isAlerted ? alerts.get(epic.id) : null;
-            const isHighlighted = isInconsistent || isAlerted;
-            const highlightColor = isInconsistent ? "#e03131" : "#e67700";
-            const highlightBg = isInconsistent ? "#fff0f0" : "#fff8e1";
-            const defaultBg = isInitiative ? "#f0ecff" : i % 2 === 0 ? "white" : theme.rowAlt;
-            return (
-              <div
-                key={`${row.type}-${epic.id}`}
-                title={info ? info.details.join("\n") : alertInfo ? alertInfo.details.join("\n") : undefined}
-                onClick={() => !isInitiative && scrollToClosestPhase(epic)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  height: ROW_HEIGHT,
-                  borderBottom: `1px solid ${theme.borderRow}`,
-                  background: isHighlighted ? highlightBg : defaultBg,
-                  borderLeft: isHighlighted ? `3px solid ${highlightColor}` : isInitiative ? `3px solid ${theme.primary}` : "3px solid transparent",
-                  cursor: isInitiative ? "default" : "pointer",
-                }}
-              >
+      {/* Single scroll container — grid sticky left, headers sticky top */}
+      <div
+        ref={scrollRef}
+        style={{ flex: 1, overflow: "auto" }}
+      >
+        <div style={{ display: "inline-flex", minWidth: "100%", minHeight: "min-content" }}>
+          {/* Left grid — sticky left */}
+          <div
+            style={{
+              position: "sticky",
+              left: 0,
+              zIndex: 10,
+              width: gridTotalWidth,
+              flexShrink: 0,
+              background: "white",
+              borderRight: `2px solid ${theme.borderLight}`,
+            }}
+          >
+            {displayedRows.map((row, i) => {
+              const epic = row.epic;
+              const isInitiative = row.type === "initiative";
+              const isInconsistent = showInconsistencies && inconsistencies.has(epic.id);
+              const info = isInconsistent ? inconsistencies.get(epic.id) : null;
+              const isAlerted = showAlerts && alerts.has(epic.id);
+              const alertInfo = isAlerted ? alerts.get(epic.id) : null;
+              const isHighlighted = isInconsistent || isAlerted;
+              const highlightColor = isInconsistent ? "#e03131" : "#e67700";
+              const highlightBg = isInconsistent ? "#fff0f0" : "#fff8e1";
+              const defaultBg = isInitiative ? "#f0ecff" : i % 2 === 0 ? "white" : theme.rowAlt;
+              return (
                 <div
+                  key={`grid-${row.type}-${epic.id}`}
+                  title={info ? info.details.join("\n") : alertInfo ? alertInfo.details.join("\n") : undefined}
+                  onClick={() => !isInitiative && scrollToClosestPhase(epic)}
                   style={{
-                    width: colWidths.product,
-                    fontSize: 11,
-                    fontWeight: isInitiative ? 700 : 400,
-                    color: theme.textDark,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    padding: "0 8px",
-                    borderRight: `1px solid ${theme.borderRow}`,
-                    boxSizing: "border-box",
+                    display: "flex",
+                    alignItems: "center",
+                    height: ROW_HEIGHT,
+                    borderBottom: `1px solid ${theme.borderRow}`,
+                    background: isHighlighted ? highlightBg : defaultBg,
+                    borderLeft: isHighlighted ? `3px solid ${highlightColor}` : isInitiative ? `3px solid ${theme.primary}` : "3px solid transparent",
+                    cursor: isInitiative ? "default" : "pointer",
                   }}
-                  title={epic.rawData["Custom field (Product)"] || ""}
                 >
-                  {isInitiative ? "" : (epic.rawData["Custom field (Product)"] || "—")}
+                  <div
+                    style={{
+                      width: colWidths.product,
+                      fontSize: 11,
+                      fontWeight: isInitiative ? 700 : 400,
+                      color: theme.textDark,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      padding: "0 8px",
+                      borderRight: `1px solid ${theme.borderRow}`,
+                      boxSizing: "border-box",
+                    }}
+                    title={epic.rawData["Custom field (Product)"] || ""}
+                  >
+                    {isInitiative ? "" : (epic.rawData["Custom field (Product)"] || "—")}
+                  </div>
+                  <div
+                    style={{
+                      width: colWidths.acto,
+                      fontSize: 11,
+                      fontWeight: isInitiative ? 700 : 400,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      paddingLeft: 8,
+                      paddingRight: 8,
+                      borderRight: `1px solid ${theme.borderRow}`,
+                    }}
+                    title={epic.epicKey || ""}
+                  >
+                    {epic.epicKey ? (
+                      <a
+                        href={`https://imawebgroup.atlassian.net/browse/${epic.epicKey}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          color: theme.primary,
+                          textDecoration: "none",
+                          fontWeight: isInitiative ? 700 : 500,
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
+                        onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+                      >
+                        {epic.epicKey}
+                      </a>
+                    ) : "—"}
+                  </div>
+                  <div
+                    style={{
+                      width: colWidths.epicName,
+                      fontSize: 13,
+                      fontWeight: isInitiative ? 700 : 500,
+                      color: isHighlighted ? highlightColor : isInitiative ? theme.primary : theme.textDark,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      padding: isInitiative ? "0 12px" : "0 12px 0 24px",
+                      borderRight: `1px solid ${theme.borderRow}`,
+                      boxSizing: "border-box",
+                    }}
+                    title={epic.epicName}
+                  >
+                    {epic.epicName}
+                  </div>
+                  <div style={{ width: colWidths.status, textAlign: "left", padding: "0 8px", boxSizing: "border-box" }}>
+                    {epic.status && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          background: `${theme.primary}22`,
+                          color: theme.primary,
+                          padding: "3px 8px",
+                          borderRadius: 10,
+                          fontWeight: 500,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {epic.status}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div
-                  style={{
-                    width: colWidths.acto,
-                    fontSize: 11,
-                    fontWeight: isInitiative ? 700 : 400,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    paddingLeft: 8,
-                    paddingRight: 8,
-                    borderRight: `1px solid ${theme.borderRow}`,
-                  }}
-                  title={epic.epicKey || ""}
-                >
-                  {epic.epicKey ? (
-                    <a
-                      href={`https://imawebgroup.atlassian.net/browse/${epic.epicKey}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        color: theme.primary,
-                        textDecoration: "none",
-                        fontWeight: isInitiative ? 700 : 500,
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
-                      onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
-                    >
-                      {epic.epicKey}
-                    </a>
-                  ) : "—"}
-                </div>
-                <div
-                  style={{
-                    width: colWidths.epicName,
-                    fontSize: isInitiative ? 13 : 13,
-                    fontWeight: isInitiative ? 700 : 500,
-                    color: isHighlighted ? highlightColor : isInitiative ? theme.primary : theme.textDark,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    padding: isInitiative ? "0 12px" : "0 12px 0 24px",
-                    borderRight: `1px solid ${theme.borderRow}`,
-                    boxSizing: "border-box",
-                  }}
-                  title={epic.epicName}
-                >
-                  {epic.epicName}
-                </div>
-                <div style={{ width: colWidths.status, textAlign: "left", padding: "0 8px", boxSizing: "border-box" }}>
-                  {epic.status && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        background: `${theme.primary}22`,
-                        color: theme.primary,
-                        padding: "3px 8px",
-                        borderRadius: 10,
-                        fontWeight: 500,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {epic.status}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
 
-        {/* Right: Timeline — horizontal + vertical scroll */}
-        <div
-          ref={scrollRef}
-          onScroll={(e) => {
-            if (timelineHeaderRef.current) {
-              timelineHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
-            }
-            if (gridScrollRef.current) {
-              gridScrollRef.current.scrollTop = e.currentTarget.scrollTop;
-            }
-          }}
-          style={{ flex: 1, overflow: "auto" }}
-        >
+          {/* Right: Timeline */}
           <div style={{ width: totalWidth, position: "relative" }}>
             {/* Today indicator */}
             {(() => {
@@ -1001,7 +1002,7 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
               const defaultBg = isInitiative ? "#f0ecff" : i % 2 === 0 ? "white" : theme.rowAlt;
               return (
                 <div
-                  key={`${row.type}-${epic.id}`}
+                  key={`tl-${row.type}-${epic.id}`}
                   style={{
                     height: ROW_HEIGHT,
                     position: "relative",

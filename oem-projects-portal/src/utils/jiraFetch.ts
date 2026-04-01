@@ -7,6 +7,7 @@ export interface JiraConfig {
   apiToken: string;
   jql: string;
   maxRows: number;
+  refreshInterval: number; // seconds, 0 = disabled
 }
 
 export function loadJiraConfig(): JiraConfig | null {
@@ -25,6 +26,7 @@ export function saveJiraConfig(config: JiraConfig) {
 interface JiraField {
   id: string;
   name: string;
+  custom: boolean;
 }
 
 interface JiraIssue {
@@ -56,70 +58,96 @@ export async function fetchJiraData(
   config: JiraConfig,
   onProgress?: (loaded: number, total: number) => void
 ): Promise<RawRow[]> {
-  const auth = btoa(`${config.email}:${config.apiToken}`);
-  const headers: Record<string, string> = {
-    Authorization: `Basic ${auth}`,
-    Accept: "application/json",
-    "Content-Type": "application/json",
-    "X-Atlassian-Token": "no-check",
-  };
-
-  // Step 1: Fetch all field definitions to build ID → name mapping
-  const fieldsRes = await fetch("/jira-api/rest/api/3/field", { headers });
-  if (!fieldsRes.ok) {
-    const err = await fieldsRes.text();
-    throw new Error(`Failed to fetch JIRA fields: ${fieldsRes.status} - ${err}`);
-  }
-  const fields: JiraField[] = await fieldsRes.json();
-  const fieldMap = new Map<string, string>();
-  for (const f of fields) {
-    fieldMap.set(f.id, f.name);
-  }
-
-  // Step 2: Fetch issues in batches
-  const allRows: RawRow[] = [];
-  let startAt = 0;
-  const batchSize = 100;
-  let total = config.maxRows;
-
-  while (startAt < total && startAt < config.maxRows) {
-    const maxResults = Math.min(batchSize, config.maxRows - startAt);
-    const searchRes = await fetch("/jira-api/rest/api/3/search", {
+  async function jiraCall(path: string, method = "GET", body?: unknown) {
+    const res = await fetch("/api/jira", {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        jql: config.jql,
-        startAt,
-        maxResults,
-        fields: ["*all"],
+        email: config.email,
+        apiToken: config.apiToken,
+        method,
+        path,
+        body: body || undefined,
       }),
     });
-
-    if (!searchRes.ok) {
-      const err = await searchRes.text();
-      throw new Error(`JIRA search failed: ${searchRes.status} - ${err}`);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`JIRA ${method} ${path} failed: ${res.status} - ${err}`);
     }
+    return res.json();
+  }
 
-    const data = await searchRes.json();
-    total = Math.min(data.total, config.maxRows);
+  // Step 1: Fetch all field definitions to build ID → name mapping
+  const fields: JiraField[] = await jiraCall("/rest/api/3/field");
+  const fieldMap = new Map<string, string>();
+  // Standard JIRA fields that don't need "Custom field (...)" prefix
+  const standardFields = new Set([
+    "summary", "status", "issuetype", "priority", "assignee", "reporter",
+    "created", "updated", "resolved", "project", "labels", "components",
+    "description", "environment", "resolution", "votes", "watches",
+    "creator", "subtasks", "attachment", "comment", "worklog",
+    "issuelinks", "parent", "fixVersions", "versions", "duedate",
+    "timetracking", "timeestimate", "timespent", "aggregatetimespent",
+    "aggregatetimeoriginalestimate", "aggregatetimeestimate",
+    "aggregateprogress", "progress", "workratio", "lastViewed",
+    "statusCategory", "statusCategoryChangeDate",
+  ]);
+  for (const f of fields) {
+    // Custom fields get "Custom field (...)" prefix to match CSV export format
+    const name = f.custom ? `Custom field (${f.name})` : f.name;
+    fieldMap.set(f.id, name);
+  }
 
-    for (const issue of data.issues as JiraIssue[]) {
+  // Step 2: Fetch issues using GET /search/jql via server proxy
+  const allRows: RawRow[] = [];
+  let nextPageToken: string | undefined;
+
+  while (allRows.length < config.maxRows) {
+    const maxR = Math.min(100, config.maxRows - allRows.length);
+    const params = new URLSearchParams({
+      jql: config.jql,
+      maxResults: String(maxR),
+      fields: "*all",
+    });
+    if (nextPageToken) params.set("nextPageToken", nextPageToken);
+
+    const data = await jiraCall(`/rest/api/3/search/jql?${params}`);
+    console.log("JIRA response:", { keys: Object.keys(data), total: data.total, issueCount: data.issues?.length, isLast: data.isLast, nextPageToken: data.nextPageToken });
+
+    const issues = (data.issues ?? []) as JiraIssue[];
+    for (const issue of issues) {
       const row: RawRow = {};
       row["Issue key"] = issue.key;
 
-      // Map all fields using human-readable names
-      for (const [fieldId, value] of Object.entries(issue.fields)) {
+      // Map all fields using human-readable names (matching CSV export format)
+      const rawFields = issue.fields || {};
+      for (const [fieldId, value] of Object.entries(rawFields)) {
         const fieldName = fieldMap.get(fieldId) || fieldId;
         row[fieldName] = formatFieldValue(value);
+      }
+
+      // Ensure standard fields match CSV column names
+      row["Summary"] = formatFieldValue(rawFields.summary);
+      row["Status"] = formatFieldValue(rawFields.status);
+      row["Issue Type"] = formatFieldValue(rawFields.issuetype);
+
+      // Parent mapping for initiative grouping
+      const parent = rawFields.parent as Record<string, unknown> | undefined;
+      if (parent) {
+        row["Parent key"] = formatFieldValue(parent.key);
+        row["Parent summary"] = formatFieldValue((parent.fields as Record<string, unknown>)?.summary);
       }
 
       allRows.push(row);
     }
 
-    startAt += data.issues.length;
-    onProgress?.(Math.min(startAt, total), total);
+    nextPageToken = data.nextPageToken;
+    const isLastPage = data.isLast !== false;
+    // Show real progress: if last page, total = what we have; otherwise estimate from loaded so far
+    const estimatedTotal = isLastPage ? allRows.length : allRows.length + 100;
+    onProgress?.(allRows.length, estimatedTotal);
 
-    if (data.issues.length === 0) break;
+    if (issues.length === 0 || isLastPage) break;
   }
 
   return allRows;
