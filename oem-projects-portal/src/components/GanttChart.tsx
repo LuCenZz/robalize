@@ -57,13 +57,8 @@ function toDayValue(d: Date): number {
 
 function detectInconsistencies(tasks: EpicTask[]): Map<number, InconsistencyInfo> {
   const result = new Map<number, InconsistencyInfo>();
-  const today = toDayValue(new Date());
 
   for (const epic of tasks) {
-    // Skip epics where all phases are in the past
-    const lastEnd = Math.max(...epic.phases.map((p) => toDayValue(p.endDate)));
-    if (lastEnd < today) continue;
-
     const phaseMap = new Map(epic.phases.map((p) => [p.phaseName, p]));
     const presentPhases = PHASE_ORDER.filter((name) => phaseMap.has(name));
     const conflicts = new Set<string>();
@@ -1190,7 +1185,8 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
           )}
 
           {/* Right: Timeline */}
-          <div style={{ width: totalWidth + 24, position: "relative", paddingLeft: 24 }}>
+          <div style={{ width: totalWidth + 24 }}>
+          <div style={{ width: totalWidth, position: "relative", marginLeft: 24 }}>
             {/* Today indicator */}
             {(() => {
               const todayX = dayOffset(new Date());
@@ -1283,17 +1279,18 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                           border: `2px solid ${theme.primary}`,
                           pointerEvents: "none",
                           zIndex: 1,
-                          display: "flex",
-                          alignItems: "center",
-                          paddingLeft: 8,
-                          overflow: "hidden",
+                          overflow: "visible",
                         }}
                       >
                         <span style={{
+                          position: "sticky",
+                          left: 8,
                           fontSize: 10,
                           fontWeight: 700,
                           color: theme.primary,
                           whiteSpace: "nowrap",
+                          lineHeight: `${BAR_HEIGHT - 4}px`,
+                          paddingLeft: 4,
                         }}>
                           {label}
                         </span>
@@ -1375,6 +1372,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
         </div>

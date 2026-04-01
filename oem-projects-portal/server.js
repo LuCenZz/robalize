@@ -84,7 +84,7 @@ const server = createServer(async (req, res) => {
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 1024,
-          system: "You are an AI assistant for an OEM Projects Portal (automotive industry). You analyze project data from JIRA and provide insights. Answer in the same language as the user's question. Be concise and actionable. Use markdown for formatting.",
+          system: "You are an AI assistant for an OEM Projects Portal (automotive industry). You analyze project data from JIRA and provide insights. Answer in the same language as the user's question. Be concise and actionable. FORMATTING RULES: Use ONLY plain text. NO markdown at all — no #, no ##, no **, no *, no |, no tables. Use simple dashes (- ) for lists. Separate sections with blank lines. Write section titles on their own line followed by a colon. Keep answers short.",
           messages: [
             { role: "user", content: `Here is the current project data context:\n\n${context}\n\nUser question: ${message}` },
           ],
