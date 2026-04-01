@@ -4,6 +4,7 @@ import { theme } from "../styles/theme";
 
 interface GanttChartProps {
   tasks: EpicTask[];
+  allTasks: EpicTask[];
   displayRows: DisplayRow[];
   resetKey?: number;
 }
@@ -183,7 +184,7 @@ const RESIZE_HANDLE: React.CSSProperties = {
   zIndex: 2,
 };
 
-export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
+export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("month");
   const [showInconsistencies, setShowInconsistencies] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
@@ -293,8 +294,8 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
     setFilterDropdown((prev) => prev?.col === col ? null : { col, rect });
   }
 
-  const inconsistencies = useMemo(() => detectInconsistencies(tasks), [tasks]);
-  const alerts = useMemo(() => detectAlerts(tasks), [tasks]);
+  const inconsistencies = useMemo(() => detectInconsistencies(allTasks), [allTasks]);
+  const alerts = useMemo(() => detectAlerts(allTasks), [allTasks]);
 
   // Scroll to the phase closest to today for a given epic
   function scrollToClosestPhase(epic: EpicTask) {

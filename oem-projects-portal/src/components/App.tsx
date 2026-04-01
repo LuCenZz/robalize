@@ -410,7 +410,7 @@ export function App() {
 
       {!loading && rawData.length > 0 && (
         <Suspense fallback={<div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: theme.textMuted }}>Loading Gantt...</div>}>
-          <GanttChart tasks={filteredEpicTasks} displayRows={displayRows} resetKey={resetKey} />
+          <GanttChart tasks={filteredEpicTasks} allTasks={allEpicTasks} displayRows={displayRows} resetKey={resetKey} />
         </Suspense>
       )}
 
