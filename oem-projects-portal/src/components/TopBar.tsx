@@ -3,12 +3,13 @@ import { theme } from "../styles/theme";
 interface TopBarProps {
   projectCount: number;
   onUploadClick: () => void;
+  onJiraClick: () => void;
   onGeneratePptx?: () => void;
   searchTerm: string;
   onSearchChange: (value: string) => void;
 }
 
-export function TopBar({ projectCount, onUploadClick, onGeneratePptx, searchTerm, onSearchChange }: TopBarProps) {
+export function TopBar({ projectCount, onUploadClick, onJiraClick, onGeneratePptx, searchTerm, onSearchChange }: TopBarProps) {
   return (
     <div
       style={{
@@ -111,10 +112,25 @@ export function TopBar({ projectCount, onUploadClick, onGeneratePptx, searchTerm
           </button>
         )}
         <button
-          onClick={onUploadClick}
+          onClick={onJiraClick}
           style={{
             background: "white",
             color: theme.primary,
+            border: "none",
+            padding: "7px 16px",
+            borderRadius: 20,
+            cursor: "pointer",
+            fontWeight: 600,
+            fontSize: 12,
+          }}
+        >
+          Connect Jira
+        </button>
+        <button
+          onClick={onUploadClick}
+          style={{
+            background: "rgba(255,255,255,0.3)",
+            color: "white",
             border: "none",
             padding: "7px 16px",
             borderRadius: 20,

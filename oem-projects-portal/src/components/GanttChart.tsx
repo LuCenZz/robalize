@@ -221,6 +221,27 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
   const inconsistencies = useMemo(() => detectInconsistencies(tasks), [tasks]);
   const alerts = useMemo(() => detectAlerts(tasks), [tasks]);
 
+  // Scroll to the phase closest to today for a given epic
+  function scrollToClosestPhase(epic: EpicTask) {
+    if (!scrollRef.current || epic.phases.length === 0) return;
+    const today = new Date().getTime();
+    let closestPhase = epic.phases[0];
+    let closestDist = Infinity;
+    for (const phase of epic.phases) {
+      // Distance = 0 if today is within the phase, otherwise distance to nearest edge
+      const start = phase.startDate.getTime();
+      const end = phase.endDate.getTime();
+      const dist = today >= start && today <= end ? 0 : Math.min(Math.abs(today - start), Math.abs(today - end));
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestPhase = phase;
+      }
+    }
+    const phaseMiddle = dayOffset(new Date((closestPhase.startDate.getTime() + closestPhase.endDate.getTime()) / 2));
+    const containerWidth = scrollRef.current.clientWidth;
+    scrollRef.current.scrollLeft = phaseMiddle - containerWidth / 2;
+  }
+
   // Check if an epic is currently in a given phase (today is between start and end)
   const isInPhaseToday = useCallback((epic: EpicTask, phaseName: string): boolean => {
     const today = new Date();
@@ -806,6 +827,7 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
               <div
                 key={`${row.type}-${epic.id}`}
                 title={info ? info.details.join("\n") : alertInfo ? alertInfo.details.join("\n") : undefined}
+                onClick={() => !isInitiative && scrollToClosestPhase(epic)}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -813,6 +835,7 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
                   borderBottom: `1px solid ${theme.borderRow}`,
                   background: isHighlighted ? highlightBg : defaultBg,
                   borderLeft: isHighlighted ? `3px solid ${highlightColor}` : isInitiative ? `3px solid ${theme.primary}` : "3px solid transparent",
+                  cursor: isInitiative ? "default" : "pointer",
                 }}
               >
                 <div

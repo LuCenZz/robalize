@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, lazy, Suspense } from "react";
 import { TopBar } from "./TopBar";
 import { FileUploader } from "./FileUploader";
+import { JiraConnector } from "./JiraConnector";
 import { FilterBar } from "./FilterBar";
 import { parseFile } from "../utils/parseFile";
 
@@ -23,8 +24,16 @@ export function App() {
   const [columns, setColumns] = useState<string[]>([]);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [uploaderOpen, setUploaderOpen] = useState(true);
+  const [jiraOpen, setJiraOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+
+  const handleJiraData = useCallback((rows: RawRow[]) => {
+    setRawData(rows);
+    setColumns(extractColumns(rows));
+    setActiveFilters([]);
+    setSearchTerm("");
+  }, []);
 
   const handleFileSelected = useCallback(async (file: File) => {
     setLoading(true);
@@ -98,6 +107,7 @@ export function App() {
       <TopBar
         projectCount={epicTasks.length}
         onUploadClick={() => setUploaderOpen(true)}
+        onJiraClick={() => setJiraOpen(true)}
         onGeneratePptx={() => generatePptx(epicTasks)}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
@@ -167,6 +177,12 @@ export function App() {
         open={uploaderOpen}
         onClose={() => setUploaderOpen(false)}
         onFileSelected={handleFileSelected}
+      />
+
+      <JiraConnector
+        open={jiraOpen}
+        onClose={() => setJiraOpen(false)}
+        onDataLoaded={handleJiraData}
       />
     </div>
   );

@@ -57,10 +57,11 @@ export async function fetchJiraData(
   onProgress?: (loaded: number, total: number) => void
 ): Promise<RawRow[]> {
   const auth = btoa(`${config.email}:${config.apiToken}`);
-  const headers = {
+  const headers: Record<string, string> = {
     Authorization: `Basic ${auth}`,
     Accept: "application/json",
     "Content-Type": "application/json",
+    "X-Atlassian-Token": "no-check",
   };
 
   // Step 1: Fetch all field definitions to build ID → name mapping
