@@ -5,12 +5,13 @@ interface TopBarProps {
   onUploadClick: () => void;
   onJiraClick: () => void;
   jiraConnected: boolean;
+  userName?: string;
   onGeneratePptx?: () => void;
   searchTerm: string;
   onSearchChange: (value: string) => void;
 }
 
-export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected, onGeneratePptx, searchTerm, onSearchChange }: TopBarProps) {
+export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected, userName, onGeneratePptx, searchTerm, onSearchChange }: TopBarProps) {
   return (
     <div
       style={{
@@ -146,6 +147,24 @@ export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected
         >
           Load CSV/Excel
         </button>
+        {userName && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
+            <div style={{
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.25)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 12,
+              fontWeight: 700,
+            }}>
+              {userName.charAt(0).toUpperCase()}
+            </div>
+            <span style={{ fontSize: 12, opacity: 0.9 }}>{userName}</span>
+          </div>
+        )}
       </div>
     </div>
   );

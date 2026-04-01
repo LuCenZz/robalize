@@ -1,21 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { ActiveFilter } from "../types";
 import { theme } from "../styles/theme";
-
-const FAVORITES_KEY = "oem-filter-favorites";
-
-function loadFavorites(): string[] {
-  try {
-    const stored = localStorage.getItem(FAVORITES_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveFavorites(favs: string[]) {
-  localStorage.setItem(FAVORITES_KEY, JSON.stringify(favs));
-}
+import { saveFavorites as saveUserFavorites, loadFavorites as loadUserFavorites } from "../utils/userPrefs";
 
 interface FilterBarProps {
   columns: string[];
@@ -381,7 +367,7 @@ export function FilterBar({
 }: FilterBarProps) {
   const [showAddDropdown, setShowAddDropdown] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [favorites, setFavorites] = useState<string[]>(loadFavorites);
+  const [favorites, setFavorites] = useState<string[]>(loadUserFavorites);
   const addRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -415,7 +401,7 @@ export function FilterBar({
         const next = prev.includes(column)
           ? prev.filter((f) => f !== column)
           : [...prev, column];
-        saveFavorites(next);
+        saveUserFavorites(next);
         return next;
       });
     },

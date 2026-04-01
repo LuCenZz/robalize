@@ -17,6 +17,7 @@ import {
 import { applyFilters } from "../utils/filterEngine";
 import { generatePptx } from "../utils/generatePptx";
 import { loadJiraConfig, fetchJiraData } from "../utils/jiraFetch";
+import { saveFilters, loadFilters, saveSearchTerm, loadSearchTerm } from "../utils/userPrefs";
 import type { RawRow, ActiveFilter, EpicTask } from "../types";
 import { theme } from "../styles/theme";
 
@@ -27,6 +28,18 @@ export function App() {
   const [uploaderOpen, setUploaderOpen] = useState(false);
   const [jiraOpen, setJiraOpen] = useState(false);
   const [jiraConnected, setJiraConnected] = useState(false);
+  const jiraUserName = useMemo(() => {
+    const config = loadJiraConfig();
+    if (config?.email) {
+      // Extract name from email: "firstname.lastname@..." → "Firstname Lastname"
+      const namePart = config.email.split("@")[0];
+      return namePart
+        .split(/[._-]/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ");
+    }
+    return undefined;
+  }, [jiraConnected]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [resetKey, setResetKey] = useState(0);
@@ -38,17 +51,28 @@ export function App() {
     setSearchTerm("");
   }, []);
 
-  // Auto-reconnect to JIRA on mount if config exists
+  // Auto-reconnect to JIRA on mount and restore user prefs
   useEffect(() => {
     const config = loadJiraConfig();
     if (config && config.email && config.apiToken && config.jql) {
+      // Restore prefs for this user
+      const savedFilters = loadFilters(config.email);
+      const savedSearch = loadSearchTerm(config.email);
+      if (savedSearch) setSearchTerm(savedSearch);
+
       setLoading(true);
       fetchJiraData(config)
         .then((rows) => {
           if (rows.length > 0) {
             setRawData(rows);
-            setColumns(extractColumns(rows));
+            const cols = extractColumns(rows);
+            setColumns(cols);
             setJiraConnected(true);
+            // Restore filters only if columns still exist
+            if (savedFilters.length > 0) {
+              const validFilters = savedFilters.filter((f) => cols.includes(f.column));
+              setActiveFilters(validFilters);
+            }
           }
         })
         .catch((err) => {
@@ -155,9 +179,13 @@ export function App() {
         onUploadClick={() => setUploaderOpen(true)}
         onJiraClick={() => setJiraOpen(true)}
         jiraConnected={jiraConnected}
+        userName={jiraUserName}
         onGeneratePptx={() => generatePptx(filteredEpicTasks)}
         searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
+        onSearchChange={(term) => {
+          setSearchTerm(term);
+          saveSearchTerm(term);
+        }}
       />
 
       <FilterBar
@@ -166,7 +194,7 @@ export function App() {
         getUniqueValues={getUniqueValues}
         onFiltersChange={(filters) => {
           setActiveFilters(filters);
-          // If all filters are cleared, also reset Gantt internal filters (phase legend, check dates, alerts)
+          saveFilters(filters);
           if (filters.every((f) => f.values.length === 0)) {
             setResetKey((k) => k + 1);
           }
@@ -180,10 +208,79 @@ export function App() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: theme.textMuted,
+            flexDirection: "column",
+            gap: 28,
           }}
         >
-          Loading...
+          <style>{`
+            @keyframes cube-rotate {
+              0%   { transform: perspective(200px) rotateX(-20deg) rotateY(0deg); }
+              25%  { transform: perspective(200px) rotateX(-20deg) rotateY(90deg); }
+              50%  { transform: perspective(200px) rotateX(-20deg) rotateY(180deg); }
+              75%  { transform: perspective(200px) rotateX(-20deg) rotateY(270deg); }
+              100% { transform: perspective(200px) rotateX(-20deg) rotateY(360deg); }
+            }
+            @keyframes cube-shadow {
+              0%, 100% { transform: scale(1); opacity: 0.25; }
+              50%      { transform: scale(1.15); opacity: 0.12; }
+            }
+            @keyframes loading-dots {
+              0%   { content: ''; }
+              25%  { content: '.'; }
+              50%  { content: '..'; }
+              75%  { content: '...'; }
+            }
+            .loading-dots::after {
+              content: '';
+              animation: loading-dots 1.4s steps(1, end) infinite;
+            }
+          `}</style>
+          {/* 3D Cube */}
+          <div style={{ width: 48, height: 48, position: "relative" }}>
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                transformStyle: "preserve-3d",
+                animation:
+                  "cube-rotate 2.4s cubic-bezier(0.68, -0.15, 0.27, 1.15) infinite",
+              }}
+            >
+              <div style={{ position: "absolute", width: 48, height: 48, background: `linear-gradient(135deg, ${theme.primary}, #9b6dff)`, borderRadius: 8, transform: "translateZ(24px)", boxShadow: "inset 0 0 16px rgba(255,255,255,0.15)" }} />
+              <div style={{ position: "absolute", width: 48, height: 48, background: `linear-gradient(135deg, #4a0fbf, ${theme.primary})`, borderRadius: 8, transform: "rotateY(180deg) translateZ(24px)" }} />
+              <div style={{ position: "absolute", width: 48, height: 48, background: `linear-gradient(135deg, #5a1de0, #8450f0)`, borderRadius: 8, transform: "rotateY(90deg) translateZ(24px)" }} />
+              <div style={{ position: "absolute", width: 48, height: 48, background: `linear-gradient(135deg, #7b3cf5, #5a1de0)`, borderRadius: 8, transform: "rotateY(-90deg) translateZ(24px)" }} />
+              <div style={{ position: "absolute", width: 48, height: 48, background: `linear-gradient(135deg, #9b6dff, #b794ff)`, borderRadius: 8, transform: "rotateX(90deg) translateZ(24px)" }} />
+              <div style={{ position: "absolute", width: 48, height: 48, background: `linear-gradient(135deg, #3a0a9e, #4a0fbf)`, borderRadius: 8, transform: "rotateX(-90deg) translateZ(24px)" }} />
+            </div>
+            <div
+              style={{
+                position: "absolute",
+                bottom: -18,
+                left: "50%",
+                marginLeft: -20,
+                width: 40,
+                height: 8,
+                borderRadius: "50%",
+                background: theme.primary,
+                filter: "blur(6px)",
+                animation:
+                  "cube-shadow 2.4s cubic-bezier(0.68, -0.15, 0.27, 1.15) infinite",
+              }}
+            />
+          </div>
+          <span
+            className="loading-dots"
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              letterSpacing: 1.5,
+              textTransform: "uppercase",
+              color: theme.textMuted,
+            }}
+          >
+            Loading
+          </span>
         </div>
       )}
 
