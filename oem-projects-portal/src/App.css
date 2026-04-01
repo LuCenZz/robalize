@@ -46,6 +46,11 @@ button:active {
   transform: scale(0.97);
 }
 
+/* Search placeholder */
+input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
 /* Selection color */
 ::selection {
   background: rgba(107, 44, 245, 0.2);
