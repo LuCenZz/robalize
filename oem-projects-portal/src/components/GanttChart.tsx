@@ -433,9 +433,8 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
   const totalDays = Math.ceil((maxDate.getTime() - minDate.getTime()) / 86400000);
   const totalWidth = totalDays * config.dayWidth;
 
-  const TIMELINE_PAD = 32;
   function dayOffset(date: Date): number {
-    return TIMELINE_PAD + Math.round((date.getTime() - minDate.getTime()) / 86400000) * config.dayWidth;
+    return Math.round((date.getTime() - minDate.getTime()) / 86400000) * config.dayWidth;
   }
 
   // Generate timeline headers
@@ -839,6 +838,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
             display: "flex",
             background: "white",
             borderRight: `2px solid ${theme.borderLight}`,
+            marginRight: 24,
             height: 22 * 2 + (mainHeaders.length > 0 ? 22 : 0) + (subHeaders.length > 0 ? 22 : 0) + 2,
             alignItems: "center",
           }}
@@ -909,7 +909,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
           ref={timelineHeaderRef}
           style={{ flex: 1, overflow: "hidden" }}
         >
-          <div style={{ width: totalWidth + TIMELINE_PAD * 2, position: "relative" }}>
+          <div style={{ width: totalWidth, position: "relative" }}>
             {/* Year row */}
             <div style={{ height: 22, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
               {yearHeaders.map((h, i) => (
@@ -1020,7 +1020,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
           onClick={() => setGridCollapsed(!gridCollapsed)}
           style={{
             position: "absolute",
-            left: gridCollapsed ? 0 : gridTotalWidth,
+            left: gridCollapsed ? 0 : gridTotalWidth + 24,
             top: "50%",
             transform: "translateY(-50%)",
             width: 16,
@@ -1086,6 +1086,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
               flexShrink: 0,
               background: "white",
               borderRight: `2px solid ${theme.borderLight}`,
+              marginRight: 24,
             }}
           >
             {displayedRows.map((row, i) => {
@@ -1254,7 +1255,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
           )}
 
           {/* Right: Timeline */}
-          <div style={{ width: totalWidth + TIMELINE_PAD * 2, position: "relative" }}>
+          <div style={{ width: totalWidth, position: "relative" }}>
             {/* Today indicator */}
             {(() => {
               const todayX = dayOffset(new Date());
