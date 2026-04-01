@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EpicTask, DisplayRow } from "../types";
 import { theme } from "../styles/theme";
 
@@ -191,6 +191,7 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("month");
   const [showInconsistencies, setShowInconsistencies] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
+  const [phaseFilter, setPhaseFilter] = useState<string | null>(null);
   const [popover, setPopover] = useState<PopoverInfo | null>(null);
   const [colWidths, setColWidths] = useState({ product: 100, acto: 80, epicName: 250, status: 120 });
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -220,9 +221,18 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
   const inconsistencies = useMemo(() => detectInconsistencies(tasks), [tasks]);
   const alerts = useMemo(() => detectAlerts(tasks), [tasks]);
 
+  // Check if an epic is currently in a given phase (today is between start and end)
+  const isInPhaseToday = useCallback((epic: EpicTask, phaseName: string): boolean => {
+    const today = new Date();
+    const phase = epic.phases.find((p) => p.phaseName === phaseName);
+    if (!phase) return false;
+    return today >= phase.startDate && today <= phase.endDate;
+  }, []);
+
   const displayedRows: DisplayRow[] = useMemo(() => {
+    let rows = displayRows;
     if (showInconsistencies) {
-      return displayRows.filter((r) => {
+      rows = rows.filter((r) => {
         if (r.type === "initiative") {
           return r.children?.some((c) => inconsistencies.has(c.id));
         }
@@ -230,15 +240,23 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
       });
     }
     if (showAlerts) {
-      return displayRows.filter((r) => {
+      rows = rows.filter((r) => {
         if (r.type === "initiative") {
           return r.children?.some((c) => alerts.has(c.id));
         }
         return alerts.has(r.epic.id);
       });
     }
-    return displayRows;
-  }, [displayRows, showInconsistencies, showAlerts, inconsistencies, alerts]);
+    if (phaseFilter) {
+      rows = rows.filter((r) => {
+        if (r.type === "initiative") {
+          return r.children?.some((c) => isInPhaseToday(c, phaseFilter));
+        }
+        return isInPhaseToday(r.epic, phaseFilter);
+      });
+    }
+    return rows;
+  }, [displayRows, showInconsistencies, showAlerts, phaseFilter, inconsistencies, alerts, isInPhaseToday]);
 
   // Compute global date range
   const { minDate, maxDate } = useMemo(() => {
@@ -570,20 +588,45 @@ export function GanttChart({ tasks, displayRows }: GanttChartProps) {
           {showAlerts ? `🔔 ${alerts.size} alerts` : "🔔 Alerts"}
         </button>
 
-        {/* Legend */}
-        <div style={{ marginLeft: "auto", display: "flex", gap: 16, alignItems: "center" }}>
+        {/* Legend — clickable to filter by phase */}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center" }}>
           {[
             { label: "Analysis", color: "#ffd43b" },
             { label: "Development", color: "#ff922b" },
-            { label: "QA", color: "#51cf66" },
+            { label: "QA / Test", color: "#51cf66", displayLabel: "QA" },
             { label: "Customer UAT", color: "#339af0" },
             { label: "Pilot", color: "#1864ab" },
-          ].map((p) => (
-            <span key={p.label} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: theme.textDark }}>
-              <span style={{ width: 14, height: 14, background: p.color, borderRadius: 3, display: "inline-block" }} />
-              {p.label}
-            </span>
-          ))}
+          ].map((p) => {
+            const active = phaseFilter === p.label;
+            return (
+              <button
+                key={p.label}
+                onClick={() => {
+                  setPhaseFilter(active ? null : p.label);
+                  if (!active) {
+                    setShowInconsistencies(false);
+                    setShowAlerts(false);
+                  }
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: 11,
+                  color: active ? "white" : theme.textDark,
+                  background: active ? p.color : "transparent",
+                  border: active ? `2px solid ${p.color}` : "1px solid transparent",
+                  borderRadius: 6,
+                  padding: "3px 8px",
+                  cursor: "pointer",
+                  fontWeight: active ? 600 : 400,
+                }}
+              >
+                <span style={{ width: 12, height: 12, background: active ? "white" : p.color, borderRadius: 2, display: "inline-block", flexShrink: 0 }} />
+                {"displayLabel" in p ? p.displayLabel : p.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
