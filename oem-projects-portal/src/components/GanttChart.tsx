@@ -191,6 +191,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
   const [phaseFilter, setPhaseFilter] = useState<string | null>(null);
   const [popover, setPopover] = useState<PopoverInfo | null>(null);
   const [gridCollapsed, setGridCollapsed] = useState(false);
+  const [tooltipRow, setTooltipRow] = useState<{ epicId: number; x: number; y: number } | null>(null);
 
   // Reset internal filters when resetKey changes (triggered by FilterBar "Reset")
   useEffect(() => {
@@ -1098,8 +1099,14 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
               return (
                 <div
                   key={`grid-${row.type}-${epic.id}`}
-                  title={info ? info.details.join("\n") : alertInfo ? alertInfo.details.join("\n") : undefined}
                   onClick={() => !isInitiative && scrollToClosestPhase(epic)}
+                  onMouseEnter={(e) => {
+                    if (info || alertInfo) {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setTooltipRow({ epicId: epic.id, x: rect.right + 8, y: rect.top + rect.height / 2 });
+                    }
+                  }}
+                  onMouseLeave={() => setTooltipRow(null)}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -1109,8 +1116,39 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                     background: isHighlighted ? highlightBg : defaultBg,
                     borderLeft: isHighlighted ? `3px solid ${highlightColor}` : isInitiative ? `3px solid ${theme.primary}` : "3px solid transparent",
                     cursor: isInitiative ? "default" : "pointer",
+                    position: "relative",
                   }}
                 >
+                  {/* Tooltip */}
+                  {tooltipRow?.epicId === epic.id && (info || alertInfo) && (
+                    <div style={{
+                      position: "fixed",
+                      left: tooltipRow.x,
+                      top: tooltipRow.y,
+                      transform: "translateY(-50%)",
+                      background: isInconsistent ? "#1a1a2e" : "#2d2006",
+                      color: "white",
+                      padding: "10px 14px",
+                      borderRadius: theme.radius.md,
+                      fontSize: 11,
+                      lineHeight: 1.6,
+                      maxWidth: 360,
+                      zIndex: 100,
+                      boxShadow: theme.shadow.lg,
+                      pointerEvents: "none",
+                      borderLeft: `3px solid ${highlightColor}`,
+                    }}>
+                      <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 12, color: highlightColor }}>
+                        {isInconsistent ? "Date inconsistencies" : "Status alerts"}
+                      </div>
+                      {(info?.details || alertInfo?.details || []).map((d, idx) => (
+                        <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                          <span style={{ color: highlightColor, flexShrink: 0 }}>•</span>
+                          <span>{d}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div
                     style={{
                       width: colWidths.product,
