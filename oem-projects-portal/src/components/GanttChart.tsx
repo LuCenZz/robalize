@@ -194,6 +194,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
   const [showAlerts, setShowAlerts] = useState(false);
   const [phaseFilter, setPhaseFilter] = useState<string | null>(null);
   const [popover, setPopover] = useState<PopoverInfo | null>(null);
+  const [gridCollapsed, setGridCollapsed] = useState(false);
 
   // Reset internal filters when resetKey changes (triggered by FilterBar "Reset")
   useEffect(() => {
@@ -694,7 +695,29 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
 
       {/* Fixed headers row */}
       <div style={{ display: "flex", flexShrink: 0, borderBottom: `2px solid ${theme.borderLight}` }}>
+        {/* Collapse/expand toggle */}
+        <div
+          onClick={() => setGridCollapsed(!gridCollapsed)}
+          style={{
+            width: 20,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            background: theme.filterBarBg,
+            borderRight: `1px solid ${theme.borderLight}`,
+            color: theme.primary,
+            fontSize: 12,
+            fontWeight: 700,
+            userSelect: "none",
+          }}
+          title={gridCollapsed ? "Show columns" : "Hide columns"}
+        >
+          {gridCollapsed ? "▶" : "◀"}
+        </div>
         {/* Grid header */}
+        {!gridCollapsed && (
         <div
           style={{
             width: gridTotalWidth,
@@ -727,6 +750,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
             <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("progress", e)} />
           </div>
         </div>
+        )}
         {/* Timeline header — synced with horizontal scroll */}
         <div
           ref={timelineHeaderRef}
@@ -843,6 +867,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
       >
         <div style={{ display: "inline-flex", minWidth: "100%", minHeight: "min-content" }}>
           {/* Left grid — sticky left */}
+          {!gridCollapsed && (
           <div
             style={{
               position: "sticky",
@@ -976,6 +1001,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
               );
             })}
           </div>
+          )}
 
           {/* Right: Timeline */}
           <div style={{ width: totalWidth, position: "relative" }}>
