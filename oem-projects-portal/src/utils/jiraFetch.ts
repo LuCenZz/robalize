@@ -80,18 +80,6 @@ export async function fetchJiraData(
   // Step 1: Fetch all field definitions to build ID → name mapping
   const fields: JiraField[] = await jiraCall("/rest/api/3/field");
   const fieldMap = new Map<string, string>();
-  // Standard JIRA fields that don't need "Custom field (...)" prefix
-  const standardFields = new Set([
-    "summary", "status", "issuetype", "priority", "assignee", "reporter",
-    "created", "updated", "resolved", "project", "labels", "components",
-    "description", "environment", "resolution", "votes", "watches",
-    "creator", "subtasks", "attachment", "comment", "worklog",
-    "issuelinks", "parent", "fixVersions", "versions", "duedate",
-    "timetracking", "timeestimate", "timespent", "aggregatetimespent",
-    "aggregatetimeoriginalestimate", "aggregatetimeestimate",
-    "aggregateprogress", "progress", "workratio", "lastViewed",
-    "statusCategory", "statusCategoryChangeDate",
-  ]);
   for (const f of fields) {
     // Custom fields get "Custom field (...)" prefix to match CSV export format
     const name = f.custom ? `Custom field (${f.name})` : f.name;

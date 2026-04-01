@@ -659,39 +659,45 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
         </div>
       )}
 
-      {/* Zoom controls */}
+      {/* Toolbar */}
       <div
         style={{
-          padding: "8px 20px",
+          padding: "10px 24px",
           display: "flex",
-          gap: 8,
+          gap: 6,
           alignItems: "center",
           borderBottom: `1px solid ${theme.borderLight}`,
-          background: "white",
+          background: theme.surface,
           flexShrink: 0,
+          boxShadow: theme.shadow.sm,
         }}
       >
-        <span style={{ fontSize: 12, color: theme.textMuted, marginRight: 4 }}>
-          Zoom:
-        </span>
-        {(["day", "week", "month", "quarter"] as const).map((level) => (
-          <button
-            key={level}
-            onClick={() => setZoom(level)}
-            style={{
-              padding: "4px 12px",
-              borderRadius: 6,
-              border: `1px solid ${theme.borderLight}`,
-              background: zoom === level ? theme.primary : "white",
-              color: zoom === level ? "white" : theme.textDark,
-              fontSize: 12,
-              cursor: "pointer",
-              fontWeight: zoom === level ? 600 : 400,
-            }}
-          >
-            {level === "day" ? "Day" : level === "week" ? "Week" : level === "month" ? "Month" : "Quarter"}
-          </button>
-        ))}
+        {/* Zoom group */}
+        <div style={{ display: "flex", background: "#F3F0FA", borderRadius: theme.radius.md, padding: 2, gap: 1 }}>
+          {(["day", "week", "month", "quarter"] as const).map((level) => (
+            <button
+              key={level}
+              onClick={() => setZoom(level)}
+              style={{
+                padding: "5px 14px",
+                borderRadius: theme.radius.sm,
+                border: "none",
+                background: zoom === level ? theme.primary : "transparent",
+                color: zoom === level ? "white" : theme.textSecondary,
+                fontSize: 11,
+                cursor: "pointer",
+                fontWeight: 600,
+                letterSpacing: 0.3,
+              }}
+            >
+              {level === "day" ? "Day" : level === "week" ? "Week" : level === "month" ? "Month" : "Quarter"}
+            </button>
+          ))}
+        </div>
+
+        {/* Divider */}
+        <div style={{ width: 1, height: 24, background: theme.borderLight, margin: "0 8px" }} />
+
         {/* Go to today */}
         <button
           onClick={() => {
@@ -702,22 +708,25 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
             }
           }}
           style={{
-            marginLeft: 16,
-            padding: "4px 14px",
-            borderRadius: 6,
-            border: `1px solid #e03131`,
-            background: "white",
-            color: "#e03131",
-            fontSize: 12,
+            padding: "5px 14px",
+            borderRadius: theme.radius.sm,
+            border: "none",
+            background: "#FEF2F2",
+            color: "#DC2626",
+            fontSize: 11,
             cursor: "pointer",
-            fontWeight: 500,
+            fontWeight: 600,
             display: "flex",
             alignItems: "center",
-            gap: 4,
+            gap: 5,
+            letterSpacing: 0.2,
           }}
         >
-          <span style={{ fontSize: 14, lineHeight: 1 }}>|</span> Today
+          <div style={{ width: 3, height: 14, background: "#DC2626", borderRadius: 2 }} />
+          Today
         </button>
+
+        <div style={{ width: 1, height: 24, background: theme.borderLight, margin: "0 8px" }} />
 
         {/* Inconsistency toggle */}
         <button
@@ -726,21 +735,22 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
             if (!showInconsistencies) setShowAlerts(false);
           }}
           style={{
-            marginLeft: 16,
-            padding: "4px 14px",
-            borderRadius: 6,
-            border: showInconsistencies ? "2px solid #e03131" : `1px solid ${theme.borderLight}`,
-            background: showInconsistencies ? "#fff5f5" : "white",
-            color: showInconsistencies ? "#e03131" : theme.textDark,
-            fontSize: 12,
+            padding: "5px 14px",
+            borderRadius: theme.radius.sm,
+            border: showInconsistencies ? "1.5px solid #DC2626" : `1px solid ${theme.borderLight}`,
+            background: showInconsistencies ? "#FEF2F2" : theme.surface,
+            color: showInconsistencies ? "#DC2626" : theme.textSecondary,
+            fontSize: 11,
             cursor: "pointer",
-            fontWeight: showInconsistencies ? 600 : 400,
+            fontWeight: showInconsistencies ? 600 : 500,
             display: "flex",
             alignItems: "center",
-            gap: 6,
+            gap: 5,
+            letterSpacing: 0.2,
           }}
         >
-          {showInconsistencies ? `⚠ ${inconsistencies.size} inconsistencies` : "⚠ Check dates"}
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+          {showInconsistencies ? `${inconsistencies.size} issues` : "Check dates"}
         </button>
 
         {/* Alert toggle */}
@@ -750,24 +760,26 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
             if (!showAlerts) setShowInconsistencies(false);
           }}
           style={{
-            padding: "4px 14px",
-            borderRadius: 6,
-            border: showAlerts ? "2px solid #e67700" : `1px solid ${theme.borderLight}`,
-            background: showAlerts ? "#fff8e1" : "white",
-            color: showAlerts ? "#e67700" : theme.textDark,
-            fontSize: 12,
+            padding: "5px 14px",
+            borderRadius: theme.radius.sm,
+            border: showAlerts ? "1.5px solid #D97706" : `1px solid ${theme.borderLight}`,
+            background: showAlerts ? "#FFFBEB" : theme.surface,
+            color: showAlerts ? "#D97706" : theme.textSecondary,
+            fontSize: 11,
             cursor: "pointer",
-            fontWeight: showAlerts ? 600 : 400,
+            fontWeight: showAlerts ? 600 : 500,
             display: "flex",
             alignItems: "center",
-            gap: 6,
+            gap: 5,
+            letterSpacing: 0.2,
           }}
         >
-          {showAlerts ? `🔔 ${alerts.size} alerts` : "🔔 Alerts"}
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>
+          {showAlerts ? `${alerts.size} alerts` : "Alerts"}
         </button>
 
         {/* Legend — clickable to filter by phase */}
-        <div style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 3, alignItems: "center", background: "#F3F0FA", borderRadius: theme.radius.md, padding: 2 }}>
           {[
             { label: "Analysis", color: "#ffd43b" },
             { label: "Development", color: "#ff922b" },
@@ -795,18 +807,20 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 4,
+                  gap: 5,
                   fontSize: 11,
-                  color: active ? "white" : theme.textDark,
+                  color: active ? "white" : theme.textSecondary,
                   background: active ? p.color : "transparent",
-                  border: active ? `2px solid ${p.color}` : "1px solid transparent",
-                  borderRadius: 6,
-                  padding: "3px 8px",
+                  border: "none",
+                  borderRadius: theme.radius.sm,
+                  padding: "5px 10px",
                   cursor: "pointer",
-                  fontWeight: active ? 600 : 400,
+                  fontWeight: active ? 600 : 500,
+                  letterSpacing: 0.2,
+                  boxShadow: active ? `0 2px 8px ${p.color}44` : "none",
                 }}
               >
-                <span style={{ width: 12, height: 12, background: active ? "white" : p.color, borderRadius: 2, display: "inline-block", flexShrink: 0 }} />
+                <span style={{ width: 10, height: 10, background: active ? "rgba(255,255,255,0.9)" : p.color, borderRadius: 3, display: "inline-block", flexShrink: 0 }} />
                 {"displayLabel" in p ? p.displayLabel : p.label}
               </button>
             );
@@ -1009,21 +1023,21 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
             left: gridCollapsed ? 0 : gridTotalWidth,
             top: "50%",
             transform: "translateY(-50%)",
-            width: 18,
-            height: 50,
+            width: 16,
+            height: 44,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            background: theme.primary,
+            background: theme.gradient.primary,
             color: "white",
-            borderRadius: gridCollapsed ? "0 8px 8px 0" : "0 8px 8px 0",
-            fontSize: 10,
+            borderRadius: "0 8px 8px 0",
+            fontSize: 9,
             fontWeight: 700,
             zIndex: 30,
-            boxShadow: "2px 0 6px rgba(0,0,0,0.15)",
+            boxShadow: theme.shadow.md,
             userSelect: "none",
-            transition: "left 0.2s ease",
+            transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
           }}
           title={gridCollapsed ? "Show columns" : "Hide columns"}
         >

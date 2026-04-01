@@ -1,82 +1,115 @@
-import "dotenv/config";
-import express from "express";
+import { readFileSync } from "fs";
+import { createServer } from "http";
 
-const app = express();
-app.use(express.json());
+// Load .env
+try {
+  const env = readFileSync(".env", "utf8");
+  for (const line of env.split("\n")) {
+    const [key, ...rest] = line.split("=");
+    if (key && rest.length) process.env[key.trim()] = rest.join("=").trim();
+  }
+} catch {}
 
 const JIRA_BASE = "https://imawebgroup.atlassian.net";
 
-// Universal proxy - all requests go through POST to avoid query param issues
-app.post("/api/jira", async (req, res) => {
-  const { email, apiToken, method, path, body } = req.body;
-  const auth = Buffer.from(`${email}:${apiToken}`).toString("base64");
-  const url = `${JIRA_BASE}${path}`;
-
-  console.log(`JIRA ${method || "GET"}: ${url}`);
-
-  try {
-    const jiraRes = await fetch(url, {
-      method: method || "GET",
-      headers: {
-        Authorization: `Basic ${auth}`,
-        Accept: "application/json",
-        ...(body ? { "Content-Type": "application/json" } : {}),
-        "X-Atlassian-Token": "no-check",
-      },
-      body: body ? JSON.stringify(body) : undefined,
+function parseBody(req) {
+  return new Promise((resolve) => {
+    let data = "";
+    req.on("data", (chunk) => (data += chunk));
+    req.on("end", () => {
+      try { resolve(JSON.parse(data)); } catch { resolve({}); }
     });
+  });
+}
 
-    const text = await jiraRes.text();
-    if (path.includes("search")) console.log("Response:", text.slice(0, 500));
-    res.status(jiraRes.status).type("application/json").send(text);
-  } catch (err) {
-    console.error("Proxy error:", err);
-    res.status(500).json({ error: String(err) });
-  }
-});
+const server = createServer(async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-// Claude AI endpoint
-app.post("/api/ai", async (req, res) => {
-  const { message, context } = req.body;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-
-  if (!apiKey) {
-    return res.status(500).json({ error: "ANTHROPIC_API_KEY not set. Run: export ANTHROPIC_API_KEY=your_key" });
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    return res.end();
   }
 
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1024,
-        system: `You are an AI assistant for an OEM Projects Portal (automotive industry). You analyze project data from JIRA and provide insights. Answer in the same language as the user's question. Be concise and actionable. Use markdown for formatting.`,
-        messages: [
-          {
-            role: "user",
-            content: `Here is the current project data context:\n\n${context}\n\nUser question: ${message}`,
-          },
-        ],
-      }),
-    });
+  if (req.method === "POST" && req.url === "/api/jira") {
+    const body = await parseBody(req);
+    const { email, apiToken, method, path, body: jiraBody } = body;
+    const auth = Buffer.from(`${email}:${apiToken}`).toString("base64");
+    const url = `${JIRA_BASE}${path}`;
+    console.log(`JIRA ${method || "GET"}: ${url}`);
 
-    if (!response.ok) {
-      const err = await response.text();
-      return res.status(response.status).json({ error: err });
+    try {
+      const jiraRes = await fetch(url, {
+        method: method || "GET",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          Accept: "application/json",
+          ...(jiraBody ? { "Content-Type": "application/json" } : {}),
+          "X-Atlassian-Token": "no-check",
+        },
+        body: jiraBody ? JSON.stringify(jiraBody) : undefined,
+      });
+      const text = await jiraRes.text();
+      res.writeHead(jiraRes.status, { "Content-Type": "application/json" });
+      res.end(text);
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/ai") {
+    const body = await parseBody(req);
+    const { message, context } = body;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+
+    if (!apiKey) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "ANTHROPIC_API_KEY not set" }));
+      return;
     }
 
-    const data = await response.json();
-    const text = data.content?.[0]?.text || "No response";
-    res.json({ response: text });
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.log("AI request:", message?.slice(0, 50));
+
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1024,
+          system: "You are an AI assistant for an OEM Projects Portal (automotive industry). You analyze project data from JIRA and provide insights. Answer in the same language as the user's question. Be concise and actionable. Use markdown for formatting.",
+          messages: [
+            { role: "user", content: `Here is the current project data context:\n\n${context}\n\nUser question: ${message}` },
+          ],
+        }),
+      });
+
+      const text = await response.text();
+      if (!response.ok) {
+        res.writeHead(response.status, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: text }));
+        return;
+      }
+
+      const data = JSON.parse(text);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ response: data.content?.[0]?.text || "No response" }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+    return;
   }
+
+  res.writeHead(404, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ error: "Not found" }));
 });
 
-const PORT = 3001;
-app.listen(PORT, () => console.log(`JIRA proxy running on http://localhost:${PORT}`));
+server.listen(3001, () => console.log("Server running on http://localhost:3001"));
