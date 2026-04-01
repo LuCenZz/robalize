@@ -201,6 +201,10 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
     setPhaseFilter(null);
     setShowInconsistencies(false);
     setShowAlerts(false);
+    setSortCol(null);
+    setSortDir(null);
+    setColFilters({});
+    setFilterDropdown(null);
   }, [resetKey]);
   const [colWidths, setColWidths] = useState({ product: 100, acto: 80, epicName: 250, status: 120, progress: 50 });
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -869,7 +873,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
           ref={timelineHeaderRef}
           style={{ flex: 1, overflow: "hidden" }}
         >
-          <div style={{ width: totalWidth + 24, position: "relative", marginLeft: 24 }}>
+          <div style={{ width: totalWidth + 24, position: "relative", paddingLeft: 24 }}>
             {/* Year row */}
             <div style={{ height: 22, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
               {yearHeaders.map((h, i) => (
@@ -1146,7 +1150,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
           )}
 
           {/* Right: Timeline */}
-          <div style={{ width: totalWidth + 24, position: "relative", marginLeft: 24 }}>
+          <div style={{ width: totalWidth + 24, position: "relative", paddingLeft: 24 }}>
             {/* Today indicator */}
             {(() => {
               const todayX = dayOffset(new Date());
