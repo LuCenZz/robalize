@@ -201,7 +201,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
     setShowInconsistencies(false);
     setShowAlerts(false);
   }, [resetKey]);
-  const [colWidths, setColWidths] = useState({ product: 100, acto: 80, epicName: 250, status: 120 });
+  const [colWidths, setColWidths] = useState({ product: 100, acto: 80, epicName: 250, status: 120, progress: 70 });
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const timelineHeaderRef = useRef<HTMLDivElement>(null);
@@ -718,9 +718,13 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
             Project Name
             <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("epicName", e)} />
           </div>
-          <div style={{ width: colWidths.status, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 12, color: theme.textDark, textAlign: "left", height: "100%", display: "flex", alignItems: "center" }}>
+          <div style={{ width: colWidths.status, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 12, color: theme.textDark, textAlign: "left", height: "100%", display: "flex", alignItems: "center", borderRight: `1px solid ${theme.borderRow}` }}>
             Status
             <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("status", e)} />
+          </div>
+          <div style={{ width: colWidths.progress, position: "relative", padding: "0 8px", fontWeight: 700, fontSize: 11, color: theme.textDark, textAlign: "center", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            %
+            <div style={RESIZE_HANDLE} onMouseDown={(e) => startResize("progress", e)} />
           </div>
         </div>
         {/* Timeline header — synced with horizontal scroll */}
@@ -942,7 +946,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                   >
                     {epic.epicName}
                   </div>
-                  <div style={{ width: colWidths.status, textAlign: "left", padding: "0 8px", boxSizing: "border-box" }}>
+                  <div style={{ width: colWidths.status, textAlign: "left", padding: "0 8px", boxSizing: "border-box", borderRight: `1px solid ${theme.borderRow}` }}>
                     {epic.status && (
                       <span
                         style={{
@@ -958,6 +962,23 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                         {epic.status}
                       </span>
                     )}
+                  </div>
+                  <div style={{ width: colWidths.progress, textAlign: "center", padding: "0 4px", boxSizing: "border-box", fontSize: 11, color: theme.textDark }}>
+                    {(() => {
+                      const raw = epic.rawData["Custom field (% of progress)"];
+                      if (!raw || !raw.trim() || isInitiative) return "";
+                      const val = Math.round(parseFloat(raw));
+                      if (isNaN(val)) return "";
+                      const barColor = val >= 75 ? "#51cf66" : val >= 40 ? "#ff922b" : "#e03131";
+                      return (
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <div style={{ flex: 1, height: 6, background: `${theme.borderRow}`, borderRadius: 3, overflow: "hidden" }}>
+                            <div style={{ width: `${val}%`, height: "100%", background: barColor, borderRadius: 3 }} />
+                          </div>
+                          <span style={{ fontSize: 10, fontWeight: 500, minWidth: 28 }}>{val}%</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               );
