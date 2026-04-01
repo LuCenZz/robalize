@@ -8,11 +8,12 @@ interface TopBarProps {
   userName?: string;
   onLogout: () => void;
   onGeneratePptx?: () => void;
+  onAiClick?: () => void;
   searchTerm: string;
   onSearchChange: (value: string) => void;
 }
 
-export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected, userName, onLogout, onGeneratePptx, searchTerm, onSearchChange }: TopBarProps) {
+export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected, userName, onLogout, onGeneratePptx, onAiClick, searchTerm, onSearchChange }: TopBarProps) {
   return (
     <div
       style={{
@@ -112,6 +113,26 @@ export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected
             }}
           >
             Generate PPTX
+          </button>
+        )}
+        {onAiClick && projectCount > 0 && (
+          <button
+            onClick={onAiClick}
+            style={{
+              background: "rgba(255,255,255,0.2)",
+              color: "white",
+              border: "1px solid rgba(255,255,255,0.4)",
+              padding: "7px 14px",
+              borderRadius: 20,
+              cursor: "pointer",
+              fontWeight: 600,
+              fontSize: 12,
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            🤖 AI
           </button>
         )}
         <button

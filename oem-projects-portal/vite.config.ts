@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api/jira': {
+      '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
       },

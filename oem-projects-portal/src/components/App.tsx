@@ -3,6 +3,7 @@ import { TopBar } from "./TopBar";
 import { FileUploader } from "./FileUploader";
 import { JiraConnector } from "./JiraConnector";
 import { LoginPage, loadAppUser, clearAppUser, type AppUser } from "./LoginPage";
+import { AiPanel } from "./AiPanel";
 import { FilterBar } from "./FilterBar";
 import { parseFile } from "../utils/parseFile";
 
@@ -42,12 +43,15 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [resetKey, setResetKey] = useState(0);
+  const [aiOpen, setAiOpen] = useState(false);
 
-  const loadData = useCallback((rows: RawRow[]) => {
+  const loadData = useCallback((rows: RawRow[], silent = false) => {
     setRawData(rows);
     setColumns(extractColumns(rows));
-    setActiveFilters([]);
-    setSearchTerm("");
+    if (!silent) {
+      setActiveFilters([]);
+      setSearchTerm("");
+    }
   }, []);
 
   // Auto-reconnect to JIRA on mount and restore user prefs
@@ -186,6 +190,7 @@ export function App() {
         userName={appUser?.displayName}
         onLogout={handleLogout}
         onGeneratePptx={() => generatePptx(filteredEpicTasks)}
+        onAiClick={() => setAiOpen(true)}
         searchTerm={searchTerm}
         onSearchChange={(term) => {
           setSearchTerm(term);
@@ -421,6 +426,12 @@ export function App() {
         onDataLoaded={loadData}
         connected={jiraConnected}
         onConnectionChange={setJiraConnected}
+      />
+
+      <AiPanel
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        displayRows={displayRows}
       />
     </div>
   );

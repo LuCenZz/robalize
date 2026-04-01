@@ -11,7 +11,7 @@ import type { RawRow } from "../types";
 interface JiraConnectorProps {
   open: boolean;
   onClose: () => void;
-  onDataLoaded: (rows: RawRow[]) => void;
+  onDataLoaded: (rows: RawRow[], silent?: boolean) => void;
   connected: boolean;
   onConnectionChange: (connected: boolean) => void;
 }
@@ -65,7 +65,7 @@ export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnec
         return;
       }
 
-      onDataLoaded(rows);
+      onDataLoaded(rows, silent);
       onConnectionChange(true);
       setLastRefresh(new Date());
       if (!silent) onClose();
