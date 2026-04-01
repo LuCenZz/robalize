@@ -202,13 +202,13 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
     setShowInconsistencies(false);
     setShowAlerts(false);
   }, [resetKey]);
-  const [colWidths, setColWidths] = useState({ product: 100, acto: 80, epicName: 250, status: 120, progress: 70 });
+  const [colWidths, setColWidths] = useState({ product: 100, acto: 80, epicName: 250, status: 120, progress: 50 });
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const timelineHeaderRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ col: keyof typeof colWidths; startX: number; startW: number } | null>(null);
 
-  const gridTotalWidth = colWidths.product + colWidths.acto + colWidths.epicName + colWidths.status;
+  const gridTotalWidth = colWidths.product + colWidths.acto + colWidths.epicName + colWidths.status + colWidths.progress;
 
   function startResize(col: keyof typeof colWidths, e: React.MouseEvent) {
     e.preventDefault();
@@ -1093,38 +1093,48 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                     const client = row.children?.[0]?.rawData["Custom field (Client)"]?.trim() || "";
                     const label = `${epic.epicKey} — ${epic.epicName}${client ? ` [${client}]` : ""}`;
                     return (
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: minLeft,
-                          top: BAR_TOP,
-                          width: w,
-                          height: BAR_HEIGHT,
-                          borderRadius: 4,
-                          background: `${theme.primary}30`,
-                          border: `2px solid ${theme.primary}`,
-                          pointerEvents: "none",
-                          zIndex: 1,
-                          display: "flex",
-                          alignItems: "center",
-                          overflow: "hidden",
-                        }}
-                      >
-                        {/* Sticky label — stays visible while scrolling within the bar */}
-                        <span style={{
-                          position: "sticky",
-                          left: 6,
-                          fontSize: 10,
-                          fontWeight: 700,
-                          color: theme.primary,
-                          whiteSpace: "nowrap",
-                          paddingLeft: 6,
-                          paddingRight: 6,
-                          textShadow: "0 0 4px white, 0 0 8px white, 0 0 12px white",
-                        }}>
-                          {label}
-                        </span>
-                      </div>
+                      <>
+                        {/* Initiative bar background */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: minLeft,
+                            top: BAR_TOP,
+                            width: w,
+                            height: BAR_HEIGHT,
+                            borderRadius: 4,
+                            background: `${theme.primary}20`,
+                            border: `2px solid ${theme.primary}`,
+                            pointerEvents: "none",
+                            zIndex: 1,
+                          }}
+                        />
+                        {/* Label — always visible inside the bar, not clipped */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: Math.max(minLeft + 6, 6),
+                            top: BAR_TOP,
+                            height: BAR_HEIGHT,
+                            display: "flex",
+                            alignItems: "center",
+                            pointerEvents: "none",
+                            zIndex: 2,
+                          }}
+                        >
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: theme.primary,
+                            whiteSpace: "nowrap",
+                            background: `rgba(240, 236, 255, 0.9)`,
+                            padding: "1px 6px",
+                            borderRadius: 3,
+                          }}>
+                            {label}
+                          </span>
+                        </div>
+                      </>
                     );
                   })()}
                   {/* Epic: show individual phase bars */}
