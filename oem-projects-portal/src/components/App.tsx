@@ -23,7 +23,7 @@ const SESSION_KEY = "oem-session-data";
 
 function saveSession(data: RawRow[]) {
   try {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data));
   } catch {
     // Ignore quota errors
   }
@@ -31,7 +31,7 @@ function saveSession(data: RawRow[]) {
 
 function loadSession(): RawRow[] | null {
   try {
-    const stored = sessionStorage.getItem(SESSION_KEY);
+    const stored = localStorage.getItem(SESSION_KEY);
     return stored ? JSON.parse(stored) : null;
   } catch {
     return null;
@@ -101,8 +101,8 @@ export function App() {
     [filteredRows]
   );
 
-  const filteredEpicIds = useMemo(
-    () => new Set(filteredEpicTasks.map((e) => e.id)),
+  const filteredEpicKeys = useMemo(
+    () => new Set(filteredEpicTasks.map((e) => e.epicKey)),
     [filteredEpicTasks]
   );
 
