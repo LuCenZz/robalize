@@ -1335,7 +1335,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                     const label = `${epic.epicKey} — ${epic.epicName}${client ? ` [${client}]` : ""}`;
                     return (
                       <>
-                        {/* Initiative bar */}
+                        {/* Initiative bar — no border */}
                         <div
                           style={{
                             position: "absolute",
@@ -1344,8 +1344,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                             width: w,
                             height: BAR_HEIGHT,
                             borderRadius: 4,
-                            background: `${theme.primary}20`,
-                            border: `2px solid ${theme.primary}`,
+                            background: `${theme.primary}15`,
                             pointerEvents: "none",
                             zIndex: 1,
                           }}
