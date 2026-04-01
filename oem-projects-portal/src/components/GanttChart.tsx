@@ -694,28 +694,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
       </div>
 
       {/* Fixed headers row */}
-      <div style={{ display: "flex", flexShrink: 0, borderBottom: `2px solid ${theme.borderLight}` }}>
-        {/* Collapse/expand toggle */}
-        <div
-          onClick={() => setGridCollapsed(!gridCollapsed)}
-          style={{
-            width: 20,
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            background: theme.filterBarBg,
-            borderRight: `1px solid ${theme.borderLight}`,
-            color: theme.primary,
-            fontSize: 12,
-            fontWeight: 700,
-            userSelect: "none",
-          }}
-          title={gridCollapsed ? "Show columns" : "Hide columns"}
-        >
-          {gridCollapsed ? "▶" : "◀"}
-        </div>
+      <div style={{ display: "flex", flexShrink: 0, borderBottom: `2px solid ${theme.borderLight}`, position: "relative" }}>
         {/* Grid header */}
         {!gridCollapsed && (
         <div
@@ -861,10 +840,39 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
       </div>
 
       {/* Single scroll container — grid sticky left, headers sticky top */}
-      <div
-        ref={scrollRef}
-        style={{ flex: 1, overflow: "auto" }}
-      >
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        {/* Collapse/expand toggle — vertically centered on the border */}
+        <div
+          onClick={() => setGridCollapsed(!gridCollapsed)}
+          style={{
+            position: "absolute",
+            left: gridCollapsed ? 0 : gridTotalWidth,
+            top: "50%",
+            transform: "translateY(-50%)",
+            width: 18,
+            height: 50,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            background: theme.primary,
+            color: "white",
+            borderRadius: gridCollapsed ? "0 8px 8px 0" : "0 8px 8px 0",
+            fontSize: 10,
+            fontWeight: 700,
+            zIndex: 30,
+            boxShadow: "2px 0 6px rgba(0,0,0,0.15)",
+            userSelect: "none",
+            transition: "left 0.2s ease",
+          }}
+          title={gridCollapsed ? "Show columns" : "Hide columns"}
+        >
+          {gridCollapsed ? "▶" : "◀"}
+        </div>
+        <div
+          ref={scrollRef}
+          style={{ width: "100%", height: "100%", overflow: "auto" }}
+        >
         <div style={{ display: "inline-flex", minWidth: "100%", minHeight: "min-content" }}>
           {/* Left grid — sticky left */}
           {!gridCollapsed && (
@@ -1175,6 +1183,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
               );
             })}
           </div>
+        </div>
         </div>
       </div>
     </div>
