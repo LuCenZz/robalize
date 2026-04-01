@@ -1043,6 +1043,33 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
           style={{ width: "100%", height: "100%", overflow: "auto" }}
         >
         <div style={{ display: "inline-flex", minWidth: "100%", minHeight: "min-content" }}>
+          {/* Empty state */}
+          {displayedRows.length === 0 && (
+            <div style={{
+              position: "absolute",
+              top: 80,
+              left: "50%",
+              transform: "translateX(-50%)",
+              textAlign: "center",
+              color: theme.textMuted,
+              fontSize: 14,
+              zIndex: 5,
+            }}>
+              <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.4 }}>
+                {showInconsistencies ? "⚠" : showAlerts ? "🔔" : "📋"}
+              </div>
+              <div style={{ fontWeight: 600, color: theme.textSecondary, marginBottom: 4 }}>
+                No results
+              </div>
+              <div style={{ fontSize: 12 }}>
+                {showInconsistencies
+                  ? "No date inconsistencies found in the current filtered view."
+                  : showAlerts
+                  ? "No status alerts found in the current filtered view."
+                  : "No projects match the current filters."}
+              </div>
+            </div>
+          )}
           {/* Left grid — sticky left */}
           {!gridCollapsed && (
           <div
