@@ -442,6 +442,19 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
     return () => el?.removeEventListener("scroll", handleScroll);
   }, [popover]);
 
+  // Sync timeline header horizontal scroll with body scroll
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    function handleScroll() {
+      if (timelineHeaderRef.current && el) {
+        timelineHeaderRef.current.scrollLeft = el.scrollLeft;
+      }
+    }
+    el.addEventListener("scroll", handleScroll);
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, []);
+
   // Scroll to today on initial load and when data changes
   useEffect(() => {
     if (scrollRef.current && displayedRows.length > 0) {

@@ -172,7 +172,13 @@ export function App() {
         columns={columns}
         activeFilters={activeFilters}
         getUniqueValues={getUniqueValues}
-        onFiltersChange={setActiveFilters}
+        onFiltersChange={(filters) => {
+          setActiveFilters(filters);
+          // If all filters are cleared, also reset Gantt internal filters (phase legend, check dates, alerts)
+          if (filters.every((f) => f.values.length === 0)) {
+            setResetKey((k) => k + 1);
+          }
+        }}
       />
 
       {loading && (
