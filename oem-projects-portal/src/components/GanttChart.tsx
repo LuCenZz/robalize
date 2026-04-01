@@ -969,15 +969,7 @@ export function GanttChart({ tasks, displayRows, resetKey }: GanttChartProps) {
                       if (!raw || !raw.trim() || isInitiative) return "";
                       const val = Math.round(parseFloat(raw));
                       if (isNaN(val)) return "";
-                      const barColor = val >= 75 ? "#51cf66" : val >= 40 ? "#ff922b" : "#e03131";
-                      return (
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <div style={{ flex: 1, height: 6, background: `${theme.borderRow}`, borderRadius: 3, overflow: "hidden" }}>
-                            <div style={{ width: `${val}%`, height: "100%", background: barColor, borderRadius: 3 }} />
-                          </div>
-                          <span style={{ fontSize: 10, fontWeight: 500, minWidth: 28 }}>{val}%</span>
-                        </div>
-                      );
+                      return `${val}%`;
                     })()}
                   </div>
                 </div>
