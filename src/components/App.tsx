@@ -35,7 +35,7 @@ export function App() {
     signUpWithEmail,
     signOut,
   } = useAuth();
-  const { loadProjects, saveProjects, saveSetting, loadAdminJiraConfig } = useData(profile?.id);
+  const { loadProjects, saveProjects, loadSetting, saveSetting, loadAdminJiraConfig } = useData(profile?.id);
 
   const [rawData, setRawData] = useState<RawRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
@@ -48,6 +48,7 @@ export function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [resetKey, setResetKey] = useState(0);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiPaywall, setAiPaywall] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
 
   const handleLogout = useCallback(async () => {
@@ -304,7 +305,7 @@ export function App() {
           if (isAdmin) {
             setAiOpen(true);
           } else {
-            alert("Not available yet, please give Cedric some money :)");
+            setAiPaywall(true);
           }
         }}
         searchTerm={searchTerm}
@@ -481,6 +482,60 @@ export function App() {
       />
 
       <AdminPanel open={adminOpen} onClose={() => setAdminOpen(false)} />
+
+      {/* AI Paywall */}
+      {aiPaywall && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
+            fontFamily: theme.fontFamily,
+          }}
+          onClick={() => setAiPaywall(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: theme.surface,
+              borderRadius: theme.radius.xl,
+              padding: "48px 40px",
+              width: 400,
+              textAlign: "center",
+              boxShadow: theme.shadow.lg,
+            }}
+          >
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🤖</div>
+            <h2 style={{ color: theme.textDark, margin: "0 0 8px 0", fontSize: 20 }}>
+              AI Assistant
+            </h2>
+            <p style={{ color: theme.textMuted, fontSize: 14, lineHeight: 1.6, margin: "0 0 24px 0" }}>
+              Not available yet...<br />
+              Please give <strong style={{ color: theme.primary }}>Cedric</strong> some money <span style={{ fontSize: 18 }}>💸</span>
+            </p>
+            <button
+              onClick={() => setAiPaywall(false)}
+              style={{
+                background: theme.gradient.primary,
+                color: "white",
+                border: "none",
+                padding: "10px 32px",
+                borderRadius: theme.radius.pill,
+                cursor: "pointer",
+                fontWeight: 600,
+                fontSize: 14,
+                fontFamily: theme.fontFamily,
+              }}
+            >
+              Maybe later
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
