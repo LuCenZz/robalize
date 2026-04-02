@@ -11,6 +11,8 @@ interface TopBarProps {
   onAiClick?: () => void;
   searchTerm: string;
   onSearchChange: (value: string) => void;
+  isAdmin?: boolean;
+  onAdminClick?: () => void;
 }
 
 const pill = (bg: string, color: string, border?: string): React.CSSProperties => ({
@@ -30,7 +32,7 @@ const pill = (bg: string, color: string, border?: string): React.CSSProperties =
   backdropFilter: "blur(8px)",
 });
 
-export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected, userName, onLogout, onGeneratePptx, onAiClick, searchTerm, onSearchChange }: TopBarProps) {
+export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected, userName, onLogout, onGeneratePptx, onAiClick, searchTerm, onSearchChange, isAdmin, onAdminClick }: TopBarProps) {
   return (
     <div
       style={{
@@ -49,11 +51,7 @@ export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected
       {/* Brand */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <span style={{ fontWeight: 800, fontSize: 20, letterSpacing: -0.8, textShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>
-          nextlane
-        </span>
-        <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.2)", borderRadius: 1 }} />
-        <span style={{ opacity: 0.85, fontSize: 13, fontWeight: 500, letterSpacing: 0.3 }}>
-          OEM Projects
+          Robalize
         </span>
       </div>
 
@@ -185,6 +183,17 @@ export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected
           </svg>
           Import
         </button>
+
+        {/* Admin */}
+        {isAdmin && onAdminClick && (
+          <button onClick={onAdminClick} style={pill("rgba(255,255,255,0.08)", "rgba(255,255,255,0.8)", "1px solid rgba(255,255,255,0.15)")}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            Admin
+          </button>
+        )}
 
         {/* User */}
         {userName && (
