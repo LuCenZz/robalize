@@ -355,63 +355,132 @@ export function App() {
             alignItems: "center",
             justifyContent: "center",
             flexDirection: "column",
-            gap: 24,
+            gap: 32,
             color: theme.textMuted,
+            perspective: "1200px",
           }}
         >
-          <p style={{ fontSize: 20, fontWeight: 600, color: theme.textDark, margin: 0 }}>
+          <style>{`
+            @keyframes float {
+              0%, 100% { transform: translateY(0px); }
+              50% { transform: translateY(-8px); }
+            }
+            @keyframes fadeInUp {
+              from { opacity: 0; transform: translateY(30px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes shimmer {
+              0% { background-position: -200% center; }
+              100% { background-position: 200% center; }
+            }
+            .card-3d {
+              transition: transform 0.4s cubic-bezier(0.03, 0.98, 0.52, 0.99), box-shadow 0.4s ease;
+              transform-style: preserve-3d;
+            }
+            .card-3d:hover {
+              transform: translateY(-12px) rotateX(5deg) rotateY(-5deg) scale(1.04);
+              box-shadow: 0 25px 50px rgba(107, 44, 245, 0.2), 0 0 0 2px ${theme.primary};
+            }
+            .card-3d:active {
+              transform: translateY(-4px) scale(0.98);
+            }
+            .card-icon {
+              transition: transform 0.4s ease;
+            }
+            .card-3d:hover .card-icon {
+              transform: scale(1.2) rotateZ(-8deg);
+            }
+          `}</style>
+
+          <p style={{
+            fontSize: 28,
+            fontWeight: 700,
+            color: theme.textDark,
+            margin: 0,
+            animation: "fadeInUp 0.6s ease-out",
+            background: `linear-gradient(135deg, ${theme.primary}, #a78bfa, ${theme.primary})`,
+            backgroundSize: "200% auto",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            animationName: "shimmer",
+            animationDuration: "3s",
+            animationIterationCount: "infinite",
+            animationTimingFunction: "linear",
+          }}>
             Get started
           </p>
-          <div style={{ display: "flex", gap: 24 }}>
+
+          <div style={{ display: "flex", gap: 28 }}>
             {/* Jira option */}
             <div
+              className="card-3d"
               onClick={() => { setUploaderOpen(false); setJiraOpen(true); }}
               style={{
-                width: 200,
-                padding: "28px 20px",
-                borderRadius: 14,
-                border: `2px solid ${theme.borderLight}`,
-                background: "white",
+                width: 220,
+                padding: "36px 24px",
+                borderRadius: 20,
+                border: `1.5px solid ${theme.borderLight}`,
+                background: "linear-gradient(145deg, #ffffff, #f8f6ff)",
                 cursor: "pointer",
                 textAlign: "center",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 12,
-                transition: "border-color 0.15s, box-shadow 0.15s",
+                gap: 14,
+                animation: "fadeInUp 0.6s ease-out 0.15s both",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.primary; e.currentTarget.style.boxShadow = `0 4px 16px ${theme.primary}22`; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.borderLight; e.currentTarget.style.boxShadow = "none"; }}
             >
-              <span style={{ fontSize: 32 }}>🔗</span>
-              <span style={{ fontWeight: 700, fontSize: 14, color: theme.textDark }}>Connect to Jira</span>
-              <span style={{ fontSize: 11, color: theme.textMuted, lineHeight: 1.4 }}>
+              <div className="card-icon" style={{
+                width: 56,
+                height: 56,
+                borderRadius: 16,
+                background: `linear-gradient(135deg, ${theme.primary}15, ${theme.primary}30)`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 26,
+              }}>
+                🔗
+              </div>
+              <span style={{ fontWeight: 700, fontSize: 15, color: theme.textDark }}>Connect to Jira</span>
+              <span style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.5 }}>
                 Import directly via JQL query
               </span>
             </div>
+
             {/* CSV option */}
             <div
+              className="card-3d"
               onClick={() => { setJiraOpen(false); setUploaderOpen(true); }}
               style={{
-                width: 200,
-                padding: "28px 20px",
-                borderRadius: 14,
-                border: `2px solid ${theme.borderLight}`,
-                background: "white",
+                width: 220,
+                padding: "36px 24px",
+                borderRadius: 20,
+                border: `1.5px solid ${theme.borderLight}`,
+                background: "linear-gradient(145deg, #ffffff, #f8f6ff)",
                 cursor: "pointer",
                 textAlign: "center",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 12,
-                transition: "border-color 0.15s, box-shadow 0.15s",
+                gap: 14,
+                animation: "fadeInUp 0.6s ease-out 0.3s both",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.primary; e.currentTarget.style.boxShadow = `0 4px 16px ${theme.primary}22`; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.borderLight; e.currentTarget.style.boxShadow = "none"; }}
             >
-              <span style={{ fontSize: 32 }}>📄</span>
-              <span style={{ fontWeight: 700, fontSize: 14, color: theme.textDark }}>Load CSV / Excel</span>
-              <span style={{ fontSize: 11, color: theme.textMuted, lineHeight: 1.4 }}>
+              <div className="card-icon" style={{
+                width: 56,
+                height: 56,
+                borderRadius: 16,
+                background: `linear-gradient(135deg, ${theme.primary}15, ${theme.primary}30)`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 26,
+              }}>
+                📄
+              </div>
+              <span style={{ fontWeight: 700, fontSize: 15, color: theme.textDark }}>Load CSV / Excel</span>
+              <span style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.5 }}>
                 Upload a file exported from Jira
               </span>
             </div>

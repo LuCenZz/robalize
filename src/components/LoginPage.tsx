@@ -55,7 +55,7 @@ export function LoginPage({ onSignInEmail, onSignUpEmail, onSignInMicrosoft }: L
             display: "inline-block",
             marginBottom: 8,
           }}>
-            <img src="/logo.png" alt="Robalize" style={{ height: 40 }} />
+            <img src="/logo.png" alt="Robalize" style={{ height: 84 }} />
           </div>
           <p style={{ color: theme.textMuted, fontSize: 13, marginTop: 8, letterSpacing: 2, textTransform: "uppercase" }}>
             AI Solutions
