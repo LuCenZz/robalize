@@ -22,7 +22,7 @@ export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnec
   const [apiToken, setApiToken] = useState("");
   const [jql, setJql] = useState('project = "ACTO" AND issuetype = Epic ORDER BY key ASC');
   const [maxRows, setMaxRows] = useState(5000);
-  const [refreshInterval, setRefreshInterval] = useState(0);
+  const [refreshInterval, setRefreshInterval] = useState(10);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [error, setError] = useState("");
@@ -36,7 +36,7 @@ export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnec
       setApiToken(saved.apiToken);
       setJql(saved.jql);
       setMaxRows(saved.maxRows);
-      setRefreshInterval(saved.refreshInterval || 0);
+      setRefreshInterval(saved.refreshInterval || 10);
     }
   }, []);
 
