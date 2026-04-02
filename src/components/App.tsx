@@ -21,6 +21,7 @@ import {
 } from "../utils/transformData";
 import { applyFilters } from "../utils/filterEngine";
 import { generatePptx } from "../utils/generatePptx";
+import { loadJiraConfig, fetchJiraData } from "../utils/jiraFetch";
 import type { RawRow, ActiveFilter, EpicTask } from "../types";
 import { theme } from "../styles/theme";
 
@@ -198,7 +199,31 @@ export function App() {
       <TopBar
         projectCount={filteredEpicTasks.length}
         onUploadClick={() => setUploaderOpen(true)}
-        onJiraClick={() => setJiraOpen(true)}
+        onJiraClick={() => {
+          if (isAdmin) {
+            setJiraOpen(true);
+          } else {
+            // Viewer: auto-fetch with saved config
+            const config = loadJiraConfig();
+            if (config && config.email && config.apiToken && config.jql) {
+              setLoading(true);
+              fetchJiraData(config)
+                .then((rows) => {
+                  if (rows.length > 0) {
+                    loadData(rows, true);
+                    setJiraConnected(true);
+                  }
+                })
+                .catch((err) => {
+                  console.error("JIRA fetch failed:", err);
+                  alert("JIRA connection failed. Ask the administrator to check the configuration.");
+                })
+                .finally(() => setLoading(false));
+            } else {
+              setJiraOpen(true);
+            }
+          }
+        }}
         jiraConnected={jiraConnected}
         userName={profile?.display_name || profile?.email || ""}
         onLogout={handleLogout}
