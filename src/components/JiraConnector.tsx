@@ -32,26 +32,36 @@ export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnec
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const saved = loadJiraConfig();
-    if (saved && saved.email && saved.apiToken) {
-      setEmail(saved.email);
-      setApiToken(saved.apiToken);
-      setJql(saved.jql);
-      setMaxRows(saved.maxRows);
-      setRefreshInterval(saved.refreshInterval || 10);
-    } else if (loadAdminJiraConfig) {
-      loadAdminJiraConfig().then((config) => {
-        if (config) {
-          setEmail(config.email);
-          setApiToken(config.apiToken);
-          setJql(config.jql);
-          setMaxRows(config.maxRows);
-          setRefreshInterval(config.refreshInterval || 10);
-          saveJiraConfig(config);
+    async function loadConfig() {
+      // 1. Try local config
+      const saved = loadJiraConfig();
+      if (saved && saved.email && saved.apiToken) {
+        setEmail(saved.email);
+        setApiToken(saved.apiToken);
+        setJql(saved.jql);
+        setMaxRows(saved.maxRows);
+        setRefreshInterval(saved.refreshInterval || 10);
+        return;
+      }
+      // 2. Try admin config from Supabase
+      if (loadAdminJiraConfig) {
+        try {
+          const config = await loadAdminJiraConfig();
+          if (config && config.email && config.apiToken) {
+            setEmail(config.email);
+            setApiToken(config.apiToken);
+            setJql(config.jql);
+            setMaxRows(config.maxRows);
+            setRefreshInterval(config.refreshInterval || 10);
+            saveJiraConfig(config);
+          }
+        } catch (err) {
+          console.error("Failed to load admin JIRA config:", err);
         }
-      });
+      }
     }
-  }, [loadAdminJiraConfig]);
+    loadConfig();
+  }, [open, loadAdminJiraConfig]);
 
   const doFetch = useCallback(async (silent = false) => {
     if (!email || !apiToken || !jql) {
