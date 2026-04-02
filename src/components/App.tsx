@@ -186,7 +186,7 @@ export function App() {
     [allEpicTasks]
   );
 
-  // Filtered epic IDs (based on active filters)
+  // Filtered rows (based on active filters)
   const filteredRows = useMemo(
     () => applyFilters(rawData, activeFilters),
     [rawData, activeFilters]
@@ -197,23 +197,32 @@ export function App() {
     [filteredRows]
   );
 
-  const filteredEpicKeys = useMemo(
-    () => new Set(filteredEpicTasks.map((e) => e.epicKey)),
-    [filteredEpicTasks]
-  );
+  // Keys that match filters: both epic keys AND parent keys of matching initiatives
+  const filteredKeys = useMemo(() => {
+    const keys = new Set(filteredEpicTasks.map((e) => e.epicKey));
+    // Also include keys from filtered raw rows (for initiative-level filtering)
+    for (const row of filteredRows) {
+      const key = row["Issue key"];
+      if (key) keys.add(key);
+    }
+    return keys;
+  }, [filteredEpicTasks, filteredRows]);
 
   const hasActiveFilters = activeFilters.some((f) => f.values.length > 0);
 
   const displayRows = useMemo(() => {
     let rows = allDisplayRows;
 
-    // When filters are active, keep only epics that match + initiatives that have matching children
+    // When filters are active, keep matching items
     if (hasActiveFilters) {
       rows = rows.filter((r) => {
         if (r.type === "initiative") {
-          return r.children?.some((c) => filteredEpicKeys.has(c.epicKey));
+          // Keep initiative if it directly matches OR if any child matches
+          const initiativeMatches = r.initiativeKey ? filteredKeys.has(r.initiativeKey) : false;
+          const childMatches = r.children?.some((c) => filteredKeys.has(c.epicKey));
+          return initiativeMatches || childMatches;
         }
-        return filteredEpicKeys.has(r.epic.epicKey);
+        return filteredKeys.has(r.epic.epicKey);
       });
     }
 
@@ -236,7 +245,7 @@ export function App() {
     }
 
     return rows;
-  }, [allDisplayRows, searchTerm, hasActiveFilters, filteredEpicKeys]);
+  }, [allDisplayRows, searchTerm, hasActiveFilters, filteredKeys]);
 
   const getUniqueValues = useCallback(
     (column: string) => extractUniqueValues(rawData, column),
