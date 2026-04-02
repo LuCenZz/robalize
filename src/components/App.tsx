@@ -76,28 +76,60 @@ export function App() {
     });
   }, [saveProjects]);
 
-  // Load projects from Supabase on mount, fallback to localStorage
+  // Load projects on mount: Supabase → localStorage → auto-fetch JIRA
   useEffect(() => {
     if (!profile) return;
-    loadProjects().then((rows) => {
+
+    async function init() {
+      // 1. Try Supabase
+      const rows = await loadProjects();
       if (rows.length > 0) {
         setRawData(rows);
         setColumns(extractColumns(rows));
         setJiraConnected(true);
-      } else {
-        // Fallback: try localStorage
-        try {
-          const cached = localStorage.getItem("oem-session-data");
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setRawData(parsed);
-              setColumns(extractColumns(parsed));
-              setJiraConnected(true);
-            }
-          }
-        } catch { /* ignore */ }
+        return;
       }
+
+      // 2. Try localStorage
+      try {
+        const cached = localStorage.getItem("oem-session-data");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setRawData(parsed);
+            setColumns(extractColumns(parsed));
+            setJiraConnected(true);
+            return;
+          }
+        }
+      } catch { /* ignore */ }
+
+      // 3. Auto-fetch JIRA if config exists
+      let config = loadJiraConfig();
+      if (!config || !config.email || !config.apiToken) {
+        const adminConfig = await loadAdminJiraConfig();
+        if (adminConfig) {
+          config = adminConfig as any;
+          saveJiraConfig(adminConfig as any);
+        }
+      }
+      if (config && config.email && config.apiToken && config.jql) {
+        setLoading(true);
+        try {
+          const jiraRows = await fetchJiraData(config);
+          if (jiraRows.length > 0) {
+            await loadData(jiraRows, false, "jira");
+            setJiraConnected(true);
+          }
+        } catch (err) {
+          console.error("Auto JIRA fetch failed:", err);
+        } finally {
+          setLoading(false);
+        }
+      }
+    }
+
+    init();
     });
   }, [profile, loadProjects]);
 
