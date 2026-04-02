@@ -49,17 +49,28 @@ export function LoginPage({ onSignInEmail, onSignUpEmail, onSignInMicrosoft }: L
       }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{
-            background: theme.primary,
-            borderRadius: theme.radius.lg,
-            padding: "16px 24px",
-            display: "inline-block",
+            background: "#5B2D9E",
+            borderRadius: 20,
+            padding: "24px 32px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 20,
             marginBottom: 8,
           }}>
-            <img src="/logo.png" alt="Robalize" style={{ height: 84 }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <div style={{ width: 40, height: 7, borderRadius: 4, background: "#fff" }} />
+              <div style={{ width: 30, height: 7, borderRadius: 4, background: "#fff", opacity: 0.65 }} />
+              <div style={{ width: 20, height: 7, borderRadius: 4, background: "#fff", opacity: 0.35 }} />
+            </div>
+            <div>
+              <div style={{ fontFamily: "Arial Black, Arial, sans-serif", fontWeight: 900, fontSize: 48, lineHeight: 1, letterSpacing: -1, color: "#fff" }}>
+                <span style={{ color: "#C4A8E8" }}>R</span>obalize
+              </div>
+              <div style={{ fontFamily: "Arial, sans-serif", fontSize: 12, letterSpacing: 4, color: "#C4A8E8", marginTop: 4 }}>
+                AI SOLUTIONS
+              </div>
+            </div>
           </div>
-          <p style={{ color: theme.textMuted, fontSize: 13, marginTop: 8, letterSpacing: 2, textTransform: "uppercase" }}>
-            AI Solutions
-          </p>
         </div>
 
         <button

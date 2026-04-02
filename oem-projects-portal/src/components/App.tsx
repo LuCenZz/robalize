@@ -360,52 +360,10 @@ export function App() {
             perspective: "1200px",
           }}
         >
-          <style>{`
-            @keyframes float {
-              0%, 100% { transform: translateY(0px); }
-              50% { transform: translateY(-8px); }
-            }
-            @keyframes fadeInUp {
-              from { opacity: 0; transform: translateY(30px); }
-              to { opacity: 1; transform: translateY(0); }
-            }
-            @keyframes shimmer {
-              0% { background-position: -200% center; }
-              100% { background-position: 200% center; }
-            }
-            .card-3d {
-              transition: transform 0.4s cubic-bezier(0.03, 0.98, 0.52, 0.99), box-shadow 0.4s ease;
-              transform-style: preserve-3d;
-            }
-            .card-3d:hover {
-              transform: translateY(-12px) rotateX(5deg) rotateY(-5deg) scale(1.04);
-              box-shadow: 0 25px 50px rgba(107, 44, 245, 0.2), 0 0 0 2px ${theme.primary};
-            }
-            .card-3d:active {
-              transform: translateY(-4px) scale(0.98);
-            }
-            .card-icon {
-              transition: transform 0.4s ease;
-            }
-            .card-3d:hover .card-icon {
-              transform: scale(1.2) rotateZ(-8deg);
-            }
-          `}</style>
-
-          <p style={{
+          <p className="shimmer-text" style={{
             fontSize: 28,
             fontWeight: 700,
-            color: theme.textDark,
             margin: 0,
-            animation: "fadeInUp 0.6s ease-out",
-            background: `linear-gradient(135deg, ${theme.primary}, #a78bfa, ${theme.primary})`,
-            backgroundSize: "200% auto",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            animationName: "shimmer",
-            animationDuration: "3s",
-            animationIterationCount: "infinite",
-            animationTimingFunction: "linear",
           }}>
             Get started
           </p>
