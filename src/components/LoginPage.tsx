@@ -50,23 +50,23 @@ export function LoginPage({ onSignInEmail, onSignUpEmail, onSignInMicrosoft }: L
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{
             background: "#5B2D9E",
-            borderRadius: 20,
-            padding: "24px 32px",
+            borderRadius: 28,
+            padding: "28px 40px",
             display: "inline-flex",
             alignItems: "center",
-            gap: 20,
+            gap: 24,
             marginBottom: 8,
           }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
               <div style={{ width: 40, height: 7, borderRadius: 4, background: "#fff" }} />
               <div style={{ width: 30, height: 7, borderRadius: 4, background: "#fff", opacity: 0.65 }} />
-              <div style={{ width: 20, height: 7, borderRadius: 4, background: "#fff", opacity: 0.35 }} />
+              <div style={{ width: 22, height: 7, borderRadius: 4, background: "#fff", opacity: 0.35 }} />
             </div>
             <div>
-              <div style={{ fontFamily: "Arial Black, Arial, sans-serif", fontWeight: 900, fontSize: 48, lineHeight: 1, letterSpacing: -1, color: "#fff" }}>
-                <span style={{ color: "#C4A8E8" }}>R</span>obalize
+              <div style={{ fontFamily: "'Arial Black', Arial, sans-serif", fontWeight: 900, fontSize: 64, lineHeight: 1, letterSpacing: -3, color: "#fff" }}>
+                rob<span style={{ color: "#5DE8B0" }}>A</span>l<span style={{ color: "#5DE8B0" }}>I</span>ze
               </div>
-              <div style={{ fontFamily: "Arial, sans-serif", fontSize: 12, letterSpacing: 4, color: "#C4A8E8", marginTop: 4 }}>
+              <div style={{ fontFamily: "Arial, sans-serif", fontSize: 11, letterSpacing: 4, color: "#C4A8E8", marginTop: 6 }}>
                 AI SOLUTIONS
               </div>
             </div>

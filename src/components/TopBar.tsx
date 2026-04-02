@@ -51,14 +51,12 @@ export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected
       {/* Brand */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          <div style={{ width: 24, height: 4, borderRadius: 2, background: "#fff" }} />
-          <div style={{ width: 18, height: 4, borderRadius: 2, background: "#fff", opacity: 0.65 }} />
-          <div style={{ width: 12, height: 4, borderRadius: 2, background: "#fff", opacity: 0.35 }} />
+          <div style={{ width: 20, height: 3.5, borderRadius: 2, background: "#fff" }} />
+          <div style={{ width: 15, height: 3.5, borderRadius: 2, background: "#fff", opacity: 0.65 }} />
+          <div style={{ width: 11, height: 3.5, borderRadius: 2, background: "#fff", opacity: 0.35 }} />
         </div>
-        <div>
-          <div style={{ fontFamily: "Arial Black, Arial, sans-serif", fontWeight: 900, fontSize: 22, lineHeight: 1, letterSpacing: -0.5, color: "#fff" }}>
-            <span style={{ color: "#C4A8E8" }}>R</span>obalize
-          </div>
+        <div style={{ fontFamily: "'Arial Black', Arial, sans-serif", fontWeight: 900, fontSize: 26, lineHeight: 1, letterSpacing: -1, color: "#fff" }}>
+          rob<span style={{ color: "#5DE8B0" }}>A</span>l<span style={{ color: "#5DE8B0" }}>I</span>ze
         </div>
       </div>
 
