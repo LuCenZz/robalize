@@ -23,6 +23,7 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [signUpSuccess, setSignUpSuccess] = useState(false);
   const [visibleLetters, setVisibleLetters] = useState(0);
   const [showDot, setShowDot] = useState(false);
   const [barsVisible, setBarsVisible] = useState(0);
@@ -59,6 +60,8 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
     try {
       if (isSignUp) {
         await onSignUpEmail(email, password);
+        setSignUpSuccess(true);
+        setIsSignUp(false);
       } else {
         await onSignInEmail(email, password);
       }
@@ -248,6 +251,12 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
             }}
           />
 
+          {signUpSuccess && (
+            <p style={{ color: "#2b8a3e", fontSize: 13, marginBottom: 12, background: "#ebfbee", padding: "10px 14px", borderRadius: 8, border: "1px solid #b2f2bb" }}>
+              A confirmation email has been sent. Please check your inbox and click the link to activate your account.
+            </p>
+          )}
+
           {error && (
             <p style={{ color: "#e03131", fontSize: 13, marginBottom: 12 }}>{error}</p>
           )}
@@ -276,7 +285,7 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
         <p style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: theme.textMuted }}>
           {isSignUp ? "Already have an account? " : "No account? "}
           <button
-            onClick={() => { setIsSignUp(!isSignUp); setError(""); }}
+            onClick={() => { setIsSignUp(!isSignUp); setError(""); setSignUpSuccess(false); }}
             style={{
               background: "none",
               border: "none",
