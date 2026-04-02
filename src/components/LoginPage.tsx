@@ -1,144 +1,179 @@
 import { useState } from "react";
 import { theme } from "../styles/theme";
 
-const APP_USER_KEY = "oem-app-user";
-
-export interface AppUser {
-  email: string;
-  displayName: string;
-}
-
-export function saveAppUser(user: AppUser) {
-  localStorage.setItem(APP_USER_KEY, JSON.stringify(user));
-}
-
-export function loadAppUser(): AppUser | null {
-  try {
-    const stored = localStorage.getItem(APP_USER_KEY);
-    return stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
-}
-
-export function clearAppUser() {
-  localStorage.removeItem(APP_USER_KEY);
-}
-
 interface LoginPageProps {
-  onLogin: (user: AppUser) => void;
+  onSignInEmail: (email: string, password: string) => Promise<void>;
+  onSignUpEmail: (email: string, password: string) => Promise<void>;
+  onSignInMicrosoft: () => Promise<void>;
 }
 
-export function LoginPage({ onLogin }: LoginPageProps) {
+export function LoginPage({ onSignInEmail, onSignUpEmail, onSignInMicrosoft }: LoginPageProps) {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = email.trim();
-    if (!trimmed || !trimmed.includes("@")) {
-      setError("Enter a valid email address.");
-      return;
+    setError("");
+    setLoading(true);
+    try {
+      if (isSignUp) {
+        await onSignUpEmail(email, password);
+      } else {
+        await onSignInEmail(email, password);
+      }
+    } catch (err: any) {
+      setError(err.message || "Authentication failed");
+    } finally {
+      setLoading(false);
     }
-    const namePart = trimmed.split("@")[0];
-    const displayName = namePart
-      .split(/[._-]/)
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join(" ");
-
-    const user: AppUser = { email: trimmed, displayName };
-    saveAppUser(user);
-    onLogin(user);
   }
 
   return (
-    <div
-      style={{
-        height: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#f2f2f2",
-        fontFamily: theme.fontFamily,
-      }}
-    >
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          background: "white",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-          padding: "44px 44px 36px",
-          width: 440,
-          display: "flex",
-          flexDirection: "column",
-          gap: 0,
-        }}
-      >
-        {/* Logo */}
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ fontWeight: 800, fontSize: 22, color: theme.primary, letterSpacing: -0.5 }}>
-            nextlane
-          </span>
+    <div style={{
+      minHeight: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: theme.gradient.subtle,
+      fontFamily: theme.fontFamily,
+    }}>
+      <div style={{
+        background: theme.surface,
+        borderRadius: theme.radius.xl,
+        padding: 48,
+        width: 420,
+        boxShadow: theme.shadow.lg,
+      }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <h1 style={{
+            fontSize: 32,
+            fontWeight: 800,
+            color: theme.primary,
+            letterSpacing: -1,
+            margin: 0,
+          }}>
+            Robalize
+          </h1>
+          <p style={{ color: theme.textMuted, fontSize: 14, marginTop: 8 }}>
+            Project Portfolio Management
+          </p>
         </div>
 
-        {/* Title */}
-        <h1 style={{ fontSize: 24, fontWeight: 600, color: "#1b1b1b", margin: "0 0 4px" }}>
-          Sign in
-        </h1>
-        <p style={{ fontSize: 13, color: "#666", margin: "0 0 24px" }}>
-          to continue to OEM Projects Portal
-        </p>
+        <button
+          onClick={() => { setError(""); onSignInMicrosoft(); }}
+          style={{
+            width: "100%",
+            padding: "12px 16px",
+            borderRadius: theme.radius.md,
+            border: `1px solid ${theme.borderLight}`,
+            background: theme.surface,
+            color: theme.textDark,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            marginBottom: 24,
+            fontFamily: theme.fontFamily,
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+          Sign in with Microsoft
+        </button>
 
-        {/* Email field */}
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+          <div style={{ flex: 1, height: 1, background: theme.borderLight }} />
+          <span style={{ color: theme.textMuted, fontSize: 12 }}>or</span>
+          <div style={{ flex: 1, height: 1, background: theme.borderLight }} />
+        </div>
+
+        <form onSubmit={handleSubmit}>
           <input
             type="email"
+            placeholder="Email"
             value={email}
-            onChange={(e) => { setEmail(e.target.value); setError(""); }}
-            placeholder="Email address"
-            autoFocus
+            onChange={(e) => setEmail(e.target.value)}
+            required
             style={{
               width: "100%",
-              padding: "10px 0",
-              border: "none",
-              borderBottom: `1px solid ${error ? "#e03131" : "#ababab"}`,
-              fontSize: 15,
+              padding: "12px 16px",
+              borderRadius: theme.radius.md,
+              border: `1px solid ${theme.borderLight}`,
+              fontSize: 14,
+              marginBottom: 12,
               outline: "none",
               boxSizing: "border-box",
-              background: "transparent",
-              color: "#1b1b1b",
+              fontFamily: theme.fontFamily,
             }}
-            onFocus={(e) => (e.currentTarget.style.borderBottomColor = theme.primary)}
-            onBlur={(e) => (e.currentTarget.style.borderBottomColor = error ? "#e03131" : "#ababab")}
           />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+            style={{
+              width: "100%",
+              padding: "12px 16px",
+              borderRadius: theme.radius.md,
+              border: `1px solid ${theme.borderLight}`,
+              fontSize: 14,
+              marginBottom: 16,
+              outline: "none",
+              boxSizing: "border-box",
+              fontFamily: theme.fontFamily,
+            }}
+          />
+
           {error && (
-            <p style={{ fontSize: 12, color: "#e03131", margin: "6px 0 0" }}>{error}</p>
+            <p style={{ color: "#e03131", fontSize: 13, marginBottom: 12 }}>{error}</p>
           )}
-        </div>
 
-        {/* Help text */}
-        <p style={{ fontSize: 12, color: "#666", margin: "0 0 24px" }}>
-          Use your company email address.
-        </p>
-
-        {/* Submit */}
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button
             type="submit"
+            disabled={loading}
             style={{
-              background: theme.primary,
-              color: "white",
+              width: "100%",
+              padding: "12px 16px",
+              borderRadius: theme.radius.md,
               border: "none",
-              padding: "10px 36px",
+              background: theme.gradient.primary,
+              color: "white",
               fontSize: 14,
               fontWeight: 600,
-              cursor: "pointer",
+              cursor: loading ? "wait" : "pointer",
+              opacity: loading ? 0.7 : 1,
+              fontFamily: theme.fontFamily,
             }}
           >
-            Next
+            {loading ? "..." : isSignUp ? "Create account" : "Sign in"}
           </button>
-        </div>
-      </form>
+        </form>
+
+        <p style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: theme.textMuted }}>
+          {isSignUp ? "Already have an account? " : "No account? "}
+          <button
+            onClick={() => { setIsSignUp(!isSignUp); setError(""); }}
+            style={{
+              background: "none",
+              border: "none",
+              color: theme.primary,
+              cursor: "pointer",
+              fontWeight: 600,
+              fontSize: 13,
+              fontFamily: theme.fontFamily,
+            }}
+          >
+            {isSignUp ? "Sign in" : "Create one"}
+          </button>
+        </p>
+      </div>
     </div>
   );
 }
