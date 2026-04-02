@@ -423,9 +423,15 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
         if (!max || e > max) max = e;
       }
     }
+    // Always include current year
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    const yearEnd = new Date(now.getFullYear(), 11, 31);
+    if (!min || yearStart < min) min = yearStart;
+    if (!max || yearEnd > max) max = yearEnd;
+
     const pad = 14;
-    const minD = min ? new Date(min.getTime() - pad * 86400000) : new Date();
-    const maxD = max ? new Date(max.getTime() + pad * 86400000) : new Date();
+    const minD = new Date(min.getTime() - pad * 86400000);
+    const maxD = new Date(max.getTime() + pad * 86400000);
     return { minDate: minD, maxDate: maxD };
   }, [tasks]);
 

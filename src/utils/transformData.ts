@@ -72,11 +72,15 @@ export function transformToEpicTasks(rows: RawRow[]): EpicTask[] {
         rawData: row,
       };
     })
-    .filter((epic) => epic.phases.length > 0)
     .sort((a, b) => {
-      const orderA = getEarliestPhaseStart(a);
-      const orderB = getEarliestPhaseStart(b);
-      return orderA - orderB;
+      // Epics with phases first, sorted by earliest start
+      if (a.phases.length > 0 && b.phases.length > 0) {
+        return getEarliestPhaseStart(a) - getEarliestPhaseStart(b);
+      }
+      if (a.phases.length > 0) return -1;
+      if (b.phases.length > 0) return 1;
+      // Both without phases: sort alphabetically
+      return a.epicKey.localeCompare(b.epicKey);
     });
 }
 
