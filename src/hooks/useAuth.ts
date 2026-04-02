@@ -55,9 +55,10 @@ export function useAuth() {
       setLoading(false);
     });
 
-    // Listen for auth state changes
+    // Listen for auth state changes (ignore token refreshes)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, s) => {
+      (event, s) => {
+        if (event === "TOKEN_REFRESHED") return;
         setSession(s);
         if (s?.user) {
           fetchProfile(s.user.id, s.user.email);
