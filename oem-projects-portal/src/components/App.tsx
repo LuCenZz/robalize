@@ -4,6 +4,7 @@ import { FileUploader } from "./FileUploader";
 import { JiraConnector } from "./JiraConnector";
 import { LoginPage } from "./LoginPage";
 import { AiPanel } from "./AiPanel";
+import { ShimmerTitle } from "./ShimmerTitle";
 import { FilterBar } from "./FilterBar";
 import { AdminPanel } from "./AdminPanel";
 import { parseFile } from "../utils/parseFile";
@@ -356,92 +357,86 @@ export function App() {
             justifyContent: "center",
             flexDirection: "column",
             gap: 32,
-            color: theme.textMuted,
-            perspective: "1200px",
+            perspective: 1200,
           }}
         >
-          <p className="shimmer-text" style={{
-            fontSize: 28,
-            fontWeight: 700,
-            margin: 0,
-          }}>
-            Get started
-          </p>
+          <ShimmerTitle />
 
           <div style={{ display: "flex", gap: 28 }}>
-            {/* Jira option */}
-            <div
-              className="card-3d"
-              onClick={() => { setUploaderOpen(false); setJiraOpen(true); }}
-              style={{
-                width: 220,
-                padding: "36px 24px",
-                borderRadius: 20,
-                border: `1.5px solid ${theme.borderLight}`,
-                background: "linear-gradient(145deg, #ffffff, #f8f6ff)",
-                cursor: "pointer",
-                textAlign: "center",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 14,
-                animation: "fadeInUp 0.6s ease-out 0.15s both",
-              }}
-            >
-              <div className="card-icon" style={{
-                width: 56,
-                height: 56,
-                borderRadius: 16,
-                background: `linear-gradient(135deg, ${theme.primary}15, ${theme.primary}30)`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 26,
-              }}>
-                🔗
+            {[
+              { icon: "🔗", title: "Connect to Jira", desc: "Import directly via JQL query", action: () => { setUploaderOpen(false); setJiraOpen(true); }, delay: 0.15 },
+              { icon: "📄", title: "Load CSV / Excel", desc: "Upload a file exported from Jira", action: () => { setJiraOpen(false); setUploaderOpen(true); }, delay: 0.3 },
+            ].map((card) => (
+              <div
+                key={card.title}
+                onClick={card.action}
+                onMouseMove={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.clientX - rect.left - rect.width / 2;
+                  const y = e.clientY - rect.top - rect.height / 2;
+                  const rotateX = -(y / rect.height) * 20;
+                  const rotateY = (x / rect.width) * 20;
+                  e.currentTarget.style.transform = `translateY(-12px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.05)`;
+                  e.currentTarget.style.boxShadow = `0 25px 50px rgba(107, 44, 245, 0.25), 0 0 0 2px ${theme.primary}`;
+                  // Shine effect
+                  const shine = e.currentTarget.querySelector("[data-shine]") as HTMLElement;
+                  if (shine) {
+                    shine.style.background = `radial-gradient(circle at ${e.clientX - rect.left}px ${e.clientY - rect.top}px, rgba(107,44,245,0.15) 0%, transparent 60%)`;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0) rotateX(0) rotateY(0) scale(1)";
+                  e.currentTarget.style.boxShadow = theme.shadow.md;
+                  const shine = e.currentTarget.querySelector("[data-shine]") as HTMLElement;
+                  if (shine) shine.style.background = "transparent";
+                }}
+                style={{
+                  width: 220,
+                  padding: "36px 24px",
+                  borderRadius: 20,
+                  border: `1.5px solid ${theme.borderLight}`,
+                  background: "linear-gradient(145deg, #ffffff, #f8f6ff)",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 14,
+                  animation: `fadeInUp 0.6s ease-out ${card.delay}s both`,
+                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                  transformStyle: "preserve-3d",
+                  boxShadow: theme.shadow.md,
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+              >
+                {/* Shine overlay */}
+                <div data-shine="" style={{
+                  position: "absolute",
+                  inset: 0,
+                  pointerEvents: "none",
+                  borderRadius: 20,
+                  transition: "background 0.15s ease",
+                }} />
+                <div style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 16,
+                  background: `linear-gradient(135deg, rgba(107,44,245,0.08), rgba(107,44,245,0.18))`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 26,
+                  transition: "transform 0.3s ease",
+                }}>
+                  {card.icon}
+                </div>
+                <span style={{ fontWeight: 700, fontSize: 15, color: theme.textDark }}>{card.title}</span>
+                <span style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.5 }}>
+                  {card.desc}
+                </span>
               </div>
-              <span style={{ fontWeight: 700, fontSize: 15, color: theme.textDark }}>Connect to Jira</span>
-              <span style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.5 }}>
-                Import directly via JQL query
-              </span>
-            </div>
-
-            {/* CSV option */}
-            <div
-              className="card-3d"
-              onClick={() => { setJiraOpen(false); setUploaderOpen(true); }}
-              style={{
-                width: 220,
-                padding: "36px 24px",
-                borderRadius: 20,
-                border: `1.5px solid ${theme.borderLight}`,
-                background: "linear-gradient(145deg, #ffffff, #f8f6ff)",
-                cursor: "pointer",
-                textAlign: "center",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 14,
-                animation: "fadeInUp 0.6s ease-out 0.3s both",
-              }}
-            >
-              <div className="card-icon" style={{
-                width: 56,
-                height: 56,
-                borderRadius: 16,
-                background: `linear-gradient(135deg, ${theme.primary}15, ${theme.primary}30)`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 26,
-              }}>
-                📄
-              </div>
-              <span style={{ fontWeight: 700, fontSize: 15, color: theme.textDark }}>Load CSV / Excel</span>
-              <span style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.5 }}>
-                Upload a file exported from Jira
-              </span>
-            </div>
+            ))}
           </div>
         </div>
       )}

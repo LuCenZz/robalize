@@ -390,7 +390,27 @@ export function App() {
           <div style={{ display: "flex", gap: 24 }}>
             {/* Jira option */}
             <div
-              onClick={() => { setUploaderOpen(false); setJiraOpen(true); }}
+              onClick={() => {
+                setUploaderOpen(false);
+                const config = loadJiraConfig();
+                if (config && config.email && config.apiToken && config.jql) {
+                  setLoading(true);
+                  fetchJiraData(config)
+                    .then((rows) => {
+                      if (rows.length > 0) {
+                        loadData(rows);
+                        setJiraConnected(true);
+                      }
+                    })
+                    .catch((err) => {
+                      console.error("JIRA fetch failed:", err);
+                      alert("JIRA connection failed: " + (err instanceof Error ? err.message : "Unknown error"));
+                    })
+                    .finally(() => setLoading(false));
+                } else {
+                  setJiraOpen(true);
+                }
+              }}
               style={{
                 width: 200,
                 padding: "28px 20px",
