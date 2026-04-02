@@ -84,22 +84,6 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
             80%  { transform: translateX(-50%) translateY(-3px) scale(0.9); opacity: 1; }
             100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
           }
-          @keyframes cursorBlink {
-            0%, 100% { opacity: 1; }
-            50%      { opacity: 0; }
-          }
-          @keyframes cursorFade {
-            to { opacity: 0; }
-          }
-          @keyframes logo3d {
-            0%   { transform: perspective(800px) rotateY(-6deg) rotateX(3deg); }
-            50%  { transform: perspective(800px) rotateY(6deg) rotateX(-3deg); }
-            100% { transform: perspective(800px) rotateY(-6deg) rotateX(3deg); }
-          }
-          @keyframes glowPulse {
-            0%, 100% { text-shadow: 0 0 8px rgba(93,232,176,0.2); }
-            50%      { text-shadow: 0 0 20px rgba(93,232,176,0.5), 0 4px 24px rgba(107,44,245,0.2); }
-          }
           .logo-letter {
             opacity: 0;
             transform: translateY(8px) scale(0.8);
@@ -119,43 +103,26 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
             position: absolute;
             top: -2px;
             left: 50%;
-            width: 7px;
-            height: 7px;
-            border-radius: 1.5px;
+            margin-left: 2px;
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
             background: #5DE8B0;
             opacity: 0;
             transform: translateX(-50%) translateY(-30px) scale(0);
             animation: dotDrop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
             will-change: transform, opacity;
           }
-          .logo-cursor {
-            display: inline-block;
-            width: 3px;
-            height: 42px;
-            background: ${theme.primary};
-            margin-left: 2px;
-            animation: cursorBlink 0.8s step-end infinite, cursorFade 0.3s ease forwards;
-            will-change: opacity;
-          }
-          .logo-wrapper {
-            animation: logo3d 6s ease-in-out infinite;
-            animation-delay: ${IDLE_DELAY}ms;
-            animation-fill-mode: none;
-            will-change: transform;
-          }
-          .logo-wordmark {
-            animation: glowPulse 4s ease-in-out infinite;
-            animation-delay: ${IDLE_DELAY}ms;
-          }
+          .logo-wrapper { }
+          .logo-wordmark { }
         `}</style>
-        <div style={{ textAlign: "center", marginBottom: 32, perspective: 800 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div
             className="logo-wrapper"
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: 24,
-              transformStyle: "preserve-3d",
               cursor: "default",
             }}
           >
@@ -175,7 +142,7 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
                     borderRadius: 3.5,
                     background: bar.bg,
                     "--bar-opacity": bar.opacity,
-                    transform: `translateZ(${bar.z}px) scaleX(0)`,
+                    transform: "scaleX(0)",
                     animationDelay: `${BAR_START + idx * BAR_STAGGER}ms`,
                   } as React.CSSProperties}
                 />
@@ -190,11 +157,9 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
                 fontWeight: 900,
                 fontSize: 52,
                 lineHeight: 1,
-                letterSpacing: -4,
+                letterSpacing: -2,
                 color: theme.primary,
-                transform: "translateZ(30px)",
-                transformStyle: "preserve-3d",
-                display: "flex",
+                  display: "flex",
                 alignItems: "baseline",
               }}
             >
@@ -216,13 +181,6 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
                   )}
                 </span>
               ))}
-              {/* Cursor — fades out after last letter */}
-              <span
-                className="logo-cursor"
-                style={{
-                  animationDelay: `0s, ${LETTER_START + LETTERS.length * LETTER_STAGGER}ms`,
-                }}
-              />
             </div>
           </div>
         </div>

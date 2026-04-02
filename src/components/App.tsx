@@ -44,7 +44,7 @@ export function App() {
   const [uploaderOpen, setUploaderOpen] = useState(false);
   const [jiraOpen, setJiraOpen] = useState(false);
   const [jiraConnected, setJiraConnected] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [resetKey, setResetKey] = useState(0);
   const [aiOpen, setAiOpen] = useState(false);
@@ -81,51 +81,53 @@ export function App() {
     if (!profile) return;
 
     async function init() {
-      // 1. Try Supabase
-      const rows = await loadProjects();
-      if (rows.length > 0) {
-        setRawData(rows);
-        setColumns(extractColumns(rows));
-        setJiraConnected(true);
-        return;
-      }
-
-      // 2. Try localStorage
+      setLoading(true);
       try {
-        const cached = localStorage.getItem("oem-session-data");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setRawData(parsed);
-            setColumns(extractColumns(parsed));
-            setJiraConnected(true);
-            return;
-          }
+        // 1. Try Supabase
+        const rows = await loadProjects();
+        if (rows.length > 0) {
+          setRawData(rows);
+          setColumns(extractColumns(rows));
+          setJiraConnected(true);
+          return;
         }
-      } catch { /* ignore */ }
 
-      // 3. Auto-fetch JIRA if config exists
-      let config = loadJiraConfig();
-      if (!config || !config.email || !config.apiToken) {
-        const adminConfig = await loadAdminJiraConfig();
-        if (adminConfig) {
-          config = adminConfig as any;
-          saveJiraConfig(adminConfig as any);
-        }
-      }
-      if (config && config.email && config.apiToken && config.jql) {
-        setLoading(true);
+        // 2. Try localStorage
         try {
-          const jiraRows = await fetchJiraData(config);
-          if (jiraRows.length > 0) {
-            await loadData(jiraRows, false, "jira");
-            setJiraConnected(true);
+          const cached = localStorage.getItem("oem-session-data");
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setRawData(parsed);
+              setColumns(extractColumns(parsed));
+              setJiraConnected(true);
+              return;
+            }
           }
-        } catch (err) {
-          console.error("Auto JIRA fetch failed:", err);
-        } finally {
-          setLoading(false);
+        } catch { /* ignore */ }
+
+        // 3. Auto-fetch JIRA if config exists
+        let config = loadJiraConfig();
+        if (!config || !config.email || !config.apiToken) {
+          const adminConfig = await loadAdminJiraConfig();
+          if (adminConfig) {
+            config = adminConfig as any;
+            saveJiraConfig(adminConfig as any);
+          }
         }
+        if (config && config.email && config.apiToken && config.jql) {
+          try {
+            const jiraRows = await fetchJiraData(config);
+            if (jiraRows.length > 0) {
+              await loadData(jiraRows, false, "jira");
+              setJiraConnected(true);
+            }
+          } catch (err) {
+            console.error("Auto JIRA fetch failed:", err);
+          }
+        }
+      } finally {
+        setLoading(false);
       }
     }
 
