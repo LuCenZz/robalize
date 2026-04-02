@@ -130,7 +130,6 @@ export function App() {
     }
 
     init();
-    });
   }, [profile, loadProjects]);
 
   const handleFileSelected = useCallback(async (file: File) => {
