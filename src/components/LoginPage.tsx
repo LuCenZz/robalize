@@ -62,7 +62,7 @@ export function LoginPage({ onSignInEmail, onSignUpEmail, onSignInMicrosoft }: L
               <div style={{ width: 22, height: 7, borderRadius: 3.5, background: "#5DE8B0", opacity: 0.9 }} />
             </div>
             <div style={{ fontFamily: "'Arial Black', Arial, sans-serif", fontWeight: 900, fontSize: 52, lineHeight: 1, letterSpacing: -4, color: "#fff" }}>
-              rob<span style={{ color: "#5DE8B0" }}>A</span>l<span style={{ color: "#5DE8B0" }}>i</span>ze
+              rob<span style={{ color: "#5DE8B0" }}>A</span>l<span style={{ color: "#5DE8B0", position: "relative", display: "inline-block" }}>ı<span style={{ position: "absolute", top: 2, left: "50%", transform: "translateX(-50%)", width: 8, height: 8, background: "#5DE8B0", borderRadius: 2 }} /></span>ze
             </div>
           </div>
         </div>
