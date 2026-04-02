@@ -25,12 +25,16 @@ export function useAuth() {
     if (data) {
       setProfile(data as Profile);
     } else {
-      // Profile row doesn't exist yet — create a default one
+      // Profile row doesn't exist yet — create a pending one
       const newProfile: Profile = {
         id: userId,
         email: email || "",
-        role: "viewer",
+        role: "pending",
       };
+      // Insert into Supabase so admin can see it
+      await supabase
+        .from("profiles")
+        .upsert({ id: userId, email: email || "", role: "pending" }, { onConflict: "id" });
       setProfile(newProfile);
     }
   }, []);

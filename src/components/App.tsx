@@ -262,6 +262,54 @@ export function App() {
     );
   }
 
+  // Auth gate: block pending users
+  if (profile?.role === "pending") {
+    return (
+      <div style={{
+        height: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: theme.fontFamily,
+        flexDirection: "column",
+        gap: 16,
+        background: theme.gradient.subtle,
+      }}>
+        <div style={{
+          background: theme.surface,
+          borderRadius: theme.radius.xl,
+          padding: 48,
+          textAlign: "center",
+          boxShadow: theme.shadow.lg,
+          maxWidth: 420,
+        }}>
+          <p style={{ fontSize: 48, margin: "0 0 16px" }}>&#9203;</p>
+          <h2 style={{ color: theme.textDark, margin: "0 0 12px", fontSize: 20 }}>Account pending approval</h2>
+          <p style={{ color: theme.textMuted, fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+            Your account has been created but is awaiting administrator approval. You will receive access shortly.
+          </p>
+          <button
+            onClick={() => signOut()}
+            style={{
+              marginTop: 24,
+              padding: "10px 24px",
+              borderRadius: theme.radius.md,
+              border: "none",
+              background: theme.gradient.primary,
+              color: "white",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: theme.fontFamily,
+            }}
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
