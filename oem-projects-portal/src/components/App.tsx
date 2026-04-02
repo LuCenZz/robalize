@@ -2,10 +2,13 @@ import { useState, useCallback, useEffect, useMemo, lazy, Suspense } from "react
 import { TopBar } from "./TopBar";
 import { FileUploader } from "./FileUploader";
 import { JiraConnector } from "./JiraConnector";
-import { LoginPage, loadAppUser, clearAppUser, type AppUser } from "./LoginPage";
+import { LoginPage } from "./LoginPage";
 import { AiPanel } from "./AiPanel";
 import { FilterBar } from "./FilterBar";
+import { AdminPanel } from "./AdminPanel";
 import { parseFile } from "../utils/parseFile";
+import { useAuth } from "../hooks/useAuth";
+import { useData } from "../hooks/useData";
 
 const GanttChart = lazy(() =>
   import("./GanttChart").then((m) => ({ default: m.GanttChart }))
@@ -18,72 +21,67 @@ import {
 } from "../utils/transformData";
 import { applyFilters } from "../utils/filterEngine";
 import { generatePptx } from "../utils/generatePptx";
-import { loadJiraConfig, fetchJiraData } from "../utils/jiraFetch";
-import { saveFilters, loadFilters, saveSearchTerm, loadSearchTerm } from "../utils/userPrefs";
 import type { RawRow, ActiveFilter, EpicTask } from "../types";
 import { theme } from "../styles/theme";
 
 export function App() {
-  const [appUser, setAppUser] = useState<AppUser | null>(loadAppUser);
+  const {
+    session,
+    profile,
+    loading: authLoading,
+    isAdmin,
+    signInWithEmail,
+    signUpWithEmail,
+    signInWithMicrosoft,
+    signOut,
+  } = useAuth();
+  const { loadProjects, saveProjects } = useData(profile?.id);
+
   const [rawData, setRawData] = useState<RawRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [uploaderOpen, setUploaderOpen] = useState(false);
   const [jiraOpen, setJiraOpen] = useState(false);
   const [jiraConnected, setJiraConnected] = useState(false);
-  const handleLogout = useCallback(() => {
-    clearAppUser();
-    setAppUser(null);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [resetKey, setResetKey] = useState(0);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+
+  const handleLogout = useCallback(async () => {
+    await signOut();
     setRawData([]);
     setColumns([]);
     setActiveFilters([]);
     setJiraConnected(false);
     setSearchTerm("");
-  }, []);
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [resetKey, setResetKey] = useState(0);
-  const [aiOpen, setAiOpen] = useState(false);
+  }, [signOut]);
 
-  const loadData = useCallback((rows: RawRow[], silent = false) => {
+  const loadData = useCallback(async (rows: RawRow[], silent = false) => {
     setRawData(rows);
     setColumns(extractColumns(rows));
     if (!silent) {
       setActiveFilters([]);
       setSearchTerm("");
     }
-  }, []);
-
-  // Auto-reconnect to JIRA on mount and restore user prefs
-  useEffect(() => {
-    const config = loadJiraConfig();
-    if (config && config.email && config.apiToken && config.jql) {
-      // Restore prefs for this user
-      const savedFilters = loadFilters(config.email);
-      const savedSearch = loadSearchTerm(config.email);
-      if (savedSearch) setSearchTerm(savedSearch);
-
-      setLoading(true);
-      fetchJiraData(config)
-        .then((rows) => {
-          if (rows.length > 0) {
-            setRawData(rows);
-            const cols = extractColumns(rows);
-            setColumns(cols);
-            setJiraConnected(true);
-            // Restore filters only if columns still exist
-            if (savedFilters.length > 0) {
-              const validFilters = savedFilters.filter((f) => cols.includes(f.column));
-              setActiveFilters(validFilters);
-            }
-          }
-        })
-        .catch((err) => {
-          console.error("Auto-reconnect failed:", err);
-        })
-        .finally(() => setLoading(false));
+    try {
+      await saveProjects(rows, "csv");
+    } catch (err) {
+      console.error("Failed to persist:", err);
     }
-  }, [appUser]);
+  }, [saveProjects]);
+
+  // Load projects from Supabase on mount when profile is available
+  useEffect(() => {
+    if (!profile) return;
+    loadProjects().then((rows) => {
+      if (rows.length > 0) {
+        setRawData(rows);
+        setColumns(extractColumns(rows));
+      }
+    });
+  }, [profile, loadProjects]);
 
   const handleFileSelected = useCallback(async (file: File) => {
     setLoading(true);
@@ -97,7 +95,7 @@ export function App() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadData]);
 
   // Build all epics from ALL data (unfiltered) so initiatives are always available
   const allEpicTasks: EpicTask[] = useMemo(
@@ -167,9 +165,24 @@ export function App() {
     [rawData]
   );
 
-  // Show login page if not authenticated
-  if (!appUser) {
-    return <LoginPage onLogin={setAppUser} />;
+  // Auth gate: show loading spinner while checking session
+  if (authLoading) {
+    return (
+      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: theme.fontFamily, color: theme.textMuted }}>
+        Loading...
+      </div>
+    );
+  }
+
+  // Auth gate: show login page if not authenticated
+  if (!session) {
+    return (
+      <LoginPage
+        onSignInEmail={signInWithEmail}
+        onSignUpEmail={signUpWithEmail}
+        onSignInMicrosoft={signInWithMicrosoft}
+      />
+    );
   }
 
   return (
@@ -187,15 +200,14 @@ export function App() {
         onUploadClick={() => setUploaderOpen(true)}
         onJiraClick={() => setJiraOpen(true)}
         jiraConnected={jiraConnected}
-        userName={appUser?.displayName}
+        userName={profile?.display_name || profile?.email || ""}
         onLogout={handleLogout}
         onGeneratePptx={() => generatePptx(filteredEpicTasks)}
         onAiClick={() => setAiOpen(true)}
         searchTerm={searchTerm}
-        onSearchChange={(term) => {
-          setSearchTerm(term);
-          saveSearchTerm(term);
-        }}
+        onSearchChange={(term) => { setSearchTerm(term); }}
+        isAdmin={isAdmin}
+        onAdminClick={() => setAdminOpen(true)}
       />
 
       <FilterBar
@@ -204,7 +216,6 @@ export function App() {
         getUniqueValues={getUniqueValues}
         onFiltersChange={(filters) => {
           setActiveFilters(filters);
-          saveFilters(filters);
           if (filters.every((f) => f.values.length === 0)) {
             setResetKey((k) => k + 1);
           }
@@ -433,6 +444,8 @@ export function App() {
         onClose={() => setAiOpen(false)}
         displayRows={displayRows}
       />
+
+      <AdminPanel open={adminOpen} onClose={() => setAdminOpen(false)} />
     </div>
   );
 }
