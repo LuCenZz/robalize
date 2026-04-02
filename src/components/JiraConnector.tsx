@@ -15,9 +15,10 @@ interface JiraConnectorProps {
   connected: boolean;
   onConnectionChange: (connected: boolean) => void;
   isAdmin?: boolean;
+  saveSetting?: (key: string, value: unknown) => Promise<void>;
 }
 
-export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnectionChange, isAdmin = false }: JiraConnectorProps) {
+export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnectionChange, isAdmin = false, saveSetting }: JiraConnectorProps) {
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [jql, setJql] = useState('project = "ACTO" AND issuetype = Epic ORDER BY key ASC');
@@ -54,6 +55,10 @@ export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnec
 
     const config: JiraConfig = { email, apiToken, jql, maxRows, refreshInterval };
     saveJiraConfig(config);
+    // Admin: also save to Supabase so other users can use it
+    if (isAdmin && saveSetting) {
+      saveSetting("jira_config", config);
+    }
 
     try {
       const rows = await fetchJiraData(config, (loaded, total) => {

@@ -21,7 +21,7 @@ import {
 } from "../utils/transformData";
 import { applyFilters } from "../utils/filterEngine";
 import { generatePptx } from "../utils/generatePptx";
-import { loadJiraConfig, fetchJiraData } from "../utils/jiraFetch";
+import { loadJiraConfig, saveJiraConfig, fetchJiraData } from "../utils/jiraFetch";
 import type { RawRow, ActiveFilter, EpicTask } from "../types";
 import { theme } from "../styles/theme";
 
@@ -36,7 +36,7 @@ export function App() {
     signInWithMicrosoft,
     signOut,
   } = useAuth();
-  const { loadProjects, saveProjects } = useData(profile?.id);
+  const { loadProjects, saveProjects, saveSetting, loadAdminJiraConfig } = useData(profile?.id);
 
   const [rawData, setRawData] = useState<RawRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
@@ -198,12 +198,18 @@ export function App() {
       <TopBar
         projectCount={filteredEpicTasks.length}
         onUploadClick={() => setUploaderOpen(true)}
-        onJiraClick={() => {
+        onJiraClick={async () => {
           if (isAdmin) {
             setJiraOpen(true);
           } else {
-            // Viewer: auto-fetch with saved config
-            const config = loadJiraConfig();
+            let config = loadJiraConfig();
+            if (!config || !config.email || !config.apiToken) {
+              const adminConfig = await loadAdminJiraConfig();
+              if (adminConfig) {
+                config = adminConfig as any;
+                saveJiraConfig(adminConfig as any);
+              }
+            }
             if (config && config.email && config.apiToken && config.jql) {
               setLoading(true);
               fetchJiraData(config)
@@ -391,24 +397,36 @@ export function App() {
             <div
               onClick={() => {
                 setUploaderOpen(false);
-                const config = loadJiraConfig();
-                if (config && config.email && config.apiToken && config.jql) {
-                  setLoading(true);
-                  fetchJiraData(config)
-                    .then((rows) => {
+                async function tryJiraFetch() {
+                  // Try local config first
+                  let config = loadJiraConfig();
+                  // If no local config, try admin config from Supabase
+                  if (!config || !config.email || !config.apiToken) {
+                    const adminConfig = await loadAdminJiraConfig();
+                    if (adminConfig) {
+                      config = adminConfig as any;
+                      saveJiraConfig(adminConfig as any); // cache locally
+                    }
+                  }
+                  if (config && config.email && config.apiToken && config.jql) {
+                    setLoading(true);
+                    try {
+                      const rows = await fetchJiraData(config);
                       if (rows.length > 0) {
                         loadData(rows, false, "jira");
                         setJiraConnected(true);
                       }
-                    })
-                    .catch((err) => {
+                    } catch (err) {
                       console.error("JIRA fetch failed:", err);
                       alert("JIRA connection failed: " + (err instanceof Error ? err.message : "Unknown error"));
-                    })
-                    .finally(() => setLoading(false));
-                } else {
-                  setJiraOpen(true);
+                    } finally {
+                      setLoading(false);
+                    }
+                  } else {
+                    setJiraOpen(true);
+                  }
                 }
+                tryJiraFetch();
               }}
               style={{
                 width: 200,
@@ -482,6 +500,7 @@ export function App() {
         connected={jiraConnected}
         onConnectionChange={setJiraConnected}
         isAdmin={isAdmin}
+        saveSetting={saveSetting}
       />
 
       <AiPanel

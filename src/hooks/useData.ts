@@ -104,5 +104,26 @@ export function useData(userId: string | undefined) {
     );
   }, [userId]);
 
-  return { loadProjects, saveProjects, loadSetting, saveSetting };
+  const loadAdminJiraConfig = useCallback(async () => {
+    if (!supabase) return null;
+    // Find an admin user
+    const { data: admins } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("role", "admin")
+      .limit(1);
+
+    if (!admins || admins.length === 0) return null;
+
+    const { data: setting } = await supabase
+      .from("settings")
+      .select("value")
+      .eq("user_id", admins[0].id)
+      .eq("key", "jira_config")
+      .single();
+
+    return setting?.value as { email: string; apiToken: string; jql: string; maxRows: number; refreshInterval: number } | null;
+  }, []);
+
+  return { loadProjects, saveProjects, loadSetting, saveSetting, loadAdminJiraConfig };
 }
