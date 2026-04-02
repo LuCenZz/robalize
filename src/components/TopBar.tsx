@@ -56,7 +56,7 @@ export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected
           <div style={{ width: 8, height: 2.5, borderRadius: 2, background: "#5DE8B0", opacity: 0.9 }} />
         </div>
         <div style={{ fontFamily: "'Arial Black', Arial, sans-serif", fontWeight: 900, fontSize: 22, lineHeight: 1, letterSpacing: -1.5, color: "#fff" }}>
-          rob<span style={{ color: "#5DE8B0" }}>A</span>l<span style={{ color: "#5DE8B0", position: "relative", display: "inline-block" }}>ı<span style={{ position: "absolute", top: 1, left: "50%", transform: "translateX(-50%)", width: 4, height: 4, background: "#5DE8B0", borderRadius: 1 }} /></span>ze
+          rob<span style={{ color: "#5DE8B0" }}>A</span>l<svg width="8" height="22" viewBox="0 0 18 52" style={{ display: "inline-block", verticalAlign: "top" }}><rect x="5" y="2" width="8" height="8" rx="1.5" fill="#5DE8B0" /><rect x="5" y="16" width="8" height="36" rx="2" fill="#5DE8B0" /></svg>ze
         </div>
       </div>
 
