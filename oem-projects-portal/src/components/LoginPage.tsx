@@ -32,6 +32,7 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [signUpSuccess, setSignUpSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -226,96 +227,83 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
           </div>
         </div>
 
-        <style>{`
-          @keyframes typewriter-placeholder {
-            0% { width: 0; }
-            100% { width: 100%; }
-          }
-          .login-field-wrapper {
-            position: relative;
-            margin-bottom: 12px;
-          }
-          .login-field-label {
-            display: block;
-            font-size: 12px;
-            font-weight: 600;
-            color: ${theme.textMuted};
-            margin-bottom: 6px;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-          }
-          .login-field {
-            width: 100%;
-            padding: 12px 16px;
-            border-radius: ${theme.radius.md}px;
-            border: 1px solid ${theme.borderLight};
-            font-size: 14px;
-            outline: none;
-            box-sizing: border-box;
-            font-family: ${theme.fontFamily};
-            background: transparent;
-          }
-          .login-field:focus {
-            border-color: ${theme.primary};
-            box-shadow: 0 0 0 2px rgba(107, 44, 245, 0.1);
-          }
-          .login-field-typewriter {
-            position: absolute;
-            top: 50%;
-            left: 16px;
-            transform: translateY(-50%);
-            font-size: 14px;
-            color: ${theme.textMuted};
-            pointer-events: none;
-            overflow: hidden;
-            white-space: nowrap;
-            border-right: 2px solid ${theme.textMuted};
-            animation: typewriter-placeholder 1.2s steps(20, end) forwards, cursorBlink 0.8s step-end 6;
-            animation-delay: ${IDLE_DELAY + 400}ms, ${IDLE_DELAY + 400}ms;
-            opacity: 0;
-            animation-fill-mode: forwards, none;
-          }
-          .login-field-typewriter.visible {
-            opacity: 1;
-          }
-          .login-field:focus + .login-field-typewriter,
-          .login-field:not(:placeholder-shown) + .login-field-typewriter {
-            display: none;
-          }
-        `}</style>
         <form onSubmit={handleSubmit}>
-          <div className="login-field-wrapper">
-            <label className="login-field-label">Identifiant</label>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: theme.textMuted, marginBottom: 6, letterSpacing: 0.5, textTransform: "uppercase" }}>
+              Email
+            </label>
             <input
               type="email"
-              placeholder=" "
+              placeholder="votre.email@exemple.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="login-field"
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                borderRadius: theme.radius.md,
+                border: `1px solid ${theme.borderLight}`,
+                fontSize: 14,
+                outline: "none",
+                boxSizing: "border-box",
+                fontFamily: theme.fontFamily,
+              }}
             />
-            {!email && (
-              <span className="login-field-typewriter visible">
-                votre.email@exemple.com
-              </span>
-            )}
           </div>
-          <div className="login-field-wrapper">
-            <label className="login-field-label">Mot de passe</label>
-            <input
-              type="password"
-              placeholder=" "
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="login-field"
-            />
-            {!password && (
-              <span className="login-field-typewriter visible">
-                ••••••••••
-              </span>
-            )}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: theme.textMuted, marginBottom: 6, letterSpacing: 0.5, textTransform: "uppercase" }}>
+              Password
+            </label>
+            <div style={{ position: "relative" }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                style={{
+                  width: "100%",
+                  padding: "12px 40px 12px 16px",
+                  borderRadius: theme.radius.md,
+                  border: `1px solid ${theme.borderLight}`,
+                  fontSize: 14,
+                  outline: "none",
+                  boxSizing: "border-box",
+                  fontFamily: theme.fontFamily,
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: "absolute",
+                  right: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 0,
+                  color: theme.textMuted,
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                {showPassword ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
           {signUpSuccess && (
             <p style={{ color: "#2b8a3e", fontSize: 13, marginBottom: 12, background: "#ebfbee", padding: "10px 14px", borderRadius: 8, border: "1px solid #b2f2bb" }}>
