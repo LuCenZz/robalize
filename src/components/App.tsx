@@ -57,6 +57,8 @@ export function App() {
     setActiveFilters([]);
     setJiraConnected(false);
     setSearchTerm("");
+    localStorage.removeItem("oem-session-data");
+    localStorage.removeItem("oem-jira-config");
   }, [signOut]);
 
   const loadData = useCallback(async (rows: RawRow[], silent = false, source: "csv" | "jira" = "csv") => {
@@ -122,7 +124,8 @@ export function App() {
         }
       } catch { /* timeout or error — continue */ }
 
-      // 3. No data anywhere — auto-fetch JIRA
+      // 3. No data anywhere — auto-fetch JIRA silently
+      setInitializing(false);
       try {
         let config = loadJiraConfig();
         if (!config || !config.email || !config.apiToken) {
@@ -133,20 +136,15 @@ export function App() {
           }
         }
         if (config && config.email && config.apiToken && config.jql) {
-          setLoading(true);
           const jiraRows = await fetchJiraData(config);
           if (jiraRows.length > 0) {
-            await loadData(jiraRows, false, "jira");
+            await loadData(jiraRows, true, "jira");
             setJiraConnected(true);
           }
-          setLoading(false);
         }
       } catch (err) {
         console.error("Auto JIRA fetch failed:", err);
-        setLoading(false);
       }
-
-      setInitializing(false);
     }
 
     init();
