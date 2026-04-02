@@ -42,10 +42,10 @@ export function useAuth() {
     }
 
     // Get the initial session
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
       setSession(s);
       if (s?.user) {
-        fetchProfile(s.user.id, s.user.email);
+        await fetchProfile(s.user.id, s.user.email);
       }
       setLoading(false);
     });
