@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/jira-proxy': {
-        target: 'https://imaweb.atlassian.net',
+        target: 'https://imawebgroup.atlassian.net',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/jira-proxy/, ''),
       },

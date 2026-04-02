@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Fetch fields metadata
     const fieldsRes = await fetch(
-      `https://imaweb.atlassian.net/rest/api/3/field`,
+      `https://imawebgroup.atlassian.net/rest/api/3/field`,
       { headers: { Authorization: `Basic ${auth}`, Accept: "application/json" } }
     );
     if (!fieldsRes.ok) throw new Error("Failed to fetch JIRA fields");
@@ -51,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     while (allRows.length < maxRows) {
       const searchRes = await fetch(
-        `https://imaweb.atlassian.net/rest/api/3/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${Math.min(pageSize, maxRows - allRows.length)}&expand=names`,
+        `https://imawebgroup.atlassian.net/rest/api/3/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${Math.min(pageSize, maxRows - allRows.length)}&expand=names`,
         { headers: { Authorization: `Basic ${auth}`, Accept: "application/json" } }
       );
       if (!searchRes.ok) throw new Error("JIRA search failed");
