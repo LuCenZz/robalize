@@ -46,18 +46,69 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
         width: 420,
         boxShadow: theme.shadow.lg,
       }}>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 24,
-          }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ width: 44, height: 7, borderRadius: 3.5, background: theme.primary }} />
-              <div style={{ width: 33, height: 7, borderRadius: 3.5, background: theme.primary, opacity: 0.55 }} />
-              <div style={{ width: 22, height: 7, borderRadius: 3.5, background: "#5DE8B0", opacity: 0.9 }} />
+        <style>{`
+          @keyframes logo3d {
+            0% { transform: perspective(800px) rotateY(-8deg) rotateX(4deg) scale(0.96); }
+            25% { transform: perspective(800px) rotateY(4deg) rotateX(-2deg) scale(1.02); }
+            50% { transform: perspective(800px) rotateY(8deg) rotateX(4deg) scale(0.98); }
+            75% { transform: perspective(800px) rotateY(-4deg) rotateX(-2deg) scale(1.01); }
+            100% { transform: perspective(800px) rotateY(-8deg) rotateX(4deg) scale(0.96); }
+          }
+          @keyframes barSlide1 {
+            0%, 100% { transform: translateX(0); opacity: 1; }
+            50% { transform: translateX(6px); opacity: 0.9; }
+          }
+          @keyframes barSlide2 {
+            0%, 100% { transform: translateX(0); opacity: 0.55; }
+            50% { transform: translateX(4px); opacity: 0.7; }
+          }
+          @keyframes barSlide3 {
+            0%, 100% { transform: translateX(0); opacity: 0.9; }
+            50% { transform: translateX(8px); opacity: 1; }
+          }
+          @keyframes glowPulse {
+            0%, 100% { text-shadow: 0 0 8px rgba(93,232,176,0.3), 0 2px 12px rgba(107,44,245,0.15); }
+            50% { text-shadow: 0 0 20px rgba(93,232,176,0.5), 0 4px 24px rgba(107,44,245,0.25); }
+          }
+        `}</style>
+        <div style={{ textAlign: "center", marginBottom: 32, perspective: 800 }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 24,
+              animation: "logo3d 6s ease-in-out infinite",
+              transformStyle: "preserve-3d",
+              cursor: "default",
+            }}
+            onMouseMove={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = (e.clientX - rect.left - rect.width / 2) / rect.width;
+              const y = (e.clientY - rect.top - rect.height / 2) / rect.height;
+              e.currentTarget.style.animation = "none";
+              e.currentTarget.style.transform = `perspective(800px) rotateY(${x * 25}deg) rotateX(${-y * 20}deg) scale(1.05)`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.animation = "logo3d 6s ease-in-out infinite";
+              e.currentTarget.style.transform = "";
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, transformStyle: "preserve-3d" }}>
+              <div style={{ width: 44, height: 7, borderRadius: 3.5, background: theme.primary, animation: "barSlide1 4s ease-in-out infinite", transform: "translateZ(20px)" }} />
+              <div style={{ width: 33, height: 7, borderRadius: 3.5, background: theme.primary, animation: "barSlide2 4s ease-in-out infinite 0.3s", transform: "translateZ(14px)" }} />
+              <div style={{ width: 22, height: 7, borderRadius: 3.5, background: "#5DE8B0", animation: "barSlide3 4s ease-in-out infinite 0.6s", transform: "translateZ(8px)" }} />
             </div>
-            <div style={{ fontFamily: "'Arial Black', Arial, sans-serif", fontWeight: 900, fontSize: 52, lineHeight: 1, letterSpacing: -4, color: theme.primary }}>
+            <div style={{
+              fontFamily: "'Arial Black', Arial, sans-serif",
+              fontWeight: 900,
+              fontSize: 52,
+              lineHeight: 1,
+              letterSpacing: -4,
+              color: theme.primary,
+              transform: "translateZ(30px)",
+              transformStyle: "preserve-3d",
+              animation: "glowPulse 4s ease-in-out infinite",
+            }}>
               rob<span style={{ color: "#5DE8B0" }}>a</span>l<span style={{ color: "#5DE8B0" }}>i</span>ze
             </div>
           </div>
