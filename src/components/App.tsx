@@ -151,6 +151,16 @@ export function App() {
     init();
   }, [profile, loadProjects]);
 
+  // Load saved filters from Supabase
+  useEffect(() => {
+    if (!profile) return;
+    loadSetting("filters").then((saved) => {
+      if (saved && Array.isArray(saved) && saved.length > 0) {
+        setActiveFilters(saved as ActiveFilter[]);
+      }
+    });
+  }, [profile, loadSetting]);
+
   const handleFileSelected = useCallback(async (file: File) => {
     setLoading(true);
     try {
@@ -320,6 +330,7 @@ export function App() {
         getUniqueValues={getUniqueValues}
         onFiltersChange={(filters) => {
           setActiveFilters(filters);
+          saveSetting("filters", filters);
           if (filters.every((f) => f.values.length === 0)) {
             setResetKey((k) => k + 1);
           }
