@@ -24,7 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === "PUT") {
       const { userId, role } = req.body;
-      if (!userId || !["admin", "viewer"].includes(role)) {
+      if (!userId || !["admin", "viewer", "pending"].includes(role)) {
         return res.status(400).json({ error: "Invalid userId or role" });
       }
 

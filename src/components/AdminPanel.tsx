@@ -103,28 +103,65 @@ export function AdminPanel({ open, onClose }: AdminPanelProps) {
                       fontWeight: 600,
                       padding: "3px 10px",
                       borderRadius: theme.radius.pill,
-                      background: u.role === "admin" ? `${theme.primary}22` : theme.rowAlt,
-                      color: u.role === "admin" ? theme.primary : theme.textSecondary,
+                      background: u.role === "admin" ? `${theme.primary}22` : u.role === "pending" ? "#FFF3E0" : theme.rowAlt,
+                      color: u.role === "admin" ? theme.primary : u.role === "pending" ? "#E65100" : theme.textSecondary,
                     }}>
                       {u.role}
                     </span>
                   </td>
-                  <td style={{ padding: "10px 12px", borderBottom: `1px solid ${theme.borderRow}`, textAlign: "right" }}>
-                    <button
-                      onClick={() => updateRole(u.id, u.role === "admin" ? "viewer" : "admin")}
-                      style={{
-                        padding: "5px 12px",
-                        borderRadius: theme.radius.sm,
-                        border: `1px solid ${theme.borderLight}`,
-                        background: theme.surface,
-                        color: theme.textSecondary,
-                        fontSize: 11,
-                        cursor: "pointer",
-                        fontFamily: theme.fontFamily,
-                      }}
-                    >
-                      {u.role === "admin" ? "Demote to viewer" : "Promote to admin"}
-                    </button>
+                  <td style={{ padding: "10px 12px", borderBottom: `1px solid ${theme.borderRow}`, textAlign: "right", display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                    {u.role === "pending" && (
+                      <button
+                        onClick={() => updateRole(u.id, "viewer")}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: theme.radius.sm,
+                          border: "none",
+                          background: "#2e7d32",
+                          color: "white",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          fontFamily: theme.fontFamily,
+                        }}
+                      >
+                        Approve
+                      </button>
+                    )}
+                    {u.role !== "pending" && (
+                      <button
+                        onClick={() => updateRole(u.id, u.role === "admin" ? "viewer" : "admin")}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: theme.radius.sm,
+                          border: `1px solid ${theme.borderLight}`,
+                          background: theme.surface,
+                          color: theme.textSecondary,
+                          fontSize: 11,
+                          cursor: "pointer",
+                          fontFamily: theme.fontFamily,
+                        }}
+                      >
+                        {u.role === "admin" ? "Demote to viewer" : "Promote to admin"}
+                      </button>
+                    )}
+                    {u.role !== "admin" && (
+                      <button
+                        onClick={() => { if (confirm(`Reject and remove ${u.email}?`)) updateRole(u.id, "pending"); }}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: theme.radius.sm,
+                          border: "1px solid #e5393533",
+                          background: "white",
+                          color: "#e53935",
+                          fontSize: 11,
+                          cursor: "pointer",
+                          fontFamily: theme.fontFamily,
+                        }}
+                      >
+                        Reject
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
