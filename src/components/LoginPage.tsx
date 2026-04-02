@@ -23,7 +23,7 @@ const BAR_STAGGER = 200;
 const LETTER_START = 800;
 const LETTER_STAGGER = 120;
 const DOT_DELAY = LETTER_START + LETTERS.length * LETTER_STAGGER + 300;
-const IDLE_DELAY = LETTER_START + LETTERS.length * LETTER_STAGGER + 800;
+
 
 export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
   const [email, setEmail] = useState("");

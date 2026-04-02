@@ -33,7 +33,6 @@ export function App() {
     isAdmin,
     signInWithEmail,
     signUpWithEmail,
-    signInWithMicrosoft,
     signOut,
   } = useAuth();
   const { loadProjects, saveProjects, saveSetting, loadAdminJiraConfig } = useData(profile?.id);
@@ -44,7 +43,9 @@ export function App() {
   const [uploaderOpen, setUploaderOpen] = useState(false);
   const [jiraOpen, setJiraOpen] = useState(false);
   const [jiraConnected, setJiraConnected] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initializing, setInitializing] = useState(true);
+  const [isFirstVisit, setIsFirstVisit] = useState(false); // eslint-disable-line
   const [searchTerm, setSearchTerm] = useState("");
   const [resetKey, setResetKey] = useState(0);
   const [aiOpen, setAiOpen] = useState(false);
@@ -81,7 +82,7 @@ export function App() {
     if (!profile) return;
 
     async function init() {
-      setLoading(true);
+      setInitializing(true);
       try {
         // 1. Try Supabase
         const rows = await loadProjects();
@@ -126,8 +127,10 @@ export function App() {
             console.error("Auto JIRA fetch failed:", err);
           }
         }
+        // Nothing found anywhere — this is a first visit
+        setIsFirstVisit(true);
       } finally {
-        setLoading(false);
+        setInitializing(false);
       }
     }
 
@@ -245,6 +248,7 @@ export function App() {
         background: theme.background,
       }}
     >
+      {!initializing && <>
       <TopBar
         projectCount={filteredEpicTasks.length}
         onUploadClick={() => setUploaderOpen(true)}
@@ -301,8 +305,9 @@ export function App() {
           }
         }}
       />
+      </>}
 
-      {loading && (
+      {(loading || initializing) && (
         <div
           style={{
             flex: 1,
@@ -427,7 +432,7 @@ export function App() {
         </div>
       )}
 
-      {!loading && rawData.length === 0 && (
+      {!loading && !initializing && isFirstVisit && rawData.length === 0 && (
         <div
           style={{
             flex: 1,
@@ -531,7 +536,7 @@ export function App() {
         </div>
       )}
 
-      {!loading && rawData.length > 0 && (
+      {!loading && !initializing && rawData.length > 0 && (
         <Suspense fallback={<div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: theme.textMuted }}>Loading Gantt...</div>}>
           <GanttChart tasks={filteredEpicTasks} allTasks={allEpicTasks} displayRows={displayRows} resetKey={resetKey} />
         </Suspense>
