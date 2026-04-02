@@ -50,25 +50,19 @@ export function LoginPage({ onSignInEmail, onSignUpEmail, onSignInMicrosoft }: L
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{
             background: "#5B2D9E",
-            borderRadius: 28,
+            borderRadius: 16,
             padding: "28px 40px",
             display: "inline-flex",
             alignItems: "center",
-            gap: 24,
-            marginBottom: 8,
+            gap: 32,
           }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-              <div style={{ width: 40, height: 7, borderRadius: 4, background: "#fff" }} />
-              <div style={{ width: 30, height: 7, borderRadius: 4, background: "#fff", opacity: 0.65 }} />
-              <div style={{ width: 22, height: 7, borderRadius: 4, background: "#fff", opacity: 0.35 }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ width: 44, height: 7, borderRadius: 3.5, background: "#fff" }} />
+              <div style={{ width: 33, height: 7, borderRadius: 3.5, background: "#fff", opacity: 0.55 }} />
+              <div style={{ width: 22, height: 7, borderRadius: 3.5, background: "#5DE8B0", opacity: 0.9 }} />
             </div>
-            <div>
-              <div style={{ fontFamily: "'Arial Black', Arial, sans-serif", fontWeight: 900, fontSize: 64, lineHeight: 1, letterSpacing: -3, color: "#fff" }}>
-                Rob<span style={{ color: "#5DE8B0" }}>a</span>l<span style={{ color: "#5DE8B0" }}>i</span>ze
-              </div>
-              <div style={{ fontFamily: "Arial, sans-serif", fontSize: 11, letterSpacing: 4, color: "#C4A8E8", marginTop: 6 }}>
-                AI SOLUTIONS
-              </div>
+            <div style={{ fontFamily: "'Arial Black', Arial, sans-serif", fontWeight: 900, fontSize: 52, lineHeight: 1, letterSpacing: -4, color: "#fff" }}>
+              rob<span style={{ color: "#5DE8B0" }}>A</span>l<span style={{ color: "#5DE8B0" }}>i</span>ze
             </div>
           </div>
         </div>
