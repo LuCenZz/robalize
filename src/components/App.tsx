@@ -59,7 +59,7 @@ export function App() {
     setSearchTerm("");
   }, [signOut]);
 
-  const loadData = useCallback(async (rows: RawRow[], silent = false) => {
+  const loadData = useCallback(async (rows: RawRow[], silent = false, source: "csv" | "jira" = "csv") => {
     setRawData(rows);
     setColumns(extractColumns(rows));
     if (!silent) {
@@ -67,7 +67,7 @@ export function App() {
       setSearchTerm("");
     }
     try {
-      await saveProjects(rows, "csv");
+      await saveProjects(rows, source);
     } catch (err) {
       console.error("Failed to persist:", err);
     }
@@ -209,7 +209,7 @@ export function App() {
               fetchJiraData(config)
                 .then((rows) => {
                   if (rows.length > 0) {
-                    loadData(rows, true);
+                    loadData(rows, true, "jira");
                     setJiraConnected(true);
                   }
                 })
@@ -397,7 +397,7 @@ export function App() {
                   fetchJiraData(config)
                     .then((rows) => {
                       if (rows.length > 0) {
-                        loadData(rows);
+                        loadData(rows, false, "jira");
                         setJiraConnected(true);
                       }
                     })
@@ -478,7 +478,7 @@ export function App() {
       <JiraConnector
         open={jiraOpen}
         onClose={() => setJiraOpen(false)}
-        onDataLoaded={loadData}
+        onDataLoaded={(rows, silent) => loadData(rows, silent, "jira")}
         connected={jiraConnected}
         onConnectionChange={setJiraConnected}
         isAdmin={isAdmin}
