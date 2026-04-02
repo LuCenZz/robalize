@@ -34,9 +34,11 @@ export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnec
   useEffect(() => {
     async function loadConfig() {
       // Admin: always load from Supabase to get the real config
+      console.log("JiraConnector loadConfig: isAdmin=", isAdmin, "hasLoadFn=", !!loadAdminJiraConfig);
       if (isAdmin && loadAdminJiraConfig) {
         try {
           const config = await loadAdminJiraConfig();
+          console.log("Admin JIRA config result:", config);
           if (config && config.email && config.apiToken) {
             setEmail(config.email);
             setApiToken(config.apiToken);
