@@ -437,6 +437,7 @@ export function App() {
         onDataLoaded={loadData}
         connected={jiraConnected}
         onConnectionChange={setJiraConnected}
+        isAdmin={isAdmin}
       />
 
       <AiPanel
