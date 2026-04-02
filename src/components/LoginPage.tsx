@@ -226,45 +226,97 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
           </div>
         </div>
 
+        <style>{`
+          @keyframes typewriter-placeholder {
+            0% { width: 0; }
+            100% { width: 100%; }
+          }
+          .login-field-wrapper {
+            position: relative;
+            margin-bottom: 12px;
+          }
+          .login-field-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: ${theme.textMuted};
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+          }
+          .login-field {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: ${theme.radius.md}px;
+            border: 1px solid ${theme.borderLight};
+            font-size: 14px;
+            outline: none;
+            box-sizing: border-box;
+            font-family: ${theme.fontFamily};
+            background: transparent;
+          }
+          .login-field:focus {
+            border-color: ${theme.primary};
+            box-shadow: 0 0 0 2px rgba(107, 44, 245, 0.1);
+          }
+          .login-field-typewriter {
+            position: absolute;
+            top: 50%;
+            left: 16px;
+            transform: translateY(-50%);
+            font-size: 14px;
+            color: ${theme.textMuted};
+            pointer-events: none;
+            overflow: hidden;
+            white-space: nowrap;
+            border-right: 2px solid ${theme.textMuted};
+            animation: typewriter-placeholder 1.2s steps(20, end) forwards, cursorBlink 0.8s step-end 6;
+            animation-delay: ${IDLE_DELAY + 400}ms, ${IDLE_DELAY + 400}ms;
+            opacity: 0;
+            animation-fill-mode: forwards, none;
+          }
+          .login-field-typewriter.visible {
+            opacity: 1;
+          }
+          .login-field:focus + .login-field-typewriter,
+          .login-field:not(:placeholder-shown) + .login-field-typewriter {
+            display: none;
+          }
+        `}</style>
         <form onSubmit={handleSubmit}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{
-              width: "100%",
-              padding: "12px 16px",
-              borderRadius: theme.radius.md,
-              border: `1px solid ${theme.borderLight}`,
-              fontSize: 14,
-              marginBottom: 12,
-              outline: "none",
-              boxSizing: "border-box",
-              fontFamily: theme.fontFamily,
-            }}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            style={{
-              width: "100%",
-              padding: "12px 16px",
-              borderRadius: theme.radius.md,
-              border: `1px solid ${theme.borderLight}`,
-              fontSize: 14,
-              marginBottom: 16,
-              outline: "none",
-              boxSizing: "border-box",
-              fontFamily: theme.fontFamily,
-            }}
-          />
-
+          <div className="login-field-wrapper">
+            <label className="login-field-label">Identifiant</label>
+            <input
+              type="email"
+              placeholder=" "
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="login-field"
+            />
+            {!email && (
+              <span className="login-field-typewriter visible">
+                votre.email@exemple.com
+              </span>
+            )}
+          </div>
+          <div className="login-field-wrapper">
+            <label className="login-field-label">Mot de passe</label>
+            <input
+              type="password"
+              placeholder=" "
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              className="login-field"
+            />
+            {!password && (
+              <span className="login-field-typewriter visible">
+                ••••••••••
+              </span>
+            )}
+          </div>
           {signUpSuccess && (
             <p style={{ color: "#2b8a3e", fontSize: 13, marginBottom: 12, background: "#ebfbee", padding: "10px 14px", borderRadius: 8, border: "1px solid #b2f2bb" }}>
               A confirmation email has been sent. Please check your inbox and click the link to activate your account.
