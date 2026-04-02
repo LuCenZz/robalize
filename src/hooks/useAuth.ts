@@ -31,11 +31,12 @@ export function useAuth() {
         email: email || "",
         role: "pending",
       };
-      // Insert into Supabase so admin can see it
-      await supabase
-        .from("profiles")
-        .upsert({ id: userId, email: email || "", role: "pending" }, { onConflict: "id" });
       setProfile(newProfile);
+      // Insert into Supabase so admin can see it (ignore RLS errors)
+      supabase
+        .from("profiles")
+        .upsert({ id: userId, email: email || "", role: "pending" }, { onConflict: "id" })
+        .then(({ error }) => { if (error) console.error("Failed to create pending profile:", error); });
     }
   }, []);
 
