@@ -45,7 +45,6 @@ export function App() {
   const [jiraConnected, setJiraConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
-  const [isFirstVisit, setIsFirstVisit] = useState(false); // eslint-disable-line
   const [searchTerm, setSearchTerm] = useState("");
   const [resetKey, setResetKey] = useState(0);
   const [aiOpen, setAiOpen] = useState(false);
@@ -127,8 +126,6 @@ export function App() {
             console.error("Auto JIRA fetch failed:", err);
           }
         }
-        // Nothing found anywhere — this is a first visit
-        setIsFirstVisit(true);
       } finally {
         setInitializing(false);
       }
@@ -429,110 +426,6 @@ export function App() {
           >
             Loading
           </span>
-        </div>
-      )}
-
-      {!loading && !initializing && isFirstVisit && rawData.length === 0 && (
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexDirection: "column",
-            gap: 24,
-            color: theme.textMuted,
-          }}
-        >
-          <p style={{ fontSize: 20, fontWeight: 600, color: theme.textDark, margin: 0 }}>
-            Get started
-          </p>
-          <div style={{ display: "flex", gap: 24 }}>
-            {/* Jira option */}
-            <div
-              onClick={() => {
-                setUploaderOpen(false);
-                async function tryJiraFetch() {
-                  // Try local config first
-                  let config = loadJiraConfig();
-                  // If no local config, try admin config from Supabase
-                  if (!config || !config.email || !config.apiToken) {
-                    const adminConfig = await loadAdminJiraConfig();
-                    if (adminConfig) {
-                      config = adminConfig as any;
-                      saveJiraConfig(adminConfig as any); // cache locally
-                    }
-                  }
-                  if (config && config.email && config.apiToken && config.jql) {
-                    setLoading(true);
-                    try {
-                      const rows = await fetchJiraData(config);
-                      if (rows.length > 0) {
-                        loadData(rows, false, "jira");
-                        setJiraConnected(true);
-                      }
-                    } catch (err) {
-                      console.error("JIRA fetch failed:", err);
-                      alert("JIRA connection failed: " + (err instanceof Error ? err.message : "Unknown error"));
-                    } finally {
-                      setLoading(false);
-                    }
-                  } else {
-                    setJiraOpen(true);
-                  }
-                }
-                tryJiraFetch();
-              }}
-              style={{
-                width: 200,
-                padding: "28px 20px",
-                borderRadius: 14,
-                border: `2px solid ${theme.borderLight}`,
-                background: "white",
-                cursor: "pointer",
-                textAlign: "center",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 12,
-                transition: "border-color 0.15s, box-shadow 0.15s",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.primary; e.currentTarget.style.boxShadow = `0 4px 16px ${theme.primary}22`; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.borderLight; e.currentTarget.style.boxShadow = "none"; }}
-            >
-              <span style={{ fontSize: 32 }}>🔗</span>
-              <span style={{ fontWeight: 700, fontSize: 14, color: theme.textDark }}>Connect to Jira</span>
-              <span style={{ fontSize: 11, color: theme.textMuted, lineHeight: 1.4 }}>
-                Import directly via JQL query
-              </span>
-            </div>
-            {/* CSV option */}
-            <div
-              onClick={() => { setJiraOpen(false); setUploaderOpen(true); }}
-              style={{
-                width: 200,
-                padding: "28px 20px",
-                borderRadius: 14,
-                border: `2px solid ${theme.borderLight}`,
-                background: "white",
-                cursor: "pointer",
-                textAlign: "center",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 12,
-                transition: "border-color 0.15s, box-shadow 0.15s",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.primary; e.currentTarget.style.boxShadow = `0 4px 16px ${theme.primary}22`; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.borderLight; e.currentTarget.style.boxShadow = "none"; }}
-            >
-              <span style={{ fontSize: 32 }}>📄</span>
-              <span style={{ fontWeight: 700, fontSize: 14, color: theme.textDark }}>Load CSV / Excel</span>
-              <span style={{ fontSize: 11, color: theme.textMuted, lineHeight: 1.4 }}>
-                Upload a file exported from Jira
-              </span>
-            </div>
-          </div>
         </div>
       )}
 
