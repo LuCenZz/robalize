@@ -181,7 +181,6 @@ export function App() {
       <LoginPage
         onSignInEmail={signInWithEmail}
         onSignUpEmail={signUpWithEmail}
-        onSignInMicrosoft={signInWithMicrosoft}
       />
     );
   }

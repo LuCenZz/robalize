@@ -4,10 +4,9 @@ import { theme } from "../styles/theme";
 interface LoginPageProps {
   onSignInEmail: (email: string, password: string) => Promise<void>;
   onSignUpEmail: (email: string, password: string) => Promise<void>;
-  onSignInMicrosoft: () => Promise<void>;
 }
 
-export function LoginPage({ onSignInEmail, onSignUpEmail, onSignInMicrosoft }: LoginPageProps) {
+export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
@@ -65,36 +64,6 @@ export function LoginPage({ onSignInEmail, onSignUpEmail, onSignInMicrosoft }: L
               rob<span style={{ color: "#5DE8B0" }}>a</span>l<span style={{ color: "#5DE8B0" }}>i</span>ze
             </div>
           </div>
-        </div>
-
-        <button
-          onClick={() => { setError(""); onSignInMicrosoft(); }}
-          style={{
-            width: "100%",
-            padding: "12px 16px",
-            borderRadius: theme.radius.md,
-            border: `1px solid ${theme.borderLight}`,
-            background: theme.surface,
-            color: theme.textDark,
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-            marginBottom: 24,
-            fontFamily: theme.fontFamily,
-          }}
-        >
-          <svg width="20" height="20" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
-          Sign in with Microsoft
-        </button>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-          <div style={{ flex: 1, height: 1, background: theme.borderLight }} />
-          <span style={{ color: theme.textMuted, fontSize: 12 }}>or</span>
-          <div style={{ flex: 1, height: 1, background: theme.borderLight }} />
         </div>
 
         <form onSubmit={handleSubmit}>
