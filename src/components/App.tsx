@@ -300,7 +300,13 @@ export function App() {
         userName={profile?.display_name || profile?.email || ""}
         onLogout={handleLogout}
         onGeneratePptx={() => generatePptx(filteredEpicTasks)}
-        onAiClick={() => setAiOpen(true)}
+        onAiClick={() => {
+          if (isAdmin) {
+            setAiOpen(true);
+          } else {
+            alert("Not available yet, please give Cedric some money :)");
+          }
+        }}
         searchTerm={searchTerm}
         onSearchChange={(term) => { setSearchTerm(term); }}
         isAdmin={isAdmin}
