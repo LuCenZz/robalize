@@ -1,0 +1,438 @@
+import { useState, useCallback, useEffect, useMemo, lazy, Suspense } from "react";
+import { TopBar } from "./TopBar";
+import { FileUploader } from "./FileUploader";
+import { JiraConnector } from "./JiraConnector";
+import { LoginPage, loadAppUser, clearAppUser, type AppUser } from "./LoginPage";
+import { AiPanel } from "./AiPanel";
+import { FilterBar } from "./FilterBar";
+import { parseFile } from "../utils/parseFile";
+
+const GanttChart = lazy(() =>
+  import("./GanttChart").then((m) => ({ default: m.GanttChart }))
+);
+import {
+  transformToEpicTasks,
+  buildDisplayRows,
+  extractColumns,
+  extractUniqueValues,
+} from "../utils/transformData";
+import { applyFilters } from "../utils/filterEngine";
+import { generatePptx } from "../utils/generatePptx";
+import { loadJiraConfig, fetchJiraData } from "../utils/jiraFetch";
+import { saveFilters, loadFilters, saveSearchTerm, loadSearchTerm } from "../utils/userPrefs";
+import type { RawRow, ActiveFilter, EpicTask } from "../types";
+import { theme } from "../styles/theme";
+
+export function App() {
+  const [appUser, setAppUser] = useState<AppUser | null>(loadAppUser);
+  const [rawData, setRawData] = useState<RawRow[]>([]);
+  const [columns, setColumns] = useState<string[]>([]);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [uploaderOpen, setUploaderOpen] = useState(false);
+  const [jiraOpen, setJiraOpen] = useState(false);
+  const [jiraConnected, setJiraConnected] = useState(false);
+  const handleLogout = useCallback(() => {
+    clearAppUser();
+    setAppUser(null);
+    setRawData([]);
+    setColumns([]);
+    setActiveFilters([]);
+    setJiraConnected(false);
+    setSearchTerm("");
+  }, []);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [resetKey, setResetKey] = useState(0);
+  const [aiOpen, setAiOpen] = useState(false);
+
+  const loadData = useCallback((rows: RawRow[], silent = false) => {
+    setRawData(rows);
+    setColumns(extractColumns(rows));
+    if (!silent) {
+      setActiveFilters([]);
+      setSearchTerm("");
+    }
+  }, []);
+
+  // Auto-reconnect to JIRA on mount and restore user prefs
+  useEffect(() => {
+    const config = loadJiraConfig();
+    if (config && config.email && config.apiToken && config.jql) {
+      // Restore prefs for this user
+      const savedFilters = loadFilters(config.email);
+      const savedSearch = loadSearchTerm(config.email);
+      if (savedSearch) setSearchTerm(savedSearch);
+
+      setLoading(true);
+      fetchJiraData(config)
+        .then((rows) => {
+          if (rows.length > 0) {
+            setRawData(rows);
+            const cols = extractColumns(rows);
+            setColumns(cols);
+            setJiraConnected(true);
+            // Restore filters only if columns still exist
+            if (savedFilters.length > 0) {
+              const validFilters = savedFilters.filter((f) => cols.includes(f.column));
+              setActiveFilters(validFilters);
+            }
+          }
+        })
+        .catch((err) => {
+          console.error("Auto-reconnect failed:", err);
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [appUser]);
+
+  const handleFileSelected = useCallback(async (file: File) => {
+    setLoading(true);
+    try {
+      const rows = await parseFile(file);
+      loadData(rows);
+      setUploaderOpen(false);
+    } catch (err) {
+      console.error("Error parsing file:", err);
+      alert("Error loading file. Please check the format.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Build all epics from ALL data (unfiltered) so initiatives are always available
+  const allEpicTasks: EpicTask[] = useMemo(
+    () => transformToEpicTasks(rawData),
+    [rawData]
+  );
+
+  const allDisplayRows = useMemo(
+    () => buildDisplayRows(allEpicTasks),
+    [allEpicTasks]
+  );
+
+  // Filtered epic IDs (based on active filters)
+  const filteredRows = useMemo(
+    () => applyFilters(rawData, activeFilters),
+    [rawData, activeFilters]
+  );
+
+  const filteredEpicTasks: EpicTask[] = useMemo(
+    () => transformToEpicTasks(filteredRows),
+    [filteredRows]
+  );
+
+  const filteredEpicKeys = useMemo(
+    () => new Set(filteredEpicTasks.map((e) => e.epicKey)),
+    [filteredEpicTasks]
+  );
+
+  const hasActiveFilters = activeFilters.some((f) => f.values.length > 0);
+
+  const displayRows = useMemo(() => {
+    let rows = allDisplayRows;
+
+    // When filters are active, keep only epics that match + initiatives that have matching children
+    if (hasActiveFilters) {
+      rows = rows.filter((r) => {
+        if (r.type === "initiative") {
+          return r.children?.some((c) => filteredEpicKeys.has(c.epicKey));
+        }
+        return filteredEpicKeys.has(r.epic.epicKey);
+      });
+    }
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      rows = rows.filter((row) => {
+        if (row.type === "initiative") {
+          // Keep initiative if its name or any child matches
+          const nameMatch = (row.initiativeName || "").toLowerCase().includes(q);
+          const childMatch = row.children?.some((c) =>
+            (c.epicKey || "").toLowerCase().includes(q) || (c.epicName || "").toLowerCase().includes(q)
+          );
+          return nameMatch || childMatch;
+        }
+        const epic = row.epic;
+        const key = (epic.epicKey || "").toLowerCase();
+        const name = (epic.epicName || "").toLowerCase();
+        return key.includes(q) || name.includes(q);
+      });
+    }
+
+    return rows;
+  }, [allDisplayRows, searchTerm, hasActiveFilters, filteredEpicKeys]);
+
+  const getUniqueValues = useCallback(
+    (column: string) => extractUniqueValues(rawData, column),
+    [rawData]
+  );
+
+  // Show login page if not authenticated
+  if (!appUser) {
+    return <LoginPage onLogin={setAppUser} />;
+  }
+
+  return (
+    <div
+      style={{
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        fontFamily: theme.fontFamily,
+        background: theme.background,
+      }}
+    >
+      <TopBar
+        projectCount={filteredEpicTasks.length}
+        onUploadClick={() => setUploaderOpen(true)}
+        onJiraClick={() => setJiraOpen(true)}
+        jiraConnected={jiraConnected}
+        userName={appUser?.displayName}
+        onLogout={handleLogout}
+        onGeneratePptx={() => generatePptx(filteredEpicTasks)}
+        onAiClick={() => setAiOpen(true)}
+        searchTerm={searchTerm}
+        onSearchChange={(term) => {
+          setSearchTerm(term);
+          saveSearchTerm(term);
+        }}
+      />
+
+      <FilterBar
+        columns={columns}
+        activeFilters={activeFilters}
+        getUniqueValues={getUniqueValues}
+        onFiltersChange={(filters) => {
+          setActiveFilters(filters);
+          saveFilters(filters);
+          if (filters.every((f) => f.values.length === 0)) {
+            setResetKey((k) => k + 1);
+          }
+        }}
+      />
+
+      {loading && (
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column",
+            gap: 28,
+          }}
+        >
+          <style>{`
+            @keyframes car-bounce {
+              0%, 100% { transform: translateY(0); }
+              50%      { transform: translateY(-3px); }
+            }
+            @keyframes wheel-spin {
+              0%   { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            @keyframes road-move {
+              0%   { background-position: 0 0; }
+              100% { background-position: -200px 0; }
+            }
+            @keyframes smoke-puff {
+              0%   { opacity: 0.5; transform: translate(0, 0) scale(0.4); }
+              100% { opacity: 0; transform: translate(-28px, -10px) scale(1.3); }
+            }
+            @keyframes loading-dots {
+              0%   { content: ''; }
+              25%  { content: '.'; }
+              50%  { content: '..'; }
+              75%  { content: '...'; }
+            }
+            .loading-dots::after {
+              content: '';
+              animation: loading-dots 1.4s steps(1, end) infinite;
+            }
+          `}</style>
+          {/* Car animation */}
+          <div style={{ position: "relative", width: 200, height: 90 }}>
+            {/* Car body - bounces */}
+            <div style={{ position: "absolute", bottom: 20, left: "50%", marginLeft: -44, animation: "car-bounce 0.35s ease-in-out infinite" }}>
+              <svg width="88" height="52" viewBox="0 0 88 52" fill="none">
+                {/* Shadow under car */}
+                <ellipse cx="44" cy="50" rx="38" ry="3" fill="rgba(0,0,0,0.08)" />
+                {/* Car lower body */}
+                <rect x="4" y="28" width="76" height="14" rx="4" fill={theme.primary} />
+                {/* Car upper body / cabin */}
+                <path d="M18 28 L26 12 Q27 10 30 10 L52 10 Q55 10 56 12 L66 28 Z" fill={theme.primary} />
+                {/* Cabin highlight */}
+                <path d="M20 28 L27 14 Q28 12 30 12 L51 12 Q53 12 54 14 L64 28 Z" fill="white" opacity="0.15" />
+                {/* Windshield */}
+                <path d="M50 14 L54 26 L64 26 L57 14 Z" fill="white" opacity="0.8" />
+                {/* Side window */}
+                <path d="M28 14 L24 26 L50 26 L47 14 Z" fill="white" opacity="0.75" />
+                {/* Window divider */}
+                <line x1="49" y1="14" x2="50.5" y2="26" stroke={theme.primary} strokeWidth="1.5" />
+                {/* Hood line */}
+                <line x1="66" y1="28" x2="78" y2="28" stroke="white" strokeWidth="0.5" opacity="0.3" />
+                {/* Body accent line */}
+                <line x1="6" y1="35" x2="78" y2="35" stroke="white" strokeWidth="0.6" opacity="0.2" />
+                {/* Headlight */}
+                <rect x="76" y="30" width="4" height="5" rx="1.5" fill="#FFD93D" />
+                <rect x="76" y="30" width="6" height="5" rx="2" fill="#FFD93D" opacity="0.25" />
+                {/* Tail light */}
+                <rect x="4" y="30" width="3" height="5" rx="1.5" fill="#FF4757" />
+                {/* Bumpers */}
+                <rect x="2" y="37" width="6" height="3" rx="1" fill={theme.primary} opacity="0.7" />
+                <rect x="76" y="37" width="6" height="3" rx="1" fill={theme.primary} opacity="0.7" />
+              </svg>
+              {/* Front wheel */}
+              <svg style={{ position: "absolute", bottom: 2, right: 10 }} width="18" height="18" viewBox="0 0 18 18">
+                <circle cx="9" cy="9" r="8" fill="#333" />
+                <circle cx="9" cy="9" r="6" fill="#555" />
+                <g style={{ transformOrigin: "9px 9px", animation: "wheel-spin 0.3s linear infinite" }}>
+                  <line x1="9" y1="3" x2="9" y2="15" stroke="#777" strokeWidth="1" />
+                  <line x1="3" y1="9" x2="15" y2="9" stroke="#777" strokeWidth="1" />
+                </g>
+                <circle cx="9" cy="9" r="2.5" fill="#999" />
+              </svg>
+              {/* Rear wheel */}
+              <svg style={{ position: "absolute", bottom: 2, left: 10 }} width="18" height="18" viewBox="0 0 18 18">
+                <circle cx="9" cy="9" r="8" fill="#333" />
+                <circle cx="9" cy="9" r="6" fill="#555" />
+                <g style={{ transformOrigin: "9px 9px", animation: "wheel-spin 0.3s linear infinite" }}>
+                  <line x1="9" y1="3" x2="9" y2="15" stroke="#777" strokeWidth="1" />
+                  <line x1="3" y1="9" x2="15" y2="9" stroke="#777" strokeWidth="1" />
+                </g>
+                <circle cx="9" cy="9" r="2.5" fill="#999" />
+              </svg>
+              {/* Exhaust smoke puffs */}
+              <div style={{ position: "absolute", bottom: 8, left: -2 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#ccc", animation: "smoke-puff 0.7s ease-out infinite" }} />
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#ddd", animation: "smoke-puff 0.7s ease-out 0.25s infinite", position: "absolute", top: -3, left: -3 }} />
+                <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#e5e5e5", animation: "smoke-puff 0.7s ease-out 0.5s infinite", position: "absolute", top: 2, left: -6 }} />
+              </div>
+            </div>
+            {/* Road dashes */}
+            <div style={{
+              position: "absolute",
+              bottom: 8,
+              left: 0,
+              right: 0,
+              height: 3,
+              borderRadius: 2,
+              background: `repeating-linear-gradient(90deg, ${theme.primary}33 0px, ${theme.primary}33 14px, transparent 14px, transparent 28px)`,
+              animation: "road-move 0.6s linear infinite",
+            }} />
+          </div>
+          <span
+            className="loading-dots"
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              letterSpacing: 1.5,
+              textTransform: "uppercase",
+              color: theme.textMuted,
+            }}
+          >
+            Loading
+          </span>
+        </div>
+      )}
+
+      {!loading && rawData.length === 0 && (
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column",
+            gap: 24,
+            color: theme.textMuted,
+          }}
+        >
+          <p style={{ fontSize: 20, fontWeight: 600, color: theme.textDark, margin: 0 }}>
+            Get started
+          </p>
+          <div style={{ display: "flex", gap: 24 }}>
+            {/* Jira option */}
+            <div
+              onClick={() => { setUploaderOpen(false); setJiraOpen(true); }}
+              style={{
+                width: 200,
+                padding: "28px 20px",
+                borderRadius: 14,
+                border: `2px solid ${theme.borderLight}`,
+                background: "white",
+                cursor: "pointer",
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 12,
+                transition: "border-color 0.15s, box-shadow 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.primary; e.currentTarget.style.boxShadow = `0 4px 16px ${theme.primary}22`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.borderLight; e.currentTarget.style.boxShadow = "none"; }}
+            >
+              <span style={{ fontSize: 32 }}>🔗</span>
+              <span style={{ fontWeight: 700, fontSize: 14, color: theme.textDark }}>Connect to Jira</span>
+              <span style={{ fontSize: 11, color: theme.textMuted, lineHeight: 1.4 }}>
+                Import directly via JQL query
+              </span>
+            </div>
+            {/* CSV option */}
+            <div
+              onClick={() => { setJiraOpen(false); setUploaderOpen(true); }}
+              style={{
+                width: 200,
+                padding: "28px 20px",
+                borderRadius: 14,
+                border: `2px solid ${theme.borderLight}`,
+                background: "white",
+                cursor: "pointer",
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 12,
+                transition: "border-color 0.15s, box-shadow 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.primary; e.currentTarget.style.boxShadow = `0 4px 16px ${theme.primary}22`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.borderLight; e.currentTarget.style.boxShadow = "none"; }}
+            >
+              <span style={{ fontSize: 32 }}>📄</span>
+              <span style={{ fontWeight: 700, fontSize: 14, color: theme.textDark }}>Load CSV / Excel</span>
+              <span style={{ fontSize: 11, color: theme.textMuted, lineHeight: 1.4 }}>
+                Upload a file exported from Jira
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!loading && rawData.length > 0 && (
+        <Suspense fallback={<div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: theme.textMuted }}>Loading Gantt...</div>}>
+          <GanttChart tasks={filteredEpicTasks} allTasks={allEpicTasks} displayRows={displayRows} resetKey={resetKey} />
+        </Suspense>
+      )}
+
+      <FileUploader
+        open={uploaderOpen}
+        onClose={() => setUploaderOpen(false)}
+        onFileSelected={handleFileSelected}
+      />
+
+      <JiraConnector
+        open={jiraOpen}
+        onClose={() => setJiraOpen(false)}
+        onDataLoaded={loadData}
+        connected={jiraConnected}
+        onConnectionChange={setJiraConnected}
+      />
+
+      <AiPanel
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        displayRows={displayRows}
+      />
+    </div>
+  );
+}
