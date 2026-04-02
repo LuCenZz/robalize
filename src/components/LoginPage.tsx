@@ -48,17 +48,17 @@ export function LoginPage({ onSignInEmail, onSignUpEmail, onSignInMicrosoft }: L
         boxShadow: theme.shadow.lg,
       }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <h1 style={{
-            fontSize: 32,
-            fontWeight: 800,
-            color: theme.primary,
-            letterSpacing: -1,
-            margin: 0,
+          <div style={{
+            background: theme.primary,
+            borderRadius: theme.radius.lg,
+            padding: "16px 24px",
+            display: "inline-block",
+            marginBottom: 8,
           }}>
-            Robalize
-          </h1>
-          <p style={{ color: theme.textMuted, fontSize: 14, marginTop: 8 }}>
-            Project Portfolio Management
+            <img src="/logo.png" alt="Robalize" style={{ height: 40 }} />
+          </div>
+          <p style={{ color: theme.textMuted, fontSize: 13, marginTop: 8, letterSpacing: 2, textTransform: "uppercase" }}>
+            AI Solutions
           </p>
         </div>
 

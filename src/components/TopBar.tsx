@@ -49,10 +49,8 @@ export function TopBar({ projectCount, onUploadClick, onJiraClick, jiraConnected
       }}
     >
       {/* Brand */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ fontWeight: 800, fontSize: 20, letterSpacing: -0.8, textShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>
-          Robalize
-        </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <img src="/logo.png" alt="Robalize" style={{ height: 28 }} />
       </div>
 
       {/* Actions */}
