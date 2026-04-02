@@ -66,20 +66,37 @@ export function App() {
       setActiveFilters([]);
       setSearchTerm("");
     }
+    // Save to localStorage as immediate cache
     try {
-      await saveProjects(rows, source);
-    } catch (err) {
-      console.error("Failed to persist:", err);
-    }
+      localStorage.setItem("oem-session-data", JSON.stringify(rows));
+    } catch { /* quota */ }
+    // Save to Supabase in background
+    saveProjects(rows, source).catch((err) => {
+      console.error("Failed to persist to Supabase:", err);
+    });
   }, [saveProjects]);
 
-  // Load projects from Supabase on mount when profile is available
+  // Load projects from Supabase on mount, fallback to localStorage
   useEffect(() => {
     if (!profile) return;
     loadProjects().then((rows) => {
       if (rows.length > 0) {
         setRawData(rows);
         setColumns(extractColumns(rows));
+        setJiraConnected(true);
+      } else {
+        // Fallback: try localStorage
+        try {
+          const cached = localStorage.getItem("oem-session-data");
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setRawData(parsed);
+              setColumns(extractColumns(parsed));
+              setJiraConnected(true);
+            }
+          }
+        } catch { /* ignore */ }
       }
     });
   }, [profile, loadProjects]);
