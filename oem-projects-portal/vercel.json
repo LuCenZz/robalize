@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/jira-proxy/:path*", "destination": "/api/jira-proxy/:path*" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/jira-proxy/(.*)", "destination": "/api/jira-proxy/$1" },
+    { "source": "/((?!api/|jira-proxy/).*)", "destination": "/index.html" }
   ]
 }

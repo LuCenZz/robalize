@@ -10,16 +10,22 @@ export default async function handler(req, res) {
   // Reconstruct the JIRA path from the catch-all route
   const pathSegments = req.query.path;
   const jiraPath = "/" + (Array.isArray(pathSegments) ? pathSegments.join("/") : pathSegments);
-  const queryString = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
-  const url = `${JIRA_BASE}${jiraPath}${queryString}`;
+
+  // Extract query string, excluding the internal "path" param added by Vercel
+  const url = new URL(req.url, `https://${req.headers.host}`);
+  url.searchParams.delete("path");
+  const cleanQuery = url.searchParams.toString();
+  const fullUrl = `${JIRA_BASE}${jiraPath}${cleanQuery ? "?" + cleanQuery : ""}`;
+
+  console.log(`JIRA proxy: ${req.method} ${fullUrl}`);
 
   try {
-    const jiraRes = await fetch(url, {
+    const jiraRes = await fetch(fullUrl, {
       method: req.method,
       headers: {
         Authorization: req.headers.authorization || "",
         Accept: "application/json",
-        "Content-Type": "application/json",
+        ...(req.method !== "GET" ? { "Content-Type": "application/json" } : {}),
         "X-Atlassian-Token": "no-check",
       },
       body: req.method !== "GET" && req.body ? JSON.stringify(req.body) : undefined,
@@ -27,6 +33,7 @@ export default async function handler(req, res) {
     const text = await jiraRes.text();
     res.status(jiraRes.status).setHeader("Content-Type", "application/json").end(text);
   } catch (err) {
+    console.error("JIRA proxy error:", err);
     res.status(500).json({ error: String(err) });
   }
 }
