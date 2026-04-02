@@ -5,22 +5,42 @@ import type { RawRow } from "../types";
 export function useData(userId: string | undefined) {
   const loadProjects = useCallback(async (): Promise<RawRow[]> => {
     if (!supabase || !userId) return [];
-    const { data, error } = await supabase
-      .from("projects")
-      .select("data")
-      .eq("user_id", userId)
-      .order("imported_at", { ascending: true });
 
-    if (error) {
-      console.error("loadProjects error:", error.message, "userId:", userId);
-      return [];
+    // Load in pages of 50 to avoid Supabase timeout
+    const allRows: RawRow[] = [];
+    const pageSize = 50;
+    let from = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("data")
+        .eq("user_id", userId)
+        .order("imported_at", { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        console.error("loadProjects error:", error.message);
+        break;
+      }
+      if (!data || data.length === 0) {
+        hasMore = false;
+      } else {
+        for (const row of data) {
+          allRows.push(row.data as RawRow);
+        }
+        from += pageSize;
+        if (data.length < pageSize) hasMore = false;
+      }
     }
-    if (!data || data.length === 0) {
-      console.log("loadProjects: no data found for userId:", userId);
-      return [];
+
+    if (allRows.length > 0) {
+      console.log("loadProjects: loaded", allRows.length, "projects from Supabase");
+      // Cache in localStorage for instant reload
+      try { localStorage.setItem("oem-session-data", JSON.stringify(allRows)); } catch { /* quota */ }
     }
-    console.log("loadProjects: loaded", data.length, "projects from Supabase");
-    return data.map((row) => row.data as RawRow);
+    return allRows;
   }, [userId]);
 
   const saveProjects = useCallback(async (rows: RawRow[], source: "csv" | "jira") => {

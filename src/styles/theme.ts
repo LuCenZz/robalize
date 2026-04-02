@@ -12,7 +12,7 @@ export const theme = {
   textDark: "#1B1340",
   textSecondary: "#4A3F6B",
   textMuted: "#9B8EC4",
-  fontFamily: "'Comic Sans MS', 'Comic Sans', cursive",
+  fontFamily: "'Aptos', 'Aptos Display', Calibri, sans-serif",
   shadow: {
     sm: "0 1px 3px rgba(107, 44, 245, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)",
     md: "0 4px 14px rgba(107, 44, 245, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04)",
