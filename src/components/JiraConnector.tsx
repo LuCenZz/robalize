@@ -16,9 +16,10 @@ interface JiraConnectorProps {
   onConnectionChange: (connected: boolean) => void;
   isAdmin?: boolean;
   saveSetting?: (key: string, value: unknown) => Promise<void>;
+  loadAdminJiraConfig?: () => Promise<JiraConfig | null>;
 }
 
-export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnectionChange, isAdmin = false, saveSetting }: JiraConnectorProps) {
+export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnectionChange, isAdmin = false, saveSetting, loadAdminJiraConfig }: JiraConnectorProps) {
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [jql, setJql] = useState('project = "ACTO" AND issuetype = Epic ORDER BY key ASC');
@@ -32,14 +33,25 @@ export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnec
 
   useEffect(() => {
     const saved = loadJiraConfig();
-    if (saved) {
+    if (saved && saved.email && saved.apiToken) {
       setEmail(saved.email);
       setApiToken(saved.apiToken);
       setJql(saved.jql);
       setMaxRows(saved.maxRows);
       setRefreshInterval(saved.refreshInterval || 10);
+    } else if (loadAdminJiraConfig) {
+      loadAdminJiraConfig().then((config) => {
+        if (config) {
+          setEmail(config.email);
+          setApiToken(config.apiToken);
+          setJql(config.jql);
+          setMaxRows(config.maxRows);
+          setRefreshInterval(config.refreshInterval || 10);
+          saveJiraConfig(config);
+        }
+      });
     }
-  }, []);
+  }, [loadAdminJiraConfig]);
 
   const doFetch = useCallback(async (silent = false) => {
     if (!email || !apiToken || !jql) {

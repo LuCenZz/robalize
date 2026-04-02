@@ -465,6 +465,7 @@ export function App() {
         onConnectionChange={setJiraConnected}
         isAdmin={isAdmin}
         saveSetting={saveSetting}
+        loadAdminJiraConfig={loadAdminJiraConfig}
       />
 
       <AiPanel
