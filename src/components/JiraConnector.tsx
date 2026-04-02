@@ -47,6 +47,7 @@ export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnec
       if (loadAdminJiraConfig) {
         try {
           const config = await loadAdminJiraConfig();
+          console.log("Admin JIRA config from Supabase:", config);
           if (config && config.email && config.apiToken) {
             setEmail(config.email);
             setApiToken(config.apiToken);
@@ -60,7 +61,7 @@ export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnec
         }
       }
     }
-    loadConfig();
+    if (open) loadConfig();
   }, [open, loadAdminJiraConfig]);
 
   const doFetch = useCallback(async (silent = false) => {
