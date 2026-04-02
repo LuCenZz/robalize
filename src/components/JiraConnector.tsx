@@ -78,7 +78,7 @@ export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnec
       }
     }
     if (open) loadConfig();
-  }, [open, loadAdminJiraConfig]);
+  }, [open, isAdmin, loadAdminJiraConfig]);
 
   const doFetch = useCallback(async (silent = false) => {
     if (!email || !apiToken || !jql) {
