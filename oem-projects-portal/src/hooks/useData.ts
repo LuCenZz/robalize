@@ -11,7 +11,15 @@ export function useData(userId: string | undefined) {
       .eq("user_id", userId)
       .order("imported_at", { ascending: true });
 
-    if (error || !data) return [];
+    if (error) {
+      console.error("loadProjects error:", error.message, "userId:", userId);
+      return [];
+    }
+    if (!data || data.length === 0) {
+      console.log("loadProjects: no data found for userId:", userId);
+      return [];
+    }
+    console.log("loadProjects: loaded", data.length, "projects from Supabase");
     return data.map((row) => row.data as RawRow);
   }, [userId]);
 
@@ -78,9 +86,14 @@ export function useData(userId: string | undefined) {
 
       // Upsert projects
       if (upserts.length > 0) {
-        await supabase
+        const { error } = await supabase
           .from("projects")
           .upsert(upserts, { onConflict: "user_id,epic_key" });
+        if (error) {
+          console.error("saveProjects upsert error:", error.message);
+        } else {
+          console.log("saveProjects: saved batch of", upserts.length, "projects");
+        }
       }
     }
   }, [userId]);

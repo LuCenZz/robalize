@@ -61,8 +61,8 @@ export async function fetchJiraData(
   const auth = btoa(`${config.email}:${config.apiToken}`);
 
   async function jiraCall(path: string, method = "GET", body?: unknown) {
-    // Use Vite proxy in dev, direct call won't work due to CORS
-    const url = `/jira-proxy${path}`;
+    // In dev: Vite proxy forwards to JIRA. In prod: Vercel serverless function.
+    const url = `/api/jira-proxy${path}`;
     const res = await fetch(url, {
       method,
       headers: {
