@@ -4,7 +4,6 @@ import { FileUploader } from "./FileUploader";
 import { JiraConnector } from "./JiraConnector";
 import { LoginPage } from "./LoginPage";
 import { AiPanel } from "./AiPanel";
-import { ShimmerTitle } from "./ShimmerTitle";
 import { FilterBar } from "./FilterBar";
 import { AdminPanel } from "./AdminPanel";
 import { parseFile } from "../utils/parseFile";
@@ -22,6 +21,7 @@ import {
 } from "../utils/transformData";
 import { applyFilters } from "../utils/filterEngine";
 import { generatePptx } from "../utils/generatePptx";
+import { loadJiraConfig, saveJiraConfig, fetchJiraData } from "../utils/jiraFetch";
 import type { RawRow, ActiveFilter, EpicTask } from "../types";
 import { theme } from "../styles/theme";
 
@@ -36,7 +36,7 @@ export function App() {
     signInWithMicrosoft,
     signOut,
   } = useAuth();
-  const { loadProjects, saveProjects } = useData(profile?.id);
+  const { loadProjects, saveProjects, saveSetting, loadAdminJiraConfig } = useData(profile?.id);
 
   const [rawData, setRawData] = useState<RawRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
@@ -59,27 +59,44 @@ export function App() {
     setSearchTerm("");
   }, [signOut]);
 
-  const loadData = useCallback(async (rows: RawRow[], silent = false) => {
+  const loadData = useCallback(async (rows: RawRow[], silent = false, source: "csv" | "jira" = "csv") => {
     setRawData(rows);
     setColumns(extractColumns(rows));
     if (!silent) {
       setActiveFilters([]);
       setSearchTerm("");
     }
+    // Save to localStorage as immediate cache
     try {
-      await saveProjects(rows, "csv");
-    } catch (err) {
-      console.error("Failed to persist:", err);
-    }
+      localStorage.setItem("oem-session-data", JSON.stringify(rows));
+    } catch { /* quota */ }
+    // Save to Supabase in background
+    saveProjects(rows, source).catch((err) => {
+      console.error("Failed to persist to Supabase:", err);
+    });
   }, [saveProjects]);
 
-  // Load projects from Supabase on mount when profile is available
+  // Load projects from Supabase on mount, fallback to localStorage
   useEffect(() => {
     if (!profile) return;
     loadProjects().then((rows) => {
       if (rows.length > 0) {
         setRawData(rows);
         setColumns(extractColumns(rows));
+        setJiraConnected(true);
+      } else {
+        // Fallback: try localStorage
+        try {
+          const cached = localStorage.getItem("oem-session-data");
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setRawData(parsed);
+              setColumns(extractColumns(parsed));
+              setJiraConnected(true);
+            }
+          }
+        } catch { /* ignore */ }
       }
     });
   }, [profile, loadProjects]);
@@ -181,7 +198,6 @@ export function App() {
       <LoginPage
         onSignInEmail={signInWithEmail}
         onSignUpEmail={signUpWithEmail}
-        onSignInMicrosoft={signInWithMicrosoft}
       />
     );
   }
@@ -199,7 +215,37 @@ export function App() {
       <TopBar
         projectCount={filteredEpicTasks.length}
         onUploadClick={() => setUploaderOpen(true)}
-        onJiraClick={() => setJiraOpen(true)}
+        onJiraClick={async () => {
+          if (isAdmin) {
+            setJiraOpen(true);
+          } else {
+            let config = loadJiraConfig();
+            if (!config || !config.email || !config.apiToken) {
+              const adminConfig = await loadAdminJiraConfig();
+              if (adminConfig) {
+                config = adminConfig as any;
+                saveJiraConfig(adminConfig as any);
+              }
+            }
+            if (config && config.email && config.apiToken && config.jql) {
+              setLoading(true);
+              fetchJiraData(config)
+                .then((rows) => {
+                  if (rows.length > 0) {
+                    loadData(rows, true, "jira");
+                    setJiraConnected(true);
+                  }
+                })
+                .catch((err) => {
+                  console.error("JIRA fetch failed:", err);
+                  alert("JIRA connection failed. Ask the administrator to check the configuration.");
+                })
+                .finally(() => setLoading(false));
+            } else {
+              setJiraOpen(true);
+            }
+          }
+        }}
         jiraConnected={jiraConnected}
         userName={profile?.display_name || profile?.email || ""}
         onLogout={handleLogout}
@@ -356,87 +402,98 @@ export function App() {
             alignItems: "center",
             justifyContent: "center",
             flexDirection: "column",
-            gap: 32,
-            perspective: 1200,
+            gap: 24,
+            color: theme.textMuted,
           }}
         >
-          <ShimmerTitle />
-
-          <div style={{ display: "flex", gap: 28 }}>
-            {[
-              { icon: "🔗", title: "Connect to Jira", desc: "Import directly via JQL query", action: () => { setUploaderOpen(false); setJiraOpen(true); }, delay: 0.15 },
-              { icon: "📄", title: "Load CSV / Excel", desc: "Upload a file exported from Jira", action: () => { setJiraOpen(false); setUploaderOpen(true); }, delay: 0.3 },
-            ].map((card) => (
-              <div
-                key={card.title}
-                onClick={card.action}
-                onMouseMove={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left - rect.width / 2;
-                  const y = e.clientY - rect.top - rect.height / 2;
-                  const rotateX = -(y / rect.height) * 20;
-                  const rotateY = (x / rect.width) * 20;
-                  e.currentTarget.style.transform = `translateY(-12px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.05)`;
-                  e.currentTarget.style.boxShadow = `0 25px 50px rgba(107, 44, 245, 0.25), 0 0 0 2px ${theme.primary}`;
-                  // Shine effect
-                  const shine = e.currentTarget.querySelector("[data-shine]") as HTMLElement;
-                  if (shine) {
-                    shine.style.background = `radial-gradient(circle at ${e.clientX - rect.left}px ${e.clientY - rect.top}px, rgba(107,44,245,0.15) 0%, transparent 60%)`;
+          <p style={{ fontSize: 20, fontWeight: 600, color: theme.textDark, margin: 0 }}>
+            Get started
+          </p>
+          <div style={{ display: "flex", gap: 24 }}>
+            {/* Jira option */}
+            <div
+              onClick={() => {
+                setUploaderOpen(false);
+                async function tryJiraFetch() {
+                  // Try local config first
+                  let config = loadJiraConfig();
+                  // If no local config, try admin config from Supabase
+                  if (!config || !config.email || !config.apiToken) {
+                    const adminConfig = await loadAdminJiraConfig();
+                    if (adminConfig) {
+                      config = adminConfig as any;
+                      saveJiraConfig(adminConfig as any); // cache locally
+                    }
                   }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0) rotateX(0) rotateY(0) scale(1)";
-                  e.currentTarget.style.boxShadow = theme.shadow.md;
-                  const shine = e.currentTarget.querySelector("[data-shine]") as HTMLElement;
-                  if (shine) shine.style.background = "transparent";
-                }}
-                style={{
-                  width: 220,
-                  padding: "36px 24px",
-                  borderRadius: 20,
-                  border: `1.5px solid ${theme.borderLight}`,
-                  background: "linear-gradient(145deg, #ffffff, #f8f6ff)",
-                  cursor: "pointer",
-                  textAlign: "center",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 14,
-                  animation: `fadeInUp 0.6s ease-out ${card.delay}s both`,
-                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
-                  transformStyle: "preserve-3d",
-                  boxShadow: theme.shadow.md,
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
-                {/* Shine overlay */}
-                <div data-shine="" style={{
-                  position: "absolute",
-                  inset: 0,
-                  pointerEvents: "none",
-                  borderRadius: 20,
-                  transition: "background 0.15s ease",
-                }} />
-                <div style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 16,
-                  background: `linear-gradient(135deg, rgba(107,44,245,0.08), rgba(107,44,245,0.18))`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 26,
-                  transition: "transform 0.3s ease",
-                }}>
-                  {card.icon}
-                </div>
-                <span style={{ fontWeight: 700, fontSize: 15, color: theme.textDark }}>{card.title}</span>
-                <span style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.5 }}>
-                  {card.desc}
-                </span>
-              </div>
-            ))}
+                  if (config && config.email && config.apiToken && config.jql) {
+                    setLoading(true);
+                    try {
+                      const rows = await fetchJiraData(config);
+                      if (rows.length > 0) {
+                        loadData(rows, false, "jira");
+                        setJiraConnected(true);
+                      }
+                    } catch (err) {
+                      console.error("JIRA fetch failed:", err);
+                      alert("JIRA connection failed: " + (err instanceof Error ? err.message : "Unknown error"));
+                    } finally {
+                      setLoading(false);
+                    }
+                  } else {
+                    setJiraOpen(true);
+                  }
+                }
+                tryJiraFetch();
+              }}
+              style={{
+                width: 200,
+                padding: "28px 20px",
+                borderRadius: 14,
+                border: `2px solid ${theme.borderLight}`,
+                background: "white",
+                cursor: "pointer",
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 12,
+                transition: "border-color 0.15s, box-shadow 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.primary; e.currentTarget.style.boxShadow = `0 4px 16px ${theme.primary}22`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.borderLight; e.currentTarget.style.boxShadow = "none"; }}
+            >
+              <span style={{ fontSize: 32 }}>🔗</span>
+              <span style={{ fontWeight: 700, fontSize: 14, color: theme.textDark }}>Connect to Jira</span>
+              <span style={{ fontSize: 11, color: theme.textMuted, lineHeight: 1.4 }}>
+                Import directly via JQL query
+              </span>
+            </div>
+            {/* CSV option */}
+            <div
+              onClick={() => { setJiraOpen(false); setUploaderOpen(true); }}
+              style={{
+                width: 200,
+                padding: "28px 20px",
+                borderRadius: 14,
+                border: `2px solid ${theme.borderLight}`,
+                background: "white",
+                cursor: "pointer",
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 12,
+                transition: "border-color 0.15s, box-shadow 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.primary; e.currentTarget.style.boxShadow = `0 4px 16px ${theme.primary}22`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.borderLight; e.currentTarget.style.boxShadow = "none"; }}
+            >
+              <span style={{ fontSize: 32 }}>📄</span>
+              <span style={{ fontWeight: 700, fontSize: 14, color: theme.textDark }}>Load CSV / Excel</span>
+              <span style={{ fontSize: 11, color: theme.textMuted, lineHeight: 1.4 }}>
+                Upload a file exported from Jira
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -456,9 +513,11 @@ export function App() {
       <JiraConnector
         open={jiraOpen}
         onClose={() => setJiraOpen(false)}
-        onDataLoaded={loadData}
+        onDataLoaded={(rows, silent) => loadData(rows, silent, "jira")}
         connected={jiraConnected}
         onConnectionChange={setJiraConnected}
+        isAdmin={isAdmin}
+        saveSetting={saveSetting}
       />
 
       <AiPanel

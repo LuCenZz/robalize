@@ -14,14 +14,16 @@ interface JiraConnectorProps {
   onDataLoaded: (rows: RawRow[], silent?: boolean) => void;
   connected: boolean;
   onConnectionChange: (connected: boolean) => void;
+  isAdmin?: boolean;
+  saveSetting?: (key: string, value: unknown) => Promise<void>;
 }
 
-export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnectionChange }: JiraConnectorProps) {
+export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnectionChange, isAdmin = false, saveSetting }: JiraConnectorProps) {
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [jql, setJql] = useState('project = "ACTO" AND issuetype = Epic ORDER BY key ASC');
   const [maxRows, setMaxRows] = useState(5000);
-  const [refreshInterval, setRefreshInterval] = useState(0);
+  const [refreshInterval, setRefreshInterval] = useState(10);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [error, setError] = useState("");
@@ -35,7 +37,7 @@ export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnec
       setApiToken(saved.apiToken);
       setJql(saved.jql);
       setMaxRows(saved.maxRows);
-      setRefreshInterval(saved.refreshInterval || 0);
+      setRefreshInterval(saved.refreshInterval || 10);
     }
   }, []);
 
@@ -53,6 +55,10 @@ export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnec
 
     const config: JiraConfig = { email, apiToken, jql, maxRows, refreshInterval };
     saveJiraConfig(config);
+    // Admin: also save to Supabase so other users can use it
+    if (isAdmin && saveSetting) {
+      saveSetting("jira_config", config);
+    }
 
     try {
       const rows = await fetchJiraData(config, (loaded, total) => {
@@ -188,61 +194,69 @@ export function JiraConnector({ open, onClose, onDataLoaded, connected, onConnec
             </div>
           )}
 
-          {/* Email */}
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: theme.textDark, display: "block", marginBottom: 4 }}>
-              Atlassian email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
-              style={{
-                width: "100%",
-                padding: "9px 12px",
-                border: `1.5px solid ${theme.borderLight}`,
-                borderRadius: 8,
-                fontSize: 13,
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = theme.primary)}
-              onBlur={(e) => (e.currentTarget.style.borderColor = theme.borderLight)}
-            />
-          </div>
+          {/* Email — admin only */}
+          {isAdmin ? (
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: theme.textDark, display: "block", marginBottom: 4 }}>
+                Atlassian email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+                style={{
+                  width: "100%",
+                  padding: "9px 12px",
+                  border: `1.5px solid ${theme.borderLight}`,
+                  borderRadius: 8,
+                  fontSize: 13,
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = theme.primary)}
+                onBlur={(e) => (e.currentTarget.style.borderColor = theme.borderLight)}
+              />
+            </div>
+          ) : (
+            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#166534" }}>
+              Jira connection is managed by the administrator. You can customize the JQL query below.
+            </div>
+          )}
 
-          {/* API Token */}
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: theme.textDark, display: "block", marginBottom: 4 }}>
-              API Token
-            </label>
-            <input
-              type="password"
-              value={apiToken}
-              onChange={(e) => setApiToken(e.target.value)}
-              placeholder="Paste your Atlassian API token"
-              style={{
-                width: "100%",
-                padding: "9px 12px",
-                border: `1.5px solid ${theme.borderLight}`,
-                borderRadius: 8,
-                fontSize: 13,
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = theme.primary)}
-              onBlur={(e) => (e.currentTarget.style.borderColor = theme.borderLight)}
-            />
-            <a
-              href="https://id.atlassian.com/manage-profile/security/api-tokens"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ fontSize: 11, color: theme.primary, textDecoration: "none", marginTop: 4, display: "inline-block" }}
-            >
-              Create an API token
-            </a>
-          </div>
+          {/* API Token — admin only */}
+          {isAdmin && (
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: theme.textDark, display: "block", marginBottom: 4 }}>
+                API Token
+              </label>
+              <input
+                type="password"
+                value={apiToken}
+                onChange={(e) => setApiToken(e.target.value)}
+                placeholder="Paste your Atlassian API token"
+                style={{
+                  width: "100%",
+                  padding: "9px 12px",
+                  border: `1.5px solid ${theme.borderLight}`,
+                  borderRadius: 8,
+                  fontSize: 13,
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = theme.primary)}
+                onBlur={(e) => (e.currentTarget.style.borderColor = theme.borderLight)}
+              />
+              <a
+                href="https://id.atlassian.com/manage-profile/security/api-tokens"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 11, color: theme.primary, textDecoration: "none", marginTop: 4, display: "inline-block" }}
+              >
+                Create an API token
+              </a>
+            </div>
+          )}
 
           {/* JQL */}
           <div>

@@ -58,17 +58,19 @@ export async function fetchJiraData(
   config: JiraConfig,
   onProgress?: (loaded: number, total: number) => void
 ): Promise<RawRow[]> {
+  const auth = btoa(`${config.email}:${config.apiToken}`);
+
   async function jiraCall(path: string, method = "GET", body?: unknown) {
-    const res = await fetch("/api/jira", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: config.email,
-        apiToken: config.apiToken,
-        method,
-        path,
-        body: body || undefined,
-      }),
+    // Use Vite proxy in dev, direct call won't work due to CORS
+    const url = `/jira-proxy${path}`;
+    const res = await fetch(url, {
+      method,
+      headers: {
+        "Authorization": `Basic ${auth}`,
+        "Accept": "application/json",
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {
       const err = await res.text();
