@@ -48,19 +48,16 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
       }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{
-            background: "#5B2D9E",
-            borderRadius: 16,
-            padding: "28px 40px",
             display: "inline-flex",
             alignItems: "center",
-            gap: 32,
+            gap: 24,
           }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ width: 44, height: 7, borderRadius: 3.5, background: "#fff" }} />
-              <div style={{ width: 33, height: 7, borderRadius: 3.5, background: "#fff", opacity: 0.55 }} />
+              <div style={{ width: 44, height: 7, borderRadius: 3.5, background: theme.primary }} />
+              <div style={{ width: 33, height: 7, borderRadius: 3.5, background: theme.primary, opacity: 0.55 }} />
               <div style={{ width: 22, height: 7, borderRadius: 3.5, background: "#5DE8B0", opacity: 0.9 }} />
             </div>
-            <div style={{ fontFamily: "'Arial Black', Arial, sans-serif", fontWeight: 900, fontSize: 52, lineHeight: 1, letterSpacing: -4, color: "#fff" }}>
+            <div style={{ fontFamily: "'Arial Black', Arial, sans-serif", fontWeight: 900, fontSize: 52, lineHeight: 1, letterSpacing: -4, color: theme.primary }}>
               rob<span style={{ color: "#5DE8B0" }}>a</span>l<span style={{ color: "#5DE8B0" }}>i</span>ze
             </div>
           </div>
