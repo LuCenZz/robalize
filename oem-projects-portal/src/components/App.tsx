@@ -33,6 +33,7 @@ export function App() {
     isAdmin,
     signInWithEmail,
     signUpWithEmail,
+    signInWithMicrosoft,
     signOut,
   } = useAuth();
   const { loadProjects, saveProjects } = useData(profile?.id);
