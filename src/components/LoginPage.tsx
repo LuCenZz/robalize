@@ -64,7 +64,7 @@ export function LoginPage({ onSignInEmail, onSignUpEmail, onSignInMicrosoft }: L
             </div>
             <div>
               <div style={{ fontFamily: "'Arial Black', Arial, sans-serif", fontWeight: 900, fontSize: 64, lineHeight: 1, letterSpacing: -3, color: "#fff" }}>
-                rob<span style={{ color: "#5DE8B0" }}>A</span>l<span style={{ color: "#5DE8B0" }}>I</span>ze
+                Rob<span style={{ color: "#5DE8B0" }}>a</span>l<span style={{ color: "#5DE8B0" }}>i</span>ze
               </div>
               <div style={{ fontFamily: "Arial, sans-serif", fontSize: 11, letterSpacing: 4, color: "#C4A8E8", marginTop: 6 }}>
                 AI SOLUTIONS
