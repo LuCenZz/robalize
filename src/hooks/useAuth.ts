@@ -71,14 +71,35 @@ export function useAuth() {
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     if (!supabase) throw new Error("Supabase not configured");
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    // Check if user is pending
+    if (data.user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .single();
+      if (profile?.role === "pending") {
+        await supabase.auth.signOut();
+        throw new Error("Your account is pending administrator approval.");
+      }
+    }
   }, []);
 
   const signUpWithEmail = useCallback(async (email: string, password: string) => {
     if (!supabase) throw new Error("Supabase not configured");
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
+    // Create pending profile
+    if (data.user) {
+      await supabase
+        .from("profiles")
+        .upsert({ id: data.user.id, email, role: "pending" }, { onConflict: "id" });
+    }
+    // Sign out immediately — user must wait for admin approval
+    await supabase.auth.signOut();
+    throw new Error("Account created! Please wait for administrator approval before signing in.");
   }, []);
 
   const signInWithMicrosoft = useCallback(async () => {
