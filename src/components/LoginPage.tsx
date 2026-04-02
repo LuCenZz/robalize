@@ -124,18 +124,6 @@ export function LoginPage({ onSignInEmail, onSignUpEmail }: LoginPageProps) {
               transformStyle: "preserve-3d",
               cursor: "default",
             }}
-            onMouseMove={(e) => {
-              if (!animDone) return;
-              const rect = e.currentTarget.getBoundingClientRect();
-              const x = (e.clientX - rect.left - rect.width / 2) / rect.width;
-              const y = (e.clientY - rect.top - rect.height / 2) / rect.height;
-              e.currentTarget.style.animation = "none";
-              e.currentTarget.style.transform = `perspective(800px) rotateY(${x * 25}deg) rotateX(${-y * 20}deg) scale(1.05)`;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.animation = "logo3d 6s ease-in-out infinite";
-              e.currentTarget.style.transform = "";
-            }}
           >
             {/* 3 bars — grow in from left */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10, transformStyle: "preserve-3d" }}>
