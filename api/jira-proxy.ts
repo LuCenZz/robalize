@@ -1,23 +1,21 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const pathSegments = req.query.path;
-  const jiraPath = Array.isArray(pathSegments) ? "/" + pathSegments.join("/") : "/" + (pathSegments || "");
+  // The client calls /api/jira-proxy/rest/api/3/field?params...
+  // Vercel rewrites to this handler with the full URL in req.url
+  // Extract everything after /api/jira-proxy
+  const fullUrl = req.url || "";
+  const jiraPath = fullUrl.replace(/^\/api\/jira-proxy/, "");
 
   const auth = req.headers.authorization;
   if (!auth) {
     return res.status(401).json({ error: "Missing Authorization header" });
   }
 
-  // Rebuild query string excluding the "path" param (used by Vercel catch-all)
-  const url = new URL(`https://imawebgroup.atlassian.net${jiraPath}`);
-  for (const [key, val] of Object.entries(req.query)) {
-    if (key === "path") continue;
-    if (typeof val === "string") url.searchParams.set(key, val);
-  }
+  const targetUrl = `https://imawebgroup.atlassian.net${jiraPath}`;
 
   try {
-    const jiraRes = await fetch(url.toString(), {
+    const jiraRes = await fetch(targetUrl, {
       method: req.method || "GET",
       headers: {
         Authorization: auth,
