@@ -433,8 +433,9 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
   const totalDays = Math.ceil((maxDate.getTime() - minDate.getTime()) / 86400000);
   const totalWidth = totalDays * config.dayWidth;
 
+  const TIMELINE_MARGIN = 20;
   function dayOffset(date: Date): number {
-    return Math.round((date.getTime() - minDate.getTime()) / 86400000) * config.dayWidth;
+    return TIMELINE_MARGIN + Math.round((date.getTime() - minDate.getTime()) / 86400000) * config.dayWidth;
   }
 
   // Generate timeline headers
@@ -909,7 +910,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
           ref={timelineHeaderRef}
           style={{ flex: 1, overflow: "hidden" }}
         >
-          <div style={{ width: totalWidth, position: "relative" }}>
+          <div style={{ width: totalWidth + TIMELINE_MARGIN * 2, position: "relative" }}>
             {/* Year row */}
             <div style={{ height: 22, position: "relative", borderBottom: `1px solid ${theme.borderLight}` }}>
               {yearHeaders.map((h, i) => (
@@ -1020,7 +1021,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
           onClick={() => setGridCollapsed(!gridCollapsed)}
           style={{
             position: "absolute",
-            left: gridCollapsed ? 0 : gridTotalWidth + 24,
+            left: gridCollapsed ? 0 : gridTotalWidth,
             top: "50%",
             transform: "translateY(-50%)",
             width: 16,
@@ -1086,7 +1087,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
               flexShrink: 0,
               background: "white",
               borderRight: `2px solid ${theme.borderLight}`,
-              marginRight: 24,
+
             }}
           >
             {displayedRows.map((row, i) => {
@@ -1255,7 +1256,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
           )}
 
           {/* Right: Timeline */}
-          <div style={{ width: totalWidth, position: "relative" }}>
+          <div style={{ width: totalWidth + TIMELINE_MARGIN * 2, position: "relative" }}>
             {/* Today indicator */}
             {(() => {
               const todayX = dayOffset(new Date());
