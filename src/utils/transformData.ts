@@ -100,6 +100,12 @@ export function buildDisplayRows(epicTasks: EpicTask[]): DisplayRow[] {
   const grouped = new Map<string, { name: string; children: EpicTask[] }>();
   const orphans: EpicTask[] = [];
 
+  // Index all rows by Issue key so we can find initiative rows
+  const byKey = new Map<string, EpicTask>();
+  for (const epic of epicTasks) {
+    byKey.set(epic.epicKey, epic);
+  }
+
   for (const epic of epicTasks) {
     const parentKey = (epic.rawData["Parent key"] || "").trim();
     const parentName = (epic.rawData["Parent summary"] || "").trim();
@@ -112,8 +118,13 @@ export function buildDisplayRows(epicTasks: EpicTask[]): DisplayRow[] {
     }
   }
 
+  // Track which keys are used as initiatives (to remove them from orphans)
+  const initiativeKeys = new Set<string>();
+
   // Build initiative rows with children
   for (const [key, group] of grouped) {
+    initiativeKeys.add(key);
+
     // Create a synthetic initiative epic with phases spanning all children
     const allPhases: PhaseSegment[] = [];
     for (const child of group.children) {
@@ -122,13 +133,17 @@ export function buildDisplayRows(epicTasks: EpicTask[]): DisplayRow[] {
       }
     }
 
+    // Use the initiative's own row data if it exists in the dataset
+    const initiativeRow = byKey.get(key);
+    const rawData = initiativeRow?.rawData || group.children[0]?.rawData || {};
+
     const initiativeEpic: EpicTask = {
       id: -Math.abs(hashCode(key)),
       epicKey: key,
       epicName: group.name || key,
-      status: "",
+      status: initiativeRow?.status || "",
       phases: allPhases,
-      rawData: group.children[0]?.rawData || {},
+      rawData,
     };
 
     rows.push({
@@ -144,9 +159,11 @@ export function buildDisplayRows(epicTasks: EpicTask[]): DisplayRow[] {
     }
   }
 
-  // Orphan epics (no parent)
+  // Orphan epics (no parent), excluding rows that are used as initiatives
   for (const epic of orphans) {
-    rows.push({ type: "epic", epic });
+    if (!initiativeKeys.has(epic.epicKey)) {
+      rows.push({ type: "epic", epic });
+    }
   }
 
   return rows;

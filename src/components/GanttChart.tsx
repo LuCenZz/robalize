@@ -220,7 +220,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
 
   // Get cell text for a column
   function getCellText(epic: EpicTask, col: ColKey, isInitiative: boolean): string {
-    if (isInitiative && col !== "epicName") return "";
+    if (isInitiative && col !== "epicName" && col !== "progress") return "";
     switch (col) {
       case "product": return epic.rawData["Custom field (Product)"] || "";
       case "acto": return epic.epicKey || "";
@@ -228,7 +228,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
       case "status": return epic.status || "";
       case "progress": {
         const raw = epic.rawData["Custom field (% of progress)"];
-        if (!raw || !raw.trim() || isInitiative) return "";
+        if (!raw || !raw.trim()) return "";
         const val = Math.round(parseFloat(raw));
         return isNaN(val) ? "" : String(val);
       }
@@ -1249,7 +1249,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                   <div style={{ width: colWidths.progress, flexShrink: 0, textAlign: "center", padding: "0 4px", boxSizing: "border-box", fontSize: 11, color: theme.textDark }}>
                     {(() => {
                       const raw = epic.rawData["Custom field (% of progress)"];
-                      if (!raw || !raw.trim() || isInitiative) return "";
+                      if (!raw || !raw.trim()) return "";
                       const val = Math.round(parseFloat(raw));
                       if (isNaN(val)) return "";
                       return `${val}%`;
