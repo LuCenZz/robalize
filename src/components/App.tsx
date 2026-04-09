@@ -80,8 +80,9 @@ export function App() {
   }, [saveProjects]);
 
   // Load projects on mount: localStorage (instant) → Supabase (background) → JIRA (fallback)
+  const profileId = profile?.id;
   useEffect(() => {
-    if (!profile) return;
+    if (!profileId) return;
 
     async function init() {
       setInitializing(true);
@@ -149,17 +150,17 @@ export function App() {
     }
 
     init();
-  }, [profile, loadProjects]);
+  }, [profileId, loadProjects]);
 
   // Load saved filters from Supabase
   useEffect(() => {
-    if (!profile) return;
+    if (!profileId) return;
     loadSetting("filters").then((saved) => {
       if (saved && Array.isArray(saved) && saved.length > 0) {
         setActiveFilters(saved as ActiveFilter[]);
       }
     });
-  }, [profile, loadSetting]);
+  }, [profileId, loadSetting]);
 
   const handleFileSelected = useCallback(async (file: File) => {
     setLoading(true);

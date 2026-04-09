@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import type { Session } from "@supabase/supabase-js";
 
@@ -14,6 +14,7 @@ export function useAuth() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isOffline] = useState(!supabase);
+  const currentUserIdRef = useRef<string | null>(null);
 
   const fetchProfile = useCallback(async (userId: string, email?: string) => {
     if (!supabase) return;
@@ -49,16 +50,19 @@ export function useAuth() {
     // Get the initial session
     supabase.auth.getSession().then(async ({ data: { session: s } }) => {
       setSession(s);
+      currentUserIdRef.current = s?.user?.id ?? null;
       if (s?.user) {
         await fetchProfile(s.user.id, s.user.email);
       }
       setLoading(false);
     });
 
-    // Listen for auth state changes (ignore token refreshes)
+    // Listen for auth state changes (ignore token refreshes and redundant sign-in events)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, s) => {
         if (event === "TOKEN_REFRESHED") return;
+        if (event === "SIGNED_IN" && s?.user?.id === currentUserIdRef.current) return;
+        currentUserIdRef.current = s?.user?.id ?? null;
         setSession(s);
         if (s?.user) {
           fetchProfile(s.user.id, s.user.email);
