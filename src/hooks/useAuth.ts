@@ -60,6 +60,7 @@ export function useAuth() {
     // Listen for auth state changes (ignore token refreshes and redundant sign-in events)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, s) => {
+        console.log("[AUTH]", event, "userId:", s?.user?.id, "currentRef:", currentUserIdRef.current);
         if (event === "TOKEN_REFRESHED") return;
         if (event === "SIGNED_IN" && s?.user?.id === currentUserIdRef.current) return;
         currentUserIdRef.current = s?.user?.id ?? null;
