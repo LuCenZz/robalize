@@ -136,6 +136,7 @@ export function buildDisplayRows(epicTasks: EpicTask[]): DisplayRow[] {
     // Use the initiative's own row data if it exists in the dataset
     const initiativeRow = byKey.get(key);
     const rawData = initiativeRow?.rawData || group.children[0]?.rawData || {};
+    console.log("[INITIATIVE]", key, "found own row:", !!initiativeRow, "progress:", rawData["Custom field (% of progress)"]);
 
     const initiativeEpic: EpicTask = {
       id: -Math.abs(hashCode(key)),
