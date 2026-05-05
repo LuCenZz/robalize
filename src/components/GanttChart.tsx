@@ -845,7 +845,6 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
             display: "flex",
             background: "white",
             borderRight: `2px solid ${theme.borderLight}`,
-            marginRight: 24,
             height: 22 * 2 + (mainHeaders.length > 0 ? 22 : 0) + (subHeaders.length > 0 ? 22 : 0) + 2,
             alignItems: "center",
           }}
@@ -911,6 +910,29 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
           })}
         </div>
         )}
+        {/* Collapse/expand toggle — in the header row */}
+        <div
+          onClick={() => setGridCollapsed(!gridCollapsed)}
+          style={{
+            width: 16,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            background: theme.gradient.primary,
+            color: "white",
+            borderRadius: 4,
+            fontSize: 9,
+            fontWeight: 700,
+            zIndex: 30,
+            userSelect: "none",
+            alignSelf: "stretch",
+          }}
+          title={gridCollapsed ? "Show columns" : "Hide columns"}
+        >
+          {gridCollapsed ? "▶" : "◀"}
+        </div>
         {/* Timeline header — synced with horizontal scroll */}
         <div
           ref={timelineHeaderRef}
@@ -1022,34 +1044,6 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
 
       {/* Single scroll container — grid sticky left, headers sticky top */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-        {/* Collapse/expand toggle — vertically centered on the border */}
-        <div
-          onClick={() => setGridCollapsed(!gridCollapsed)}
-          style={{
-            position: "absolute",
-            left: gridCollapsed ? 0 : gridTotalWidth,
-            top: "50%",
-            transform: "translateY(-50%)",
-            width: 16,
-            height: 44,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            background: theme.gradient.primary,
-            color: "white",
-            borderRadius: "0 8px 8px 0",
-            fontSize: 9,
-            fontWeight: 700,
-            zIndex: 30,
-            boxShadow: theme.shadow.md,
-            userSelect: "none",
-            transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-          }}
-          title={gridCollapsed ? "Show columns" : "Hide columns"}
-        >
-          {gridCollapsed ? "▶" : "◀"}
-        </div>
         <div
           ref={scrollRef}
           style={{ width: "100%", height: "100%", overflow: "auto" }}
@@ -1338,7 +1332,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                     const allDates = epic.phases.flatMap((p) => [p.startDate, p.endDate]);
                     const minLeft = dayOffset(new Date(Math.min(...allDates.map((d) => d.getTime()))));
                     const maxRight = dayOffset(new Date(Math.max(...allDates.map((d) => d.getTime()))));
-                    const w = maxRight - minLeft;
+                    const w = maxRight - minLeft + config.dayWidth;
                     if (w <= 0) return null;
                     const client = row.children?.[0]?.rawData["Custom field (Client)"]?.trim() || "";
                     const label = `${epic.epicKey} — ${epic.epicName}${client ? ` [${client}]` : ""}`;
@@ -1409,7 +1403,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                               position: "absolute",
                               left: minLeft - 2,
                               top: BAR_TOP - 2,
-                              width: maxRight - minLeft + 4,
+                              width: maxRight - minLeft + 4 + config.dayWidth,
                               height: BAR_HEIGHT + 4,
                               borderRadius: 6,
                               border: `1.5px solid ${isInconsistent ? "#e03131" : "#c9c9d0"}`,
@@ -1421,7 +1415,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                       })()}
                       {epic.phases.map((phase) => {
                         const left = dayOffset(phase.startDate);
-                        const width = dayOffset(phase.endDate) - left;
+                        const width = dayOffset(phase.endDate) - left + config.dayWidth;
                         if (width <= 0) return null;
                         const isConflicting = info?.conflictingPhases.has(phase.phaseName);
                         return (
