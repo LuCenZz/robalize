@@ -430,8 +430,8 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
     if (!max || yearEnd > max) max = yearEnd;
 
     const pad = 14;
-    const minD = new Date(min.getTime() - pad * 86400000);
-    const maxD = new Date(max.getTime() + pad * 86400000);
+    const minD = new Date(min.getFullYear(), min.getMonth(), min.getDate() - pad);
+    const maxD = new Date(max.getFullYear(), max.getMonth(), max.getDate() + pad);
     return { minDate: minD, maxDate: maxD };
   }, [tasks]);
 
@@ -441,7 +441,9 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
 
   const TIMELINE_MARGIN = 20;
   function dayOffset(date: Date): number {
-    return TIMELINE_MARGIN + Math.round((date.getTime() - minDate.getTime()) / 86400000) * config.dayWidth;
+    const d1 = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const d0 = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
+    return TIMELINE_MARGIN + Math.round((d1.getTime() - d0.getTime()) / 86400000) * config.dayWidth;
   }
 
   // Generate timeline headers
