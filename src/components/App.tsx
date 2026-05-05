@@ -245,8 +245,12 @@ export function App() {
         const epic = row.epic;
         const key = (epic.epicKey || "").toLowerCase();
         const name = (epic.epicName || "").toLowerCase();
-        // Also keep child rows whose parent initiative matched
-        return key.includes(q) || name.includes(q) || (row.initiativeKey ? matchingInitiativeKeys.has(row.initiativeKey) : false);
+        const parentMatches = row.initiativeKey ? matchingInitiativeKeys.has(row.initiativeKey) : false;
+        const result = key.includes(q) || name.includes(q) || parentMatches;
+        if (epic.epicKey === "ACTO-131082") {
+          console.log("[SEARCH DEBUG] ACTO-131082", { key, name, q, parentMatches, initiativeKey: row.initiativeKey, result });
+        }
+        return result;
       });
     }
 
