@@ -229,7 +229,8 @@ export function App() {
 
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
-      rows = rows.filter((row) => {
+      // Search applies to all rows, independently of active filters
+      rows = allDisplayRows.filter((row) => {
         if (row.type === "initiative") {
           // Keep initiative if its name or any child matches
           const nameMatch = (row.initiativeName || "").toLowerCase().includes(q);
