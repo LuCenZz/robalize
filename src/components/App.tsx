@@ -229,20 +229,24 @@ export function App() {
 
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
+      // Track which initiative keys matched so all their children are kept too
+      const matchingInitiativeKeys = new Set<string>();
       // Search applies to all rows, independently of active filters
       rows = allDisplayRows.filter((row) => {
         if (row.type === "initiative") {
-          // Keep initiative if its name or any child matches
           const nameMatch = (row.initiativeName || "").toLowerCase().includes(q);
           const childMatch = row.children?.some((c) =>
             (c.epicKey || "").toLowerCase().includes(q) || (c.epicName || "").toLowerCase().includes(q)
           );
-          return nameMatch || childMatch;
+          const matches = nameMatch || childMatch;
+          if (matches && row.initiativeKey) matchingInitiativeKeys.add(row.initiativeKey);
+          return matches;
         }
         const epic = row.epic;
         const key = (epic.epicKey || "").toLowerCase();
         const name = (epic.epicName || "").toLowerCase();
-        return key.includes(q) || name.includes(q);
+        // Also keep child rows whose parent initiative matched
+        return key.includes(q) || name.includes(q) || (row.initiativeKey ? matchingInitiativeKeys.has(row.initiativeKey) : false);
       });
     }
 
