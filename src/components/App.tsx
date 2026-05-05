@@ -45,6 +45,7 @@ export function App() {
   const [jiraConnected, setJiraConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [resetKey, setResetKey] = useState(0);
   const [aiOpen, setAiOpen] = useState(false);
@@ -175,6 +176,20 @@ export function App() {
       setLoading(false);
     }
   }, [loadData]);
+
+  useEffect(() => {
+    if (!loading && !initializing) {
+      setLoadingProgress(0);
+      return;
+    }
+    setLoadingProgress(0);
+    const startTime = Date.now();
+    const id = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      setLoadingProgress(Math.min(92, Math.round(100 * (1 - Math.exp(-elapsed * 0.5)))));
+    }, 80);
+    return () => clearInterval(id);
+  }, [loading, initializing]);
 
   // Build all epics from ALL data (unfiltered) so initiatives are always available
   const allEpicTasks: EpicTask[] = useMemo(
@@ -416,7 +431,7 @@ export function App() {
             alignItems: "center",
             justifyContent: "center",
             flexDirection: "column",
-            gap: 28,
+            gap: 20,
           }}
         >
           <style>{`
@@ -447,6 +462,76 @@ export function App() {
               animation: loading-dots 1.4s steps(1, end) infinite;
             }
           `}</style>
+          {/* Speedometer */}
+          {(() => {
+            const cx = 100, cy = 100, r = 72;
+            const angle = (180 - loadingProgress * 1.8) * Math.PI / 180;
+            const endX = cx + r * Math.cos(angle);
+            const endY = cy - r * Math.sin(angle);
+            const largeArc = loadingProgress > 50 ? 1 : 0;
+            const ticks = [0, 20, 40, 60, 80, 100].map((v) => {
+              const a = (180 - v * 1.8) * Math.PI / 180;
+              return {
+                v,
+                x1: cx + 75 * Math.cos(a), y1: cy - 75 * Math.sin(a),
+                x2: cx + 65 * Math.cos(a), y2: cy - 65 * Math.sin(a),
+                lx: cx + 87 * Math.cos(a), ly: cy - 87 * Math.sin(a),
+              };
+            });
+            const needleX = cx + 58 * Math.cos(angle);
+            const needleY = cy - 58 * Math.sin(angle);
+            return (
+              <svg width={200} height={108} viewBox="0 0 200 108" style={{ overflow: "visible" }}>
+                {/* Background arc */}
+                <path
+                  d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 0 ${cx + r} ${cy}`}
+                  fill="none" stroke="#ece8f7" strokeWidth="10" strokeLinecap="round"
+                />
+                {/* Progress arc */}
+                {loadingProgress > 0 && (
+                  <path
+                    d={`M ${cx - r} ${cy} A ${r} ${r} 0 ${largeArc} 0 ${endX.toFixed(2)} ${endY.toFixed(2)}`}
+                    fill="none" stroke={theme.primary} strokeWidth="10" strokeLinecap="round" opacity="0.9"
+                  />
+                )}
+                {/* Tick marks + labels */}
+                {ticks.map((t) => (
+                  <g key={t.v}>
+                    <line
+                      x1={t.x1.toFixed(1)} y1={t.y1.toFixed(1)}
+                      x2={t.x2.toFixed(1)} y2={t.y2.toFixed(1)}
+                      stroke="#c5bedd" strokeWidth="1.5" strokeLinecap="round"
+                    />
+                    <text
+                      x={t.lx.toFixed(1)} y={t.ly.toFixed(1)}
+                      textAnchor="middle" dominantBaseline="central"
+                      fontSize="7.5" fill="#b3a8d0" fontFamily={theme.fontFamily}
+                    >{t.v}</text>
+                  </g>
+                ))}
+                {/* Needle */}
+                <line
+                  x1={cx} y1={cy}
+                  x2={needleX.toFixed(2)} y2={needleY.toFixed(2)}
+                  stroke={theme.primary} strokeWidth="2.5" strokeLinecap="round"
+                />
+                <circle cx={cx} cy={cy} r="6" fill={theme.primary} />
+                <circle cx={cx} cy={cy} r="2.8" fill="white" />
+                {/* Speed value */}
+                <text
+                  x={cx} y={cy - 20} textAnchor="middle"
+                  fontSize="28" fontWeight="800" fill={theme.primary}
+                  fontFamily={theme.fontFamily}
+                  style={{ fontVariantNumeric: "tabular-nums" }}
+                >{loadingProgress}</text>
+                <text
+                  x={cx} y={cy - 6} textAnchor="middle"
+                  fontSize="8" fill="#b3a8d0" fontFamily={theme.fontFamily}
+                  letterSpacing="1.5"
+                >KM/H</text>
+              </svg>
+            );
+          })()}
           {/* Car animation */}
           <div style={{ position: "relative", width: 200, height: 90 }}>
             {/* Car body - bounces */}
