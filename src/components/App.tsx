@@ -240,6 +240,9 @@ export function App() {
           );
           const matches = nameMatch || childMatch;
           if (matches && row.initiativeKey) matchingInitiativeKeys.add(row.initiativeKey);
+          if (row.epic.epicKey === "ACTO-131082" || row.initiativeKey === "ACTO-131082") {
+            console.log("[SEARCH DEBUG INITIATIVE] ACTO-131082", { initiativeName: row.initiativeName, epicName: row.epic.epicName, q, nameMatch, childMatch, matches, childrenKeys: row.children?.map(c => c.epicKey) });
+          }
           return matches;
         }
         const epic = row.epic;
