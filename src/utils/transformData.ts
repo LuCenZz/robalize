@@ -1,6 +1,11 @@
 import type { RawRow, EpicTask, PhaseSegment, DisplayRow } from "../types";
 import { PHASE_CONFIG } from "../types";
 
+const MONTH_INDEX: Record<string, number> = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+
 function parseJiraDate(value: string): Date | null {
   if (!value || !value.trim()) return null;
   const trimmed = value.trim();
@@ -10,8 +15,9 @@ function parseJiraDate(value: string): Date | null {
     /^(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})$/i
   );
   if (dmy) {
-    const parsed = new Date(`${dmy[2]} ${dmy[1]}, ${dmy[3]}`);
-    if (!isNaN(parsed.getTime())) return parsed;
+    const month = MONTH_INDEX[dmy[2].toLowerCase().substring(0, 3)];
+    if (month !== undefined)
+      return new Date(parseInt(dmy[3]), month, parseInt(dmy[1]));
   }
 
   // Try "DD/Mon/YY HH:MM AM/PM" format (e.g., "30/Mar/26 12:00 AM")
@@ -19,10 +25,10 @@ function parseJiraDate(value: string): Date | null {
     /^(\d{1,2})\/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\/(\d{2,4})\s+/i
   );
   if (slashedWithTime) {
-    const year =
-      slashedWithTime[3].length === 2 ? `20${slashedWithTime[3]}` : slashedWithTime[3];
-    const parsed = new Date(`${slashedWithTime[2]} ${slashedWithTime[1]}, ${year}`);
-    if (!isNaN(parsed.getTime())) return parsed;
+    const year = slashedWithTime[3].length === 2 ? 2000 + parseInt(slashedWithTime[3]) : parseInt(slashedWithTime[3]);
+    const month = MONTH_INDEX[slashedWithTime[2].toLowerCase().substring(0, 3)];
+    if (month !== undefined)
+      return new Date(year, month, parseInt(slashedWithTime[1]));
   }
 
   // Try "DD/Mon/YY" format (e.g., "23/Mar/26")
@@ -30,15 +36,16 @@ function parseJiraDate(value: string): Date | null {
     /^(\d{1,2})\/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\/(\d{2,4})$/i
   );
   if (slashed) {
-    const year =
-      slashed[3].length === 2 ? `20${slashed[3]}` : slashed[3];
-    const parsed = new Date(`${slashed[2]} ${slashed[1]}, ${year}`);
-    if (!isNaN(parsed.getTime())) return parsed;
+    const year = slashed[3].length === 2 ? 2000 + parseInt(slashed[3]) : parseInt(slashed[3]);
+    const month = MONTH_INDEX[slashed[2].toLowerCase().substring(0, 3)];
+    if (month !== undefined)
+      return new Date(year, month, parseInt(slashed[1]));
   }
 
-  // Fallback: try native Date parsing
+  // Fallback: try native Date parsing — normalize to local midnight to avoid UTC offset issues
   const fallback = new Date(trimmed);
-  if (!isNaN(fallback.getTime())) return fallback;
+  if (!isNaN(fallback.getTime()))
+    return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
 
   return null;
 }

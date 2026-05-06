@@ -436,14 +436,14 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
   }, [tasks]);
 
   const config = ZOOM_CONFIG[zoom];
-  const totalDays = Math.ceil((maxDate.getTime() - minDate.getTime()) / 86400000);
+  const totalDays = (Date.UTC(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate()) - Date.UTC(minDate.getFullYear(), minDate.getMonth(), minDate.getDate())) / 86400000;
   const totalWidth = totalDays * config.dayWidth;
 
   const TIMELINE_MARGIN = 20;
   function dayOffset(date: Date): number {
-    const d1 = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const d0 = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
-    return TIMELINE_MARGIN + Math.round((d1.getTime() - d0.getTime()) / 86400000) * config.dayWidth;
+    const utc1 = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+    const utc0 = Date.UTC(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
+    return TIMELINE_MARGIN + ((utc1 - utc0) / 86400000) * config.dayWidth;
   }
 
   // Generate timeline headers
