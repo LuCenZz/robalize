@@ -1332,9 +1332,9 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                   {/* Initiative: show a bar spanning all children phases */}
                   {isInitiative && epic.phases.length > 0 && (() => {
                     const allDates = epic.phases.flatMap((p) => [p.startDate, p.endDate]);
-                    const minLeft = dayOffset(new Date(Math.min(...allDates.map((d) => d.getTime()))));
+                    const minLeft = dayOffset(new Date(Math.min(...allDates.map((d) => d.getTime())))) - 2;
                     const maxRight = dayOffset(new Date(Math.max(...allDates.map((d) => d.getTime()))));
-                    const w = maxRight - minLeft + config.dayWidth;
+                    const w = maxRight - minLeft + config.dayWidth + 2;
                     if (w <= 0) return null;
                     const client = row.children?.[0]?.rawData["Custom field (Client)"]?.trim() || "";
                     const label = `${epic.epicKey} — ${epic.epicName}${client ? ` [${client}]` : ""}`;
