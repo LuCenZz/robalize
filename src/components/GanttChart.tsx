@@ -1398,7 +1398,7 @@ export function GanttChart({ tasks, allTasks, displayRows, resetKey }: GanttChar
                           .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
                         if (visible.length === 0) return null;
                         const minLeft = dayOffset(visible[0].startDate);
-                        const maxRight = dayOffset(visible[visible.length - 1].endDate);
+                        const maxRight = Math.max(...visible.map((p) => dayOffset(p.endDate)));
                         return (
                           <div
                             style={{
