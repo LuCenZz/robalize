@@ -143,7 +143,7 @@ export function buildDisplayRows(epicTasks: EpicTask[]): DisplayRow[] {
     // Use the initiative's own row data if it exists in the dataset
     const initiativeRow = byKey.get(key);
     const rawData = initiativeRow?.rawData || group.children[0]?.rawData || {};
-    console.log("[INITIATIVE]", key, "found own row:", !!initiativeRow, "progress:", rawData["Custom field (% of progress)"]);
+    console.log("[INITIATIVE]", key, "children:", group.children.map(c => `${c.epicKey}(${c.phases.map(p => p.phaseName + ":" + p.endDate.toISOString().slice(0,10)).join(",")})`).join(" | "), "allPhases count:", allPhases.length);
 
     const initiativeEpic: EpicTask = {
       id: -Math.abs(hashCode(key)),
