@@ -392,8 +392,8 @@ button, input, textarea, select { font-family: var(--font); }
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
 }
 .status-badge {
-  font-size: 10px; background: #F3F2F8; color: var(--text-secondary);
-  padding: 2px 8px; border-radius: 100px; font-weight: 500; white-space: nowrap;
+  font-size: 10px; padding: 2px 8px; border-radius: 5px;
+  font-weight: 600; white-space: nowrap; letter-spacing: 0.2px;
 }
 .grid-cell-progress { justify-content: center; padding: 0 4px; color: var(--text-muted); }
 
@@ -406,17 +406,33 @@ button, input, textarea, select { font-family: var(--font); }
 .today-dot { position: absolute; top: -4px; left: -3.25px; width: 8px; height: 8px; border-radius: 50%; background: #E5484D; }
 .week-line { position: absolute; top: 0; width: 1px; background: #F6F4FB; z-index: 0; pointer-events: none; }
 .phase-bar {
-  position: absolute; border-radius: 7px; cursor: pointer; overflow: hidden; z-index: 1;
-  transition: filter 0.1s;
+  position: absolute; border-radius: 4px; cursor: pointer; overflow: hidden; z-index: 1;
+  transition: filter 0.1s; display: flex; align-items: center;
 }
-.phase-bar:hover { filter: brightness(1.06); }
+.phase-bar:hover { filter: brightness(1.07); }
 .phase-bar-conflict { box-shadow: inset 0 0 0 2px #e03131; }
 .phase-bar-selected { box-shadow: 0 0 0 2px white, 0 0 0 3.5px var(--primary); }
+.phase-bar-label {
+  font-size: 10px; font-weight: 600; color: white; padding-left: 7px;
+  white-space: nowrap; letter-spacing: 0.2px; text-shadow: 0 1px 1px rgba(0,0,0,0.15);
+}
 .phase-track {
-  position: absolute; height: 3px; border-radius: 2px; background: #E9E7F1;
+  position: absolute; height: 2px; border-radius: 1px; background: #DBD9E6;
   pointer-events: none; z-index: 0;
 }
-.phase-track-inconsistent { background: #F6C6C6; }
+.phase-track-inconsistent { background: #F0AFAF; }
+.tl-unscheduled {
+  position: sticky; display: inline-flex; align-items: center; gap: 10px;
+  margin-top: 10px; height: 24px; z-index: 2;
+}
+.status-pill {
+  font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 5px;
+  white-space: nowrap; letter-spacing: 0.2px;
+}
+.tl-nodate { font-size: 11px; font-style: italic; color: var(--text-muted); }
+.tl-cell-current {
+  background: #FBF3DC; color: #7A6420; font-weight: 600; border-radius: 4px;
+}
 .initiative-bar {
   position: absolute; height: 6px; border-radius: 3px; background: #B4A2E8;
   pointer-events: none; z-index: 1;

@@ -1,14 +1,14 @@
 // Port of src/utils/transformData.ts + PHASE_CONFIG from src/types/index.ts.
 // Logic must stay identical to the TypeScript source.
 
-// Phase hues match the original app but are recalibrated to a harmonized,
-// professional ramp (aligned saturation/lightness).
+// Flat, vivid roadmap palette (amber → blue → purple → green → teal),
+// modeled on the DMS Epics Roadmap reference.
 export const PHASE_CONFIG = [
-  { name: "Analysis", color: "#E3B23C", startCol: "Custom field (Analysis Start Date)", endCol: "Custom field (Analysis End Date)" },
-  { name: "Development", color: "#E2854B", startCol: "Custom field (Development Start Date)", endCol: "Custom field (Development End Date)" },
-  { name: "QA / Test", color: "#55A46F", startCol: "Custom field (QA Start Date)", endCol: "Custom field (QA End Date)" },
-  { name: "Customer UAT", color: "#4A8ED6", startCol: "Custom field (Customer UAT Start Date)", endCol: "Custom field (Customer UAT End Date)" },
-  { name: "Pilot", color: "#3A5C96", startCol: "Custom field (Pilot Start Date)", endCol: "Custom field (Pilot End Date)" },
+  { name: "Analysis", color: "#E9A23B", startCol: "Custom field (Analysis Start Date)", endCol: "Custom field (Analysis End Date)" },
+  { name: "Development", color: "#4A6CF7", startCol: "Custom field (Development Start Date)", endCol: "Custom field (Development End Date)" },
+  { name: "QA / Test", color: "#8B5CF6", startCol: "Custom field (QA Start Date)", endCol: "Custom field (QA End Date)" },
+  { name: "Customer UAT", color: "#2BB673", startCol: "Custom field (Customer UAT Start Date)", endCol: "Custom field (Customer UAT End Date)" },
+  { name: "Pilot", color: "#0E8A73", startCol: "Custom field (Pilot Start Date)", endCol: "Custom field (Pilot End Date)" },
 ];
 
 const MONTH_INDEX = {

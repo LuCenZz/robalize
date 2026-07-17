@@ -7,7 +7,33 @@ import {
 } from "./gantt-logic.js";
 import { PHASE_CONFIG } from "./transform.js";
 
-const FONT = "'Aptos', 'Aptos Display', Calibri, sans-serif";
+const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+
+// Short labels shown inside phase bars when they are wide enough
+const PHASE_SHORT = {
+  "Analysis": "Analysis",
+  "Development": "Dev",
+  "QA / Test": "QA",
+  "Customer UAT": "UAT",
+  "Pilot": "Pilot",
+};
+
+// Status pill colors [background, foreground] — roadmap-reference style
+const STATUS_COLORS = {
+  "blocked": ["#FDE8E8", "#DC2626"],
+  "in definition": ["#FDF0DF", "#D97706"],
+  "scoping rfc": ["#FDF0DF", "#D97706"],
+  "backlog": ["#F1F0F5", "#6B7280"],
+  "to do": ["#F1F0F5", "#6B7280"],
+  "in progress": ["#E7EDFE", "#4A6CF7"],
+  "pending customer uat": ["#F0EAFD", "#8B5CF6"],
+  "pending internal uat": ["#F0EAFD", "#8B5CF6"],
+  "done": ["#E3F6EC", "#16A34A"],
+};
+
+function statusColors(status) {
+  return STATUS_COLORS[status.trim().toLowerCase()] || ["#F1F0F5", "#6B7280"];
+}
 
 const ui = {
   zoom: "month",
@@ -34,6 +60,7 @@ const COLS = [
 ];
 
 let rerender = null; // bound to the latest (container, state, actions)
+let unschedStickyLeft = 26; // sticky offset for "No date scheduled" pills
 
 document.addEventListener("mousedown", (e) => {
   if (ui.popover && !e.target.closest(".phase-popover")) {
@@ -91,6 +118,7 @@ export function renderGantt(container, state, actions) {
   const weekLines = computeWeekLines(minDate, maxDate, dayOffset);
 
   const gridTotalWidth = COLS.reduce((s, c) => s + ui.colWidths[c.col], 0);
+  unschedStickyLeft = (ui.gridCollapsed ? 0 : gridTotalWidth) + 26;
   const headerHeight = 20 * 2 + (mainHeaders.length > 0 ? 20 : 0) + (subHeaders.length > 0 ? 20 : 0) + 2;
   const rowsHeight = displayedRows.length * ROW_HEIGHT;
   const todayX = dayOffset(new Date());
@@ -133,7 +161,7 @@ export function renderGantt(container, state, actions) {
             ${mainHeaders.map((h) => `<div class="tl-cell tl-cell-main" style="left:${h.left}px;width:${h.width}px">${h.label}</div>`).join("")}
           </div>` : ""}
           ${subHeaders.length > 0 ? `<div class="tl-header-row tl-header-row-last">
-            ${subHeaders.map((h) => `<div class="tl-cell tl-cell-sub" style="left:${h.left}px;width:${h.width}px">${h.label}</div>`).join("")}
+            ${subHeaders.map((h) => `<div class="tl-cell tl-cell-sub ${h.left <= todayX && todayX < h.left + h.width ? "tl-cell-current" : ""}" style="left:${h.left}px;width:${h.width}px">${h.label}</div>`).join("")}
           </div>` : ""}
         </div>
       </div>
@@ -277,7 +305,10 @@ function gridRowHtml(row, i, inconsistencies, alerts) {
         ${esc(epic.epicName)}
       </div>
       <div class="grid-cell" data-colw="status" style="width:${ui.colWidths.status}px">
-        ${epic.status ? `<span class="status-badge">${esc(epic.status)}</span>` : ""}
+        ${epic.status ? (() => {
+          const [bg, fg] = statusColors(epic.status);
+          return `<span class="status-badge" style="background:${bg};color:${fg}">${esc(epic.status)}</span>`;
+        })() : ""}
       </div>
       <div class="grid-cell grid-cell-progress" data-colw="progress" style="width:${ui.colWidths.progress}px">
         ${progress}
@@ -301,13 +332,22 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
       const label = `${epic.epicKey} — ${epic.epicName}${client ? ` [${client}]` : ""}`;
       // Slim "summary task" bar with the label in small caps above it
       bars = `
-        <div class="initiative-bar" style="left:${minLeft}px;top:21px;width:${w}px"></div>
+        <div class="initiative-bar" style="left:${minLeft}px;top:26px;width:${w}px"></div>
         <div class="initiative-label" data-bar-left="${minLeft}" data-bar-width="${w}"
-             style="left:${minLeft + w / 2}px;top:3px;height:14px">
+             style="left:${minLeft + w / 2}px;top:6px;height:14px">
           <span>${esc(label)}</span>
         </div>
       `;
     }
+  } else if (!isInitiative && epic.phases.length === 0) {
+    // Unscheduled epic: status pill + note, pinned to the visible viewport
+    const [bg, fg] = statusColors(epic.status || "");
+    bars = `
+      <div class="tl-unscheduled" style="left:${unschedStickyLeft}px">
+        ${epic.status ? `<span class="status-pill" style="background:${bg};color:${fg}">${esc(epic.status)}</span>` : ""}
+        <span class="tl-nodate">No date scheduled</span>
+      </div>
+    `;
   } else if (!isInitiative) {
     if (epic.phases.length > 0) {
       const visible = epic.phases
@@ -319,7 +359,7 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
         // Thin rail connecting first phase start to last phase end
         bars += `
           <div class="phase-track ${isInconsistent ? "phase-track-inconsistent" : ""}"
-               style="left:${minLeft}px;top:${BAR_TOP + BAR_HEIGHT / 2 - 1.5}px;width:${maxRight - minLeft + config.dayWidth}px"></div>
+               style="left:${minLeft}px;top:${BAR_TOP + BAR_HEIGHT / 2 - 1}px;width:${maxRight - minLeft + config.dayWidth}px"></div>
         `;
       }
     }
@@ -329,10 +369,14 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
       if (width <= 0) return "";
       const isConflicting = info?.conflictingPhases.has(phase.phaseName);
       const isSelected = ui.popover?.phaseId === phase.id;
+      const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
+      const showLabel = width >= short.length * 6.5 + 14;
       return `
         <div class="phase-bar ${isConflicting ? "phase-bar-conflict" : ""} ${isSelected ? "phase-bar-selected" : ""}"
              data-phase-id="${esc(phase.id)}" data-row-idx="${i}"
-             style="left:${left}px;top:${BAR_TOP}px;width:${width}px;height:${BAR_HEIGHT}px;background:${phase.color}"></div>
+             style="left:${left}px;top:${BAR_TOP}px;width:${width}px;height:${BAR_HEIGHT}px;background:${phase.color}">
+          ${showLabel ? `<span class="phase-bar-label">${esc(short)}</span>` : ""}
+        </div>
       `;
     }).join("");
   }
