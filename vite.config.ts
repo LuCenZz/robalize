@@ -4,7 +4,20 @@ import react from '@vitejs/plugin-react'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      // Dev-only: /lite and /lite/ must serve the lite app, not fall back to
+      // the SPA index.html (prod equivalent lives in vercel.json rewrites).
+      {
+        name: 'lite-rewrite',
+        configureServer(server) {
+          server.middlewares.use((req, _res, next) => {
+            if (req.url === '/lite' || req.url === '/lite/') req.url = '/lite/index.html'
+            next()
+          })
+        },
+      },
+    ],
     server: {
       proxy: {
         '/api/jira-proxy': {
