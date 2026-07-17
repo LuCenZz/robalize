@@ -1,6 +1,6 @@
 import { transformToEpicTasks, buildDisplayRows, extractColumns } from "./transform.js";
 import { applyFilters, computeFilteredKeys, computeDisplayRows } from "./filters.js";
-import { loadJiraConfig, fetchJiraData } from "./jira.js";
+import { loadJiraConfig, fetchJiraData, DEFAULT_CONFIG } from "./jira.js";
 import { loadFilters, saveFilters, loadSearchTerm, saveSearchTerm } from "./prefs.js";
 import { renderTopBar } from "./topbar.js";
 import { renderFilterBar } from "./filterbar.js";
@@ -105,11 +105,9 @@ export const actions = {
   },
 
   async refreshFromJira(silent = false) {
-    const config = loadJiraConfig();
-    if (!config || !config.email || !config.apiToken || !config.jql) {
-      openConnector(state, actions);
-      return;
-    }
+    // No connection step: saved config if any, otherwise defaults with
+    // server-managed credentials.
+    const config = { ...DEFAULT_CONFIG, ...(loadJiraConfig() || {}) };
     if (!silent) { state.loading = true; renderAll(); }
     try {
       const rows = await fetchJiraData(config);
@@ -157,16 +155,14 @@ function boot() {
   renderAll();
 
   if (hasCache) {
+    // Instant display from cache, then refresh silently in the background.
     setupAutoRefresh();
+    actions.refreshFromJira(true);
     return;
   }
 
-  const config = loadJiraConfig();
-  if (config && config.email && config.apiToken && config.jql) {
-    actions.refreshFromJira(false);
-  } else {
-    openConnector(state, actions);
-  }
+  // Straight to the Gantt: fetch immediately, no connection step.
+  actions.refreshFromJira(false);
 }
 
 boot();

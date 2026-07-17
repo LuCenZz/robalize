@@ -7,7 +7,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const fullUrl = req.url || "";
   const jiraPath = fullUrl.replace(/^\/api\/jira-proxy/, "");
 
-  const auth = req.headers.authorization;
+  // Client-provided credentials win; otherwise fall back to server-side env
+  // (used by the lite app so end users never enter JIRA credentials).
+  let auth = req.headers.authorization;
+  if (!auth && process.env.JIRA_EMAIL && process.env.JIRA_API_TOKEN) {
+    auth = `Basic ${Buffer.from(`${process.env.JIRA_EMAIL}:${process.env.JIRA_API_TOKEN}`).toString("base64")}`;
+  }
   if (!auth) {
     return res.status(401).json({ error: "Missing Authorization header" });
   }

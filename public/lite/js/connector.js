@@ -1,9 +1,7 @@
 // Port of src/components/JiraConnector.tsx — no admin/Supabase logic:
 // everyone edits the full config, stored in localStorage only.
-import { loadJiraConfig, saveJiraConfig, fetchJiraData } from "./jira.js";
+import { loadJiraConfig, saveJiraConfig, fetchJiraData, DEFAULT_JQL } from "./jira.js";
 import { setupAutoRefresh, clearError } from "./main.js";
-
-const DEFAULT_JQL = 'project = "ACTO" AND issuetype = Epic ORDER BY key ASC';
 
 export function openConnector(state, actions) {
   const root = document.getElementById("connector-root");
@@ -18,12 +16,13 @@ export function openConnector(state, actions) {
           <button class="modal-close">×</button>
         </div>
         <div class="modal-body">
+          <div class="field-hint">Credentials are optional — leave them empty to use the server-managed connection.</div>
           <label class="field">
-            <span>Atlassian email</span>
+            <span>Atlassian email (optional)</span>
             <input id="jc-email" type="email" placeholder="you@company.com" />
           </label>
           <label class="field">
-            <span>API Token</span>
+            <span>API Token (optional)</span>
             <input id="jc-token" type="password" placeholder="Paste your Atlassian API token" />
             <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener noreferrer">Create an API token</a>
           </label>
@@ -85,8 +84,8 @@ export function openConnector(state, actions) {
     };
     const errorBox = $("#jc-error");
     errorBox.classList.add("hidden");
-    if (!config.email || !config.apiToken || !config.jql) {
-      errorBox.textContent = "Please fill in all fields.";
+    if (!config.jql) {
+      errorBox.textContent = "Please provide a JQL query.";
       errorBox.classList.remove("hidden");
       return;
     }

@@ -3,6 +3,17 @@
 
 const JIRA_STORAGE_KEY = "oem-jira-config";
 
+export const DEFAULT_JQL = 'project = "ACTO" AND issuetype = Epic ORDER BY key ASC';
+
+// Empty credentials → the server-side proxy injects its own (env vars).
+export const DEFAULT_CONFIG = {
+  email: "",
+  apiToken: "",
+  jql: DEFAULT_JQL,
+  maxRows: 5000,
+  refreshInterval: 0,
+};
+
 export function loadJiraConfig() {
   try {
     const stored = localStorage.getItem(JIRA_STORAGE_KEY);
@@ -36,14 +47,15 @@ export function formatFieldValue(value) {
 }
 
 export async function fetchJiraData(config, onProgress) {
-  const auth = btoa(`${config.email}:${config.apiToken}`);
+  // Without local credentials, the proxy falls back to its server-side ones.
+  const auth = config.email && config.apiToken ? btoa(`${config.email}:${config.apiToken}`) : null;
 
   async function jiraCall(path, method = "GET", body) {
     const url = `/api/jira-proxy${path}`;
     const res = await fetch(url, {
       method,
       headers: {
-        "Authorization": `Basic ${auth}`,
+        ...(auth ? { "Authorization": `Basic ${auth}` } : {}),
         "Accept": "application/json",
         ...(body ? { "Content-Type": "application/json" } : {}),
       },

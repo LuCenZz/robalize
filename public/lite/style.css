@@ -150,6 +150,10 @@ button, input, textarea, select { font-family: var(--font); }
 .field input:focus, .field textarea:focus { border-color: var(--primary); }
 .field a { font-size: 11px; color: var(--primary); text-decoration: none; margin-top: 4px; }
 .field-row { display: flex; gap: 16px; }
+.field-hint {
+  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;
+  padding: 10px 12px; font-size: 12px; color: #166534;
+}
 .form-error {
   background: #fff0f0; border: 1px solid #ffc9c9; border-radius: 8px;
   padding: 10px 12px; font-size: 12px; color: #e03131;
