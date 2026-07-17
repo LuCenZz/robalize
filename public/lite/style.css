@@ -167,3 +167,97 @@ button, input, textarea, select { font-family: var(--font); }
   background: white; border: 1.5px solid #e03131; color: #e03131;
   padding: 11px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
+
+/* ===== Filter bar ===== */
+.filterbar {
+  background: var(--filterbar-bg);
+  border-bottom: 2px solid var(--border-light);
+  padding: 10px 20px;
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+}
+.filterbar-label { font-weight: 700; color: var(--primary); font-size: 12px; margin-right: 4px; }
+.chip-wrap { position: relative; cursor: grab; }
+.chip-dragging { opacity: 0.4; }
+.chip {
+  display: flex; align-items: center;
+  border: 1.5px solid #c9b8ff; border-radius: 8px; background: white; overflow: hidden;
+}
+.chip-active { background: #f0ebff; }
+.chip-label {
+  padding: 6px 10px; border: none; background: transparent; cursor: pointer;
+  font-size: 12px; color: #555; display: flex; align-items: center; gap: 6px;
+  white-space: nowrap; max-width: 200px;
+}
+.chip-active .chip-label { color: var(--primary); font-weight: 600; }
+.chip-fav-star { color: #f5a623; font-size: 10px; }
+.chip-text { overflow: hidden; text-overflow: ellipsis; }
+.chip-arrow { font-size: 8px; transition: transform 0.15s; }
+.chip-arrow-open { transform: rotate(180deg); }
+.chip-remove {
+  background: none; border: none; border-left: 1px solid #c9b8ff; color: #999;
+  cursor: pointer; font-size: 13px; padding: 6px 8px; line-height: 1;
+}
+.add-wrap { position: relative; }
+.btn-add-filter {
+  background: var(--primary); border: none; padding: 6px 14px; border-radius: 8px;
+  font-size: 12px; cursor: pointer; color: white; font-weight: 500;
+}
+.btn-reset {
+  background: white; border: 1.5px solid #c9b8ff; padding: 6px 12px; border-radius: 8px;
+  font-size: 12px; cursor: pointer; color: var(--primary); margin-left: auto; font-weight: 500;
+}
+.dropdown {
+  position: absolute; top: calc(100% + 4px); left: 0; background: white;
+  border: 1px solid var(--border-light); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(107, 44, 245, 0.12); z-index: 200;
+  width: 280px; max-height: 360px; display: flex; flex-direction: column; overflow: hidden;
+  cursor: default;
+}
+.add-wrap .dropdown { width: 300px; max-height: 400px; }
+.dropdown-header {
+  padding: 10px 12px 0; display: flex; align-items: center; justify-content: space-between;
+}
+.dropdown-title {
+  font-size: 11px; font-weight: 700; color: var(--primary);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.star-btn {
+  background: none; border: none; cursor: pointer; padding: 0 2px;
+  font-size: 14px; line-height: 1; color: #ccc; transition: color 0.15s;
+}
+.star-btn:hover { color: #f5c842; }
+.star-filled, .star-filled:hover { color: #f5a623; }
+.dropdown-search-wrap { padding: 8px 12px; }
+.dropdown-search {
+  width: 100%; padding: 7px 10px; border: 1.5px solid var(--border-light);
+  border-radius: 6px; outline: none; font-size: 12px;
+}
+.dropdown-search:focus { border-color: var(--primary); }
+.dropdown-search-add {
+  width: auto; margin: 0; padding: 10px 12px; border: none;
+  border-bottom: 1px solid var(--border-light); border-radius: 0; font-size: 13px;
+}
+.dropdown-actions { display: flex; gap: 12px; padding: 0 12px 6px; }
+.dropdown-actions button {
+  background: none; border: none; cursor: pointer; padding: 0; font-size: 11px; font-weight: 500;
+}
+.dropdown-select-all { color: var(--primary); }
+.dropdown-clear { color: #999; }
+.dropdown-options { overflow-y: auto; max-height: 240px; border-top: 1px solid var(--border-light); }
+.add-wrap .dropdown-options { max-height: 350px; border-top: none; }
+.dropdown-option {
+  display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+  cursor: pointer; font-size: 12px; color: var(--text-dark); transition: background 0.1s;
+}
+.dropdown-option:hover { background: #faf8ff; }
+.dropdown-option-checked, .dropdown-option-checked:hover { background: #f8f5ff; }
+.dropdown-option input { accent-color: var(--primary); width: 15px; height: 15px; cursor: pointer; margin: 0; }
+.dropdown-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dropdown-add-row {
+  display: flex; align-items: center; justify-content: space-between; padding: 9px 12px;
+  cursor: pointer; font-size: 12px; border-bottom: 1px solid var(--filterbar-bg);
+  color: var(--text-dark); transition: background 0.1s;
+}
+.dropdown-add-row:hover { background: var(--filterbar-bg); }
+.dropdown-add-name { flex: 1; }
+.dropdown-empty { padding: 16px; text-align: center; color: var(--text-muted); font-size: 12px; }
