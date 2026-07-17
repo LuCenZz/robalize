@@ -91,7 +91,7 @@ export function renderGantt(container, state, actions) {
   const weekLines = computeWeekLines(minDate, maxDate, dayOffset);
 
   const gridTotalWidth = COLS.reduce((s, c) => s + ui.colWidths[c.col], 0);
-  const headerHeight = 22 * 2 + (mainHeaders.length > 0 ? 22 : 0) + (subHeaders.length > 0 ? 22 : 0) + 2;
+  const headerHeight = 20 * 2 + (mainHeaders.length > 0 ? 20 : 0) + (subHeaders.length > 0 ? 20 : 0) + 2;
   const rowsHeight = displayedRows.length * ROW_HEIGHT;
   const todayX = dayOffset(new Date());
 
@@ -111,7 +111,7 @@ export function renderGantt(container, state, actions) {
           return `
             <div class="grid-header-cell ${col === "progress" ? "grid-header-cell-center" : ""}"
                  data-sort-col="${col}" data-colw="${col}"
-                 style="width:${ui.colWidths[col]}px;font-size:${fontSize}px;${col === "epicName" ? "padding:0 12px;" : ""}">
+                 style="width:${ui.colWidths[col]}px;${col === "epicName" ? "padding:0 12px;" : ""}">
               <span class="grid-header-label">${label}</span>
               ${isSorted ? `<span class="sort-arrow">${ui.sortDir === "asc" ? "▲" : "▼"}</span>` : ""}
               <span class="col-filter-btn ${hasFilter ? "col-filter-btn-active" : ""}" data-filter-col="${col}" title="Filter">▼</span>
@@ -244,7 +244,6 @@ function rowMeta(row, i, inconsistencies, alerts) {
     rowClass: [
       isInitiative ? "row-initiative" : "",
       isHighlighted ? (isInconsistent ? "row-inconsistent" : "row-alerted") : "",
-      !isInitiative && !isHighlighted && i % 2 !== 0 ? "row-alt" : "",
     ].filter(Boolean).join(" "),
   };
 }
@@ -294,16 +293,17 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
 
   if (isInitiative && epic.phases.length > 0) {
     const allDates = epic.phases.flatMap((p) => [p.startDate, p.endDate]);
-    const minLeft = dayOffset(new Date(Math.min(...allDates.map((d) => d.getTime())))) - 2;
+    const minLeft = dayOffset(new Date(Math.min(...allDates.map((d) => d.getTime()))));
     const maxRight = dayOffset(new Date(Math.max(...allDates.map((d) => d.getTime()))));
-    const w = maxRight - minLeft + config.dayWidth + 2;
+    const w = maxRight - minLeft + config.dayWidth;
     if (w > 0) {
       const client = row.children?.[0]?.rawData["Custom field (Client)"]?.trim() || "";
       const label = `${epic.epicKey} — ${epic.epicName}${client ? ` [${client}]` : ""}`;
+      // Slim "summary task" bar with the label in small caps above it
       bars = `
-        <div class="initiative-bar" style="left:${minLeft}px;top:${BAR_TOP}px;width:${w}px;height:${BAR_HEIGHT}px"></div>
+        <div class="initiative-bar" style="left:${minLeft}px;top:21px;width:${w}px"></div>
         <div class="initiative-label" data-bar-left="${minLeft}" data-bar-width="${w}"
-             style="left:${minLeft + w / 2}px;top:${BAR_TOP}px;height:${BAR_HEIGHT}px">
+             style="left:${minLeft + w / 2}px;top:3px;height:14px">
           <span>${esc(label)}</span>
         </div>
       `;
@@ -316,9 +316,10 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
       if (visible.length > 0) {
         const minLeft = dayOffset(visible[0].startDate);
         const maxRight = Math.max(...visible.map((p) => dayOffset(p.endDate)));
+        // Thin rail connecting first phase start to last phase end
         bars += `
-          <div class="epic-outline ${isInconsistent ? "epic-outline-inconsistent" : ""}"
-               style="left:${minLeft - 2}px;top:${BAR_TOP - 2}px;width:${maxRight - minLeft + 4 + config.dayWidth}px;height:${BAR_HEIGHT + 4}px"></div>
+          <div class="phase-track ${isInconsistent ? "phase-track-inconsistent" : ""}"
+               style="left:${minLeft}px;top:${BAR_TOP + BAR_HEIGHT / 2 - 1.5}px;width:${maxRight - minLeft + config.dayWidth}px"></div>
         `;
       }
     }

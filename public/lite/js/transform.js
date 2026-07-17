@@ -1,12 +1,14 @@
 // Port of src/utils/transformData.ts + PHASE_CONFIG from src/types/index.ts.
 // Logic must stay identical to the TypeScript source.
 
+// Phase hues match the original app but are recalibrated to a harmonized,
+// professional ramp (aligned saturation/lightness).
 export const PHASE_CONFIG = [
-  { name: "Analysis", color: "#ffd43b", startCol: "Custom field (Analysis Start Date)", endCol: "Custom field (Analysis End Date)" },
-  { name: "Development", color: "#ff922b", startCol: "Custom field (Development Start Date)", endCol: "Custom field (Development End Date)" },
-  { name: "QA / Test", color: "#51cf66", startCol: "Custom field (QA Start Date)", endCol: "Custom field (QA End Date)" },
-  { name: "Customer UAT", color: "#339af0", startCol: "Custom field (Customer UAT Start Date)", endCol: "Custom field (Customer UAT End Date)" },
-  { name: "Pilot", color: "#1864ab", startCol: "Custom field (Pilot Start Date)", endCol: "Custom field (Pilot End Date)" },
+  { name: "Analysis", color: "#E3B23C", startCol: "Custom field (Analysis Start Date)", endCol: "Custom field (Analysis End Date)" },
+  { name: "Development", color: "#E2854B", startCol: "Custom field (Development Start Date)", endCol: "Custom field (Development End Date)" },
+  { name: "QA / Test", color: "#55A46F", startCol: "Custom field (QA Start Date)", endCol: "Custom field (QA End Date)" },
+  { name: "Customer UAT", color: "#4A8ED6", startCol: "Custom field (Customer UAT Start Date)", endCol: "Custom field (Customer UAT End Date)" },
+  { name: "Pilot", color: "#3A5C96", startCol: "Custom field (Pilot Start Date)", endCol: "Custom field (Pilot End Date)" },
 ];
 
 const MONTH_INDEX = {

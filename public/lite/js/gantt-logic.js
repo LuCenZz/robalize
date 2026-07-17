@@ -28,8 +28,8 @@ export const ZOOM_CONFIG = {
   },
 };
 
-export const ROW_HEIGHT = 40;
-export const BAR_HEIGHT = 20;
+export const ROW_HEIGHT = 36;
+export const BAR_HEIGHT = 14;
 export const BAR_TOP = (ROW_HEIGHT - BAR_HEIGHT) / 2;
 export const TIMELINE_MARGIN = 20;
 
