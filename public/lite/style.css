@@ -446,24 +446,37 @@ button, input, textarea, select { font-family: var(--font); }
   text-transform: uppercase; letter-spacing: 0.6px;
 }
 
-/* ===== Phase popover ===== */
-.phase-popover {
-  position: fixed; transform: translate(-50%, -100%); background: white;
-  border-radius: 8px; box-shadow: 0 6px 24px rgba(27, 19, 64, 0.14);
-  border: 1px solid var(--hairline); padding: 12px 16px; z-index: 1000; min-width: 200px;
+/* ===== Epic summary card (hover over a phase bar) ===== */
+.epic-card {
+  position: fixed; transform: translate(-50%, -100%); z-index: 1000;
+  background: #14152A; color: #E8E7F0; border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(10, 8, 30, 0.35); padding: 14px 16px;
+  min-width: 230px; max-width: 300px; pointer-events: none;
   font-variant-numeric: tabular-nums;
 }
-.phase-popover-arrow {
-  position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%) rotate(45deg);
-  width: 12px; height: 12px; background: white;
-  border-right: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light);
+.epic-card-title {
+  font-size: 12.5px; font-weight: 700; color: white; line-height: 1.4;
+  margin-bottom: 10px;
 }
-.phase-popover-title { font-size: 13px; font-weight: 700; color: var(--text-dark); margin-bottom: 8px; }
-.phase-popover-line { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; margin-bottom: 4px; }
-.phase-popover-line span { color: var(--text-muted); }
-.phase-popover-line b { font-weight: 500; color: var(--text-dark); }
-.phase-popover-duration { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--border-light); }
-.phase-popover-duration b { color: var(--primary); }
+.epic-card-row {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 16px; font-size: 12px; margin-bottom: 6px;
+}
+.epic-card-row span { color: #8B89A8; }
+.epic-card-row b { font-weight: 600; color: #E8E7F0; }
+.epic-card-code { color: #A9B8FF; text-decoration: underline; font-weight: 600; font-size: 12px; pointer-events: auto; }
+.epic-card-nrr { color: #4ADE80; }
+.epic-card-progress-pill {
+  background: #16532F; color: #6EE7A8; font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 5px;
+}
+.epic-card-divider { height: 1px; background: rgba(255,255,255,0.1); margin: 8px 0 8px; }
+.epic-card-phase {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 16px; font-size: 11.5px; margin-bottom: 5px;
+}
+.epic-card-phase span { color: #8B89A8; font-weight: 600; flex-shrink: 0; }
+.epic-card-phase b { font-weight: 500; color: #C9C8DA; text-align: right; }
 
 /* ===== Row details tooltip ===== */
 .gantt-tooltip {

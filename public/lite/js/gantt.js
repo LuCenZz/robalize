@@ -46,7 +46,6 @@ const ui = {
   colFilters: {},
   colWidths: { product: 100, acto: 80, epicName: 250, status: 120, progress: 50 },
   lastResetKey: 0,
-  popover: null,        // {phaseId, phaseName, startDate, endDate, x, y}
   filterDropdown: null, // {col, rect: {left, bottom}}
   scrollKey: "",        // zoom+rowcount signature → scroll to today when it changes
 };
@@ -62,13 +61,6 @@ const COLS = [
 let rerender = null; // bound to the latest (container, state, actions)
 let unschedStickyLeft = 26; // sticky offset for "No date scheduled" pills
 
-document.addEventListener("mousedown", (e) => {
-  if (ui.popover && !e.target.closest(".phase-popover")) {
-    ui.popover = null;
-    rerender?.();
-  }
-});
-
 function esc(v) {
   return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -76,7 +68,6 @@ function esc(v) {
 
 const formatDate = (d) =>
   d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-const durationDays = (start, end) => Math.round((end.getTime() - start.getTime()) / 86400000);
 
 export function renderGantt(container, state, actions) {
   rerender = () => renderGantt(container, state, actions);
@@ -183,7 +174,6 @@ export function renderGantt(container, state, actions) {
         </div>
       </div>
     </div>
-    ${popoverHtml()}
     ${filterDropdownHtml(displayRows)}
   `;
 
@@ -368,11 +358,10 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
       const width = dayOffset(phase.endDate) - left + config.dayWidth;
       if (width <= 0) return "";
       const isConflicting = info?.conflictingPhases.has(phase.phaseName);
-      const isSelected = ui.popover?.phaseId === phase.id;
       const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
       const showLabel = width >= short.length * 6.5 + 14;
       return `
-        <div class="phase-bar ${isConflicting ? "phase-bar-conflict" : ""} ${isSelected ? "phase-bar-selected" : ""}"
+        <div class="phase-bar ${isConflicting ? "phase-bar-conflict" : ""}"
              data-phase-id="${esc(phase.id)}" data-row-idx="${i}"
              style="left:${left}px;top:${BAR_TOP}px;width:${width}px;height:${BAR_HEIGHT}px;background:${phase.color}">
           ${showLabel ? `<span class="phase-bar-label">${esc(short)}</span>` : ""}
@@ -388,18 +377,38 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
   `;
 }
 
-function popoverHtml() {
-  const p = ui.popover;
-  if (!p) return "";
-  const name = p.phaseName === "QA / Test" ? "QA" : p.phaseName;
+function buildEpicCardHtml(epic) {
+  const progressRaw = epic.rawData["Custom field (% of progress)"];
+  let progress = null;
+  if (progressRaw && progressRaw.trim()) {
+    const val = Math.round(parseFloat(progressRaw));
+    if (!isNaN(val)) progress = val;
+  }
+  const nrrRaw = epic.rawData["Custom field (NRR)"];
+  let nrr = null;
+  if (nrrRaw && nrrRaw.trim()) {
+    const val = parseFloat(nrrRaw);
+    if (!isNaN(val)) nrr = Math.round(val).toLocaleString("fr-FR");
+  }
+
+  const phaseRows = epic.phases
+    .slice()
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+    .map((phase) => {
+      const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
+      return `<div class="epic-card-phase"><span>${esc(short)}</span><b>${formatDate(phase.startDate)} → ${formatDate(phase.endDate)}</b></div>`;
+    }).join("");
+
   return `
-    <div class="phase-popover" style="left:${p.x}px;top:${p.y - 8}px">
-      <div class="phase-popover-arrow"></div>
-      <div class="phase-popover-title">${esc(name)}</div>
-      <div class="phase-popover-line"><span>Start</span><b>${formatDate(p.startDate)}</b></div>
-      <div class="phase-popover-line"><span>End</span><b>${formatDate(p.endDate)}</b></div>
-      <div class="phase-popover-line phase-popover-duration"><span>Duration</span><b>${durationDays(p.startDate, p.endDate)} days</b></div>
+    <div class="epic-card-title">${esc(epic.epicName)}</div>
+    <div class="epic-card-row">
+      <span>Code</span>
+      <a class="epic-card-code" href="https://imawebgroup.atlassian.net/browse/${encodeURIComponent(epic.epicKey)}" target="_blank" rel="noopener noreferrer">${esc(epic.epicKey)}</a>
     </div>
+    ${epic.status ? `<div class="epic-card-row"><span>Status</span><b>${esc(epic.status)}</b></div>` : ""}
+    ${nrr !== null ? `<div class="epic-card-row"><span>NRR</span><b class="epic-card-nrr">€${nrr}</b></div>` : ""}
+    ${progress !== null ? `<div class="epic-card-row"><span>Progress</span><span class="epic-card-progress-pill">${progress}%</span></div>` : ""}
+    ${phaseRows ? `<div class="epic-card-divider"></div>${phaseRows}` : ""}
   `;
 }
 
@@ -565,23 +574,14 @@ function wireEvents(container, state, actions, ctx) {
     });
   });
 
-  // Phase bars → popover
+  // Phase bars → epic summary card on hover
   container.querySelectorAll(".phase-bar").forEach((bar) => {
-    bar.addEventListener("click", (e) => {
-      e.stopPropagation();
+    bar.addEventListener("mouseenter", (e) => {
       const row = displayedRows[Number(bar.dataset.rowIdx)];
-      const phase = row.epic.phases.find((p) => p.id === bar.dataset.phaseId);
-      if (!phase) return;
-      ui.popover = ui.popover?.phaseId === phase.id ? null : {
-        phaseId: phase.id,
-        phaseName: phase.phaseName,
-        startDate: phase.startDate,
-        endDate: phase.endDate,
-        x: e.clientX,
-        y: e.clientY - 10,
-      };
-      rerender();
+      if (!row) return;
+      showEpicCard(e.clientX, e.clientY, row.epic);
     });
+    bar.addEventListener("mouseleave", hideEpicCard);
   });
 
   // Grid rows: click scrolls to closest phase; hover shows details tooltip
@@ -607,15 +607,11 @@ function wireEvents(container, state, actions, ctx) {
     }
   });
 
-  // Scroll: sync timeline header, close popover, recenter initiative labels
+  // Scroll: sync timeline header, hide epic card, recenter initiative labels
   body?.addEventListener("scroll", () => {
     syncHeaderScroll(container, body);
     updateInitiativeLabels(container, body);
-    if (ui.popover) {
-      ui.popover = null;
-      container.querySelector(".phase-popover")?.remove();
-      container.querySelectorAll(".phase-bar-selected").forEach((el) => el.classList.remove("phase-bar-selected"));
-    }
+    hideEpicCard();
   });
 }
 
@@ -697,4 +693,23 @@ function showTooltip(x, y, isInconsistent, details) {
 function hideTooltip() {
   tooltipEl?.remove();
   tooltipEl = null;
+}
+
+/* ---------- epic summary card (hover over a phase bar) ---------- */
+
+let epicCardEl = null;
+
+function showEpicCard(x, y, epic) {
+  hideEpicCard();
+  epicCardEl = document.createElement("div");
+  epicCardEl.className = "epic-card";
+  epicCardEl.innerHTML = buildEpicCardHtml(epic);
+  epicCardEl.style.left = `${x}px`;
+  epicCardEl.style.top = `${y - 10}px`;
+  document.body.appendChild(epicCardEl);
+}
+
+function hideEpicCard() {
+  epicCardEl?.remove();
+  epicCardEl = null;
 }
