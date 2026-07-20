@@ -3,7 +3,7 @@
 
 const JIRA_STORAGE_KEY = "oem-jira-config";
 
-export const DEFAULT_JQL = 'project = "ACTO" AND issuetype = Epic ORDER BY key ASC';
+export const DEFAULT_JQL = 'project = ACTO AND "product[dropdown]" IN (iCar, ICOM, Interfaces, Datacar, "Eris Motors", "Kobra II DMS", Ecaros, Drive, Serauto) AND status NOT IN (Ceased, Done) AND type in (Epic, Initiative) AND "type of task[dropdown]" = Projects ORDER BY cf[10015] ASC';
 
 // Empty credentials → the server-side proxy injects its own (env vars).
 export const DEFAULT_CONFIG = {
