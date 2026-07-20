@@ -383,13 +383,19 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
       const isConflicting = info?.conflictingPhases.has(phase.phaseName);
       const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
       const cum = cumWeights ? cumWeights[phase.phaseName] : null;
-      const label = cum !== null && cum !== undefined ? `${short} ${cum}%` : short;
-      const showLabel = width >= label.length * 6.2 + 14;
+      const hasCum = cum !== null && cum !== undefined;
+      // Narrow boxes (UAT, Pilot are usually short) degrade gracefully:
+      // full "UAT 90%" → percent-only "90%" → bare name → nothing.
+      const fitsWidth = (text) => width >= text.length * 6.2 + 12;
+      let label = null;
+      if (hasCum && fitsWidth(`${short} ${cum}%`)) label = `${short} ${cum}%`;
+      else if (hasCum && fitsWidth(`${cum}%`)) label = `${cum}%`;
+      else if (fitsWidth(short)) label = short;
       return `
         <div class="phase-bar ${isConflicting ? "phase-bar-conflict" : ""}"
              data-phase-id="${esc(phase.id)}" data-row-idx="${i}"
              style="left:${left}px;top:${BAR_TOP}px;width:${width}px;height:${BAR_HEIGHT}px;background:${phase.color}">
-          ${showLabel ? `<span class="phase-bar-label">${esc(label)}</span>` : ""}
+          ${label ? `<span class="phase-bar-label">${esc(label)}</span>` : ""}
         </div>
       `;
     }).join("");

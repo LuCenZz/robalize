@@ -153,15 +153,19 @@ test("computeWeightedProgress: current phase counts pro-rata by elapsed days", (
   assert.equal(computeWeightedProgress(e, today), 50);
 });
 
-test("computeWeightedProgress: Budget Hours DOC is ignored", () => {
+test("computeWeightedProgress: Budget Hours DOC folds into Pilot's weight", () => {
   const today = new Date(2026, 5, 1);
   const e = epic(1, [
     phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 31)), // finished
+    phase("Pilot", new Date(2026, 5, 1), new Date(2026, 5, 30)),        // starts today, 0 elapsed
   ], "In Progress", {
     "Custom field (Budget Hours DEV)": "50",
-    "Custom field (Budget Hours DOC)": "500", // must not dilute the weighting
+    "Custom field (Budget Hours Pilot)": "10",
+    "Custom field (Budget Hours DOC)": "40", // folded into Pilot's bucket (10+40=50)
   });
-  assert.equal(computeWeightedProgress(e, today), 100);
+  // total = 50 (Dev) + 50 (Pilot incl. DOC) = 100 → Dev is exactly half the
+  // project; without DOC folded in, Dev would instead be 50/60 = 83%.
+  assert.equal(computeWeightedProgress(e, today), 50);
 });
 
 test("computeWeightedProgress: a budgeted phase with no scheduled dates counts as not started", () => {
@@ -176,7 +180,7 @@ test("computeWeightedProgress: a budgeted phase with no scheduled dates counts a
   assert.equal(computeWeightedProgress(e, today), 50);
 });
 
-test("computePhaseCumulativeWeights: running total through phase order, DOC ignored", () => {
+test("computePhaseCumulativeWeights: running total through phase order", () => {
   const e = epic(1, [
     phase("Analysis", new Date(2026, 0, 1), new Date(2026, 0, 10)),
     phase("Development", new Date(2026, 0, 10), new Date(2026, 1, 10)),
@@ -187,13 +191,26 @@ test("computePhaseCumulativeWeights: running total through phase order, DOC igno
     "Custom field (Budget Hours Tester)": "15",
     "Custom field (Budget Hours UAT)": "15",
     "Custom field (Budget Hours Pilot)": "10",
-    "Custom field (Budget Hours DOC)": "999",
   });
   const cum = computePhaseCumulativeWeights(e);
   assert.equal(cum["Analysis"], 20);
   assert.equal(cum["Development"], 60);
   assert.equal(cum["QA / Test"], 75);
   assert.equal(cum["Customer UAT"], 90);
+  assert.equal(cum["Pilot"], 100);
+});
+
+test("computePhaseCumulativeWeights: Budget Hours DOC folds into Pilot, reaching exactly 100%", () => {
+  const e = epic(1, [
+    phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 31)),
+    phase("Pilot", new Date(2026, 5, 1), new Date(2026, 5, 30)),
+  ], "In Progress", {
+    "Custom field (Budget Hours DEV)": "50",
+    "Custom field (Budget Hours Pilot)": "10",
+    "Custom field (Budget Hours DOC)": "40",
+  });
+  const cum = computePhaseCumulativeWeights(e);
+  assert.equal(cum["Development"], 50);
   assert.equal(cum["Pilot"], 100);
 });
 
