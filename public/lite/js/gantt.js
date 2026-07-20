@@ -383,26 +383,14 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
       const isConflicting = info?.conflictingPhases.has(phase.phaseName);
       const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
       const cum = cumWeights ? cumWeights[phase.phaseName] : null;
-      const hasCum = cum !== null && cum !== undefined;
-      // Wide-enough boxes degrade gracefully: full "UAT 90%" → percent-only
-      // "90%" → bare name. When even the shortest form doesn't fit inside
-      // (short phases like Pilot are often just a few pixels wide), the
-      // percentage spills out to the right of the box instead of vanishing.
-      const fitsWidth = (text) => width >= text.length * 6.2 + 12;
-      let innerLabel = null;
-      if (hasCum && fitsWidth(`${short} ${cum}%`)) innerLabel = `${short} ${cum}%`;
-      else if (hasCum && fitsWidth(`${cum}%`)) innerLabel = `${cum}%`;
-      else if (fitsWidth(short)) innerLabel = short;
-      const overflowLabel = !innerLabel && hasCum ? `${cum}%` : null;
+      const label = cum !== null && cum !== undefined ? `${short} ${cum}%` : short;
+      // The label always sits above the box, centered on it — narrow
+      // boxes (Pilot especially) never have room for text inside them.
       return `
         <div class="phase-bar ${isConflicting ? "phase-bar-conflict" : ""}"
              data-phase-id="${esc(phase.id)}" data-row-idx="${i}"
-             style="left:${left}px;top:${BAR_TOP}px;width:${width}px;height:${BAR_HEIGHT}px;background:${phase.color}">
-          ${innerLabel ? `<span class="phase-bar-label">${esc(innerLabel)}</span>` : ""}
-        </div>
-        ${overflowLabel ? `
-          <span class="phase-bar-label-overflow" style="left:${left + width + 5}px;top:${BAR_TOP}px;height:${BAR_HEIGHT}px;color:${phase.color}">${esc(overflowLabel)}</span>
-        ` : ""}
+             style="left:${left}px;top:${BAR_TOP}px;width:${width}px;height:${BAR_HEIGHT}px;background:${phase.color}"></div>
+        <span class="phase-bar-label-above" style="left:${left + width / 2}px;top:${BAR_TOP - 13}px;color:${phase.color}">${esc(label)}</span>
       `;
     }).join("");
   }
