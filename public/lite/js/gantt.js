@@ -389,7 +389,7 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
         <div class="phase-bar ${isConflicting ? "phase-bar-conflict" : ""}"
              data-phase-id="${esc(phase.id)}" data-row-idx="${i}"
              style="left:${left}px;top:${BAR_TOP}px;width:${width}px;height:${BAR_HEIGHT}px;background:${phase.color}"></div>
-        <span class="phase-bar-label-above" style="left:${left + width / 2}px;top:${BAR_TOP - 13}px;color:${phase.color}">${esc(label)}</span>
+        <span class="phase-bar-label-above" style="left:${left}px;top:${BAR_TOP - 13}px;color:${phase.color}">${esc(label)}</span>
       `;
     }).join("");
   }
