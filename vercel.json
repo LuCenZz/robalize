@@ -1,11 +1,11 @@
 {
   "framework": "vite",
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build && mkdir -p dist/legacy && cp dist/index.html dist/legacy/index.html && cp dist/lite/index.html dist/index.html",
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/jira-proxy/:path*", "destination": "/api/jira-proxy" },
-    { "source": "/legacy", "destination": "/index.html" },
-    { "source": "/legacy/:path*", "destination": "/index.html" },
+    { "source": "/legacy", "destination": "/legacy/index.html" },
+    { "source": "/legacy/:path*", "destination": "/legacy/index.html" },
     { "source": "/lite", "destination": "/lite/index.html" },
     { "source": "/lite/", "destination": "/lite/index.html" },
     { "source": "/((?!api/|legacy|lite/).*)", "destination": "/lite/index.html" }
