@@ -17,6 +17,7 @@ export const state = {
   searchTerm: "",
   jiraConnected: false,
   loading: false,
+  refreshing: false,
   resetKey: 0,
   derived: {
     allEpicTasks: [], allDisplayRows: [], filteredEpicTasks: [],
@@ -108,7 +109,9 @@ export const actions = {
     // No connection step: saved config if any, otherwise defaults with
     // server-managed credentials.
     const config = { ...DEFAULT_CONFIG, ...(loadJiraConfig() || {}) };
-    if (!silent) { state.loading = true; renderAll(); }
+    state.refreshing = true;
+    if (!silent) state.loading = true;
+    renderAll();
     try {
       const rows = await fetchJiraData(config);
       if (rows.length > 0) {
@@ -120,7 +123,9 @@ export const actions = {
     } catch (err) {
       showError(err instanceof Error ? err.message : "JIRA fetch failed");
     } finally {
-      if (!silent) { state.loading = false; renderAll(); }
+      state.refreshing = false;
+      if (!silent) state.loading = false;
+      renderAll();
     }
   },
 

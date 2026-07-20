@@ -82,6 +82,17 @@ button, input, textarea, select { font-family: var(--font); }
 .brand-lines i:nth-child(1) { width: 16px; }
 .brand-lines i:nth-child(2) { width: 12px; opacity: 0.55; }
 .brand-lines i:nth-child(3) { width: 8px; background: #5DE8B0; opacity: 0.9; }
+@keyframes brand-line-pulse {
+  0%, 100% { transform: scaleX(0.35); opacity: 0.45; }
+  50% { transform: scaleX(1); opacity: 1; }
+}
+.brand-lines-loading i {
+  transform-origin: left center;
+  animation: brand-line-pulse 1s ease-in-out infinite;
+}
+.brand-lines-loading i:nth-child(1) { animation-delay: 0s; }
+.brand-lines-loading i:nth-child(2) { animation-delay: 0.15s; }
+.brand-lines-loading i:nth-child(3) { animation-delay: 0.3s; }
 .brand-name {
   font-family: 'Arial Black', Arial, sans-serif;
   font-weight: 900; font-size: 22px; line-height: 1; letter-spacing: -1.5px; color: #fff;
@@ -102,6 +113,11 @@ button, input, textarea, select { font-family: var(--font); }
 .pill-connected { background: rgba(52, 211, 153, 0.2); color: white; border: 1px solid rgba(52, 211, 153, 0.5); }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: #34D399; display: inline-block; }
 .dot-glow { box-shadow: 0 0 6px rgba(52, 211, 153, 0.5); }
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+.dot-pulse { animation: dot-pulse 0.9s ease-in-out infinite; }
 .search-wrap { position: relative; display: flex; align-items: center; }
 .search-wrap svg { position: absolute; left: 12px; pointer-events: none; opacity: 0.5; }
 .search-wrap input {

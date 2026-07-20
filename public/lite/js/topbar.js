@@ -4,7 +4,7 @@ export function renderTopBar(container, state, actions) {
   const count = state.derived.filteredEpicTasks.length;
   container.innerHTML = `
     <div class="brand">
-      <div class="brand-lines"><i></i><i></i><i></i></div>
+      <div class="brand-lines ${state.refreshing ? "brand-lines-loading" : ""}"><i></i><i></i><i></i></div>
       <div class="brand-name">rob<span>a</span>l<span>i</span>ze <em>lite</em></div>
     </div>
     <div class="topbar-actions">
@@ -20,8 +20,10 @@ export function renderTopBar(container, state, actions) {
           AI
         </button>
       ` : ""}
-      <button id="topbar-jira" class="pill ${state.jiraConnected ? "pill-connected" : "pill-ghost"}">
-        ${state.jiraConnected ? '<span class="dot dot-glow"></span>Jira Connected' : "Connect Jira"}
+      <button id="topbar-jira" class="pill ${state.jiraConnected ? "pill-connected" : "pill-ghost"}" title="${state.refreshing ? "Fetching the latest data from JIRA…" : ""}">
+        ${state.refreshing
+          ? '<span class="dot dot-glow dot-pulse"></span>Syncing…'
+          : state.jiraConnected ? '<span class="dot dot-glow"></span>Jira Connected' : "Connect Jira"}
       </button>
     </div>
   `;
