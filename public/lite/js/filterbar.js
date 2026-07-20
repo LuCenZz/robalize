@@ -18,18 +18,29 @@ const PRODUCT_COLORS = [
 // shortcut to it (initiatives can number in the dozens, too many for pills).
 const PROJECT_COLUMN = "Parent summary";
 
-let openDropdown = null; // {kind: "chip", column} | {kind: "add"} | {kind: "project"} | null
+let openDropdown = null; // {kind: "chip", column} | {kind: "add"} | null
 let dropdownSearch = "";
 let favorites = null; // lazy-loaded
 let dragFrom = null;
 let dragOver = null;
 let last = null; // {container, state, actions} for outside-click re-render
 
+// Project search: typed query + whether the suggestion list is showing.
+// Separate from openDropdown — this is a live search box, not a toggled panel.
+let projectQuery = "";
+let projectSuggestOpen = false;
+
 document.addEventListener("mousedown", (e) => {
-  if (!openDropdown || !last) return;
-  if (!last.container.contains(e.target)) {
+  if (!last) return;
+  const outside = !last.container.contains(e.target);
+  if (!outside) return;
+  if (openDropdown) {
     openDropdown = null;
     dropdownSearch = "";
+    renderFilterBar(last.container, last.state, last.actions);
+  } else if (projectSuggestOpen) {
+    projectSuggestOpen = false;
+    projectQuery = "";
     renderFilterBar(last.container, last.state, last.actions);
   }
 });
@@ -148,39 +159,33 @@ function productRowHtml(state, productValues) {
 function projectRowHtml(state, projectValues) {
   const filter = state.activeFilters.find((f) => f.column === PROJECT_COLUMN);
   const selected = filter ? filter.values : [];
-  const label = selected.length === 0 ? "All projects"
-    : selected.length === 1 ? selected[0]
-    : `${selected.length} projects`;
-  const isOpen = openDropdown?.kind === "project";
-  const filtered = projectValues.filter((v) => v.toLowerCase().includes(dropdownSearch.toLowerCase()));
+  const available = projectValues.filter((v) => !selected.includes(v));
+  const suggestions = projectSuggestOpen
+    ? available.filter((v) => v.toLowerCase().includes(projectQuery.toLowerCase()))
+    : [];
 
   return `
     <div class="product-row">
       <span class="filterbar-label">Project</span>
-      <div class="project-select-wrap">
-        <button class="project-select-btn ${selected.length > 0 ? "project-select-btn-active" : ""}">
-          <span class="chip-text">${esc(label)}</span>
-          <span class="chip-arrow ${isOpen ? "chip-arrow-open" : ""}">▼</span>
-        </button>
-        ${isOpen ? `
-          <div class="dropdown dropdown-chip">
-            <div class="dropdown-search-wrap">
-              <input class="dropdown-search dropdown-search-project" type="text" placeholder="Search projects..." />
-            </div>
-            <div class="dropdown-actions">
-              <button class="dropdown-select-all" data-role="project-select-all">Tout sélectionner</button>
-              <button class="dropdown-clear" data-role="project-clear">Effacer</button>
-            </div>
-            <div class="dropdown-options">
-              ${filtered.map((val) => `
-                <label class="dropdown-option ${selected.includes(val) ? "dropdown-option-checked" : ""}">
-                  <input type="checkbox" data-value="${esc(val)}" ${selected.includes(val) ? "checked" : ""} />
-                  <span>${esc(val)}</span>
-                </label>
-              `).join("")}
-              ${filtered.length === 0 ? '<div class="dropdown-empty">Aucun résultat</div>' : ""}
-            </div>
+      <div class="project-search-wrap">
+        <svg class="project-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <div class="project-search-box">
+          ${selected.map((val) => `
+            <span class="project-tag">
+              ${esc(val)}
+              <button class="project-tag-remove" data-value="${esc(val)}">×</button>
+            </span>
+          `).join("")}
+          <input class="project-search-input" type="text" placeholder="${selected.length === 0 ? "Search projects..." : "Add another..."}" />
+        </div>
+        ${selected.length > 0 ? '<button class="project-search-clear-all" title="Clear all projects">×</button>' : ""}
+        ${suggestions.length > 0 ? `
+          <div class="project-suggestions">
+            ${suggestions.map((val) => `<div class="project-suggestion" data-value="${esc(val)}">${esc(val)}</div>`).join("")}
           </div>
+        ` : ""}
+        ${projectSuggestOpen && projectQuery.trim() && suggestions.length === 0 ? `
+          <div class="project-suggestions"><div class="dropdown-empty">Aucun résultat</div></div>
         ` : ""}
       </div>
     </div>
@@ -239,20 +244,13 @@ function wireEvents(container, state, actions) {
     });
   });
 
-  // Project select: toggle dropdown, then search + multi-select checkboxes
-  container.querySelector(".project-select-btn")?.addEventListener("click", () => {
-    const isOpen = openDropdown?.kind === "project";
-    openDropdown = isOpen ? null : { kind: "project" };
-    dropdownSearch = "";
-    renderFilterBar(container, state, actions);
-    if (!isOpen) container.querySelector(".dropdown-search-project")?.focus();
-  });
-
-  const projectDd = openDropdown?.kind === "project" ? container.querySelector(".dropdown-chip") : null;
-  if (projectDd) {
-    const filter = state.activeFilters.find((f) => f.column === PROJECT_COLUMN);
-    const update = (values) => {
-      if (!filter) {
+  // Project search: type-ahead suggestions, click to add as a tag,
+  // multiple tags combine (AND'd with every other active filter).
+  const projectInput = container.querySelector(".project-search-input");
+  if (projectInput) {
+    const updateProject = (values) => {
+      const existing = state.activeFilters.find((f) => f.column === PROJECT_COLUMN);
+      if (!existing) {
         actions.setFilters([...state.activeFilters, { column: PROJECT_COLUMN, values }]);
       } else {
         actions.setFilters(state.activeFilters.map((f) =>
@@ -260,29 +258,43 @@ function wireEvents(container, state, actions) {
         ));
       }
     };
+    const addProject = (val) => {
+      const existing = state.activeFilters.find((f) => f.column === PROJECT_COLUMN);
+      const current = existing ? existing.values : [];
+      projectQuery = "";
+      updateProject([...current, val]);
+      // Re-render happens via actions.setFilters; refocus once it lands.
+      queueMicrotask(() => container.querySelector(".project-search-input")?.focus());
+    };
 
-    const search = projectDd.querySelector(".dropdown-search-project");
-    search.value = dropdownSearch;
-    search.addEventListener("input", (e) => {
-      const pos = e.target.selectionStart;
-      dropdownSearch = e.target.value;
+    projectInput.value = projectQuery;
+    projectInput.addEventListener("focus", () => {
+      if (projectSuggestOpen) return;
+      projectSuggestOpen = true;
       renderFilterBar(container, state, actions);
-      const next = container.querySelector(".dropdown-search-project");
+      container.querySelector(".project-search-input")?.focus();
+    });
+    projectInput.addEventListener("input", (e) => {
+      const pos = e.target.selectionStart;
+      projectQuery = e.target.value;
+      projectSuggestOpen = true;
+      renderFilterBar(container, state, actions);
+      const next = container.querySelector(".project-search-input");
       if (next) { next.focus(); next.setSelectionRange(pos, pos); }
     });
 
-    projectDd.querySelector(".dropdown-select-all").addEventListener("click", () => {
-      update(extractUniqueValues(state.rawData, PROJECT_COLUMN));
+    container.querySelectorAll(".project-suggestion").forEach((el) => {
+      el.addEventListener("click", () => addProject(el.dataset.value));
     });
-    projectDd.querySelector(".dropdown-clear").addEventListener("click", () => update([]));
-
-    projectDd.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-      cb.addEventListener("change", () => {
-        const val = cb.dataset.value;
-        const current = filter ? filter.values : [];
-        if (current.includes(val)) update(current.filter((v) => v !== val));
-        else update([...current, val]);
+    container.querySelectorAll(".project-tag-remove").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const existing = state.activeFilters.find((f) => f.column === PROJECT_COLUMN);
+        const current = existing ? existing.values : [];
+        updateProject(current.filter((v) => v !== btn.dataset.value));
       });
+    });
+    container.querySelector(".project-search-clear-all")?.addEventListener("click", () => {
+      updateProject([]);
     });
   }
 
