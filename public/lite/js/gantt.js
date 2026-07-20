@@ -377,7 +377,7 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
   `;
 }
 
-function buildEpicCardHtml(epic) {
+function buildEpicCardHtml(epic, phase) {
   const progressRaw = epic.rawData["Custom field (% of progress)"];
   let progress = null;
   if (progressRaw && progressRaw.trim()) {
@@ -391,13 +391,9 @@ function buildEpicCardHtml(epic) {
     if (!isNaN(val)) nrr = Math.round(val).toLocaleString("fr-FR");
   }
 
-  const phaseRows = epic.phases
-    .slice()
-    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
-    .map((phase) => {
-      const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
-      return `<div class="epic-card-phase"><span>${esc(short)}</span><b>${formatDate(phase.startDate)} → ${formatDate(phase.endDate)}</b></div>`;
-    }).join("");
+  // Only the hovered phase's dates are shown — not the full schedule.
+  const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
+  const phaseRows = `<div class="epic-card-phase"><span>${esc(short)}</span><b>${formatDate(phase.startDate)} → ${formatDate(phase.endDate)}</b></div>`;
 
   return `
     <div class="epic-card-title">${esc(epic.epicName)}</div>
@@ -574,12 +570,14 @@ function wireEvents(container, state, actions, ctx) {
     });
   });
 
-  // Phase bars → epic summary card on hover
+  // Phase bars → epic summary card on hover (dates shown are the hovered phase's only)
   container.querySelectorAll(".phase-bar").forEach((bar) => {
     bar.addEventListener("mouseenter", (e) => {
       const row = displayedRows[Number(bar.dataset.rowIdx)];
       if (!row) return;
-      showEpicCard(e.clientX, e.clientY, row.epic);
+      const phase = row.epic.phases.find((p) => p.id === bar.dataset.phaseId);
+      if (!phase) return;
+      showEpicCard(e.clientX, e.clientY, row.epic, phase);
     });
     bar.addEventListener("mouseleave", hideEpicCard);
   });
@@ -699,11 +697,11 @@ function hideTooltip() {
 
 let epicCardEl = null;
 
-function showEpicCard(x, y, epic) {
+function showEpicCard(x, y, epic, phase) {
   hideEpicCard();
   epicCardEl = document.createElement("div");
   epicCardEl.className = "epic-card";
-  epicCardEl.innerHTML = buildEpicCardHtml(epic);
+  epicCardEl.innerHTML = buildEpicCardHtml(epic, phase);
   epicCardEl.style.left = `${x}px`;
   epicCardEl.style.top = `${y - 10}px`;
   document.body.appendChild(epicCardEl);
