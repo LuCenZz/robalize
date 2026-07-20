@@ -4,6 +4,7 @@ import {
   ZOOM_CONFIG, ROW_HEIGHT, BAR_HEIGHT, BAR_TOP, TIMELINE_MARGIN,
   detectInconsistencies, detectAlerts, computeDateRange, makeDayOffset,
   buildTimelineHeaders, computeWeekLines, getCellText, applyGanttRowFilters,
+  getDisplayProgress,
 } from "./gantt-logic.js";
 import { PHASE_CONFIG, parseJiraDate } from "./transform.js";
 
@@ -295,12 +296,8 @@ function gridRowHtml(row, i, inconsistencies, alerts) {
   const { epic, isInitiative, isInconsistent, isAlerted, isHighlighted, highlightColor } =
     rowMeta(row, i, inconsistencies, alerts);
   const product = epic.rawData["Custom field (Product)"] || "";
-  const progressRaw = epic.rawData["Custom field (% of progress)"];
-  let progress = "";
-  if (progressRaw && progressRaw.trim()) {
-    const val = Math.round(parseFloat(progressRaw));
-    if (!isNaN(val)) progress = `${val}%`;
-  }
+  const displayProgress = isInitiative ? null : getDisplayProgress(epic);
+  const progress = displayProgress !== null ? `${displayProgress}%` : "";
   const hasDetails = (isInconsistent || isAlerted);
   return `
     <div class="grid-row ${rowMeta(row, i, inconsistencies, alerts).rowClass}"
@@ -417,12 +414,7 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
 }
 
 function buildEpicCardHtml(epic, phase) {
-  const progressRaw = epic.rawData["Custom field (% of progress)"];
-  let progress = null;
-  if (progressRaw && progressRaw.trim()) {
-    const val = Math.round(parseFloat(progressRaw));
-    if (!isNaN(val)) progress = val;
-  }
+  const progress = getDisplayProgress(epic);
   const nrrRaw = epic.rawData["Custom field (NRR)"];
   let nrr = null;
   if (nrrRaw && nrrRaw.trim()) {

@@ -266,6 +266,69 @@ export function computeWeekLines(minDate, maxDate, dayOffset) {
   return lines;
 }
 
+// Maps each timeline phase to the JIRA "Budget Hours <discipline>" field that
+// represents its share of the project's effort. "Budget Hours DOC" has no
+// phase counterpart and is intentionally excluded from the weighting.
+const PHASE_BUDGET_FIELD = {
+  "Analysis": "Custom field (Budget Hours CO)",
+  "Development": "Custom field (Budget Hours DEV)",
+  "QA / Test": "Custom field (Budget Hours Tester)",
+  "Customer UAT": "Custom field (Budget Hours UAT)",
+  "Pilot": "Custom field (Budget Hours Pilot)",
+};
+
+/**
+ * Project completion %, weighted by each phase's share of budgeted effort.
+ * A finished phase (end date passed) counts fully toward its weight; the
+ * phase currently underway counts pro-rata by elapsed days; future or
+ * unscheduled phases count 0. Returns null when no budget hours are set.
+ */
+export function computeWeightedProgress(epic, today = new Date()) {
+  const hoursByPhase = {};
+  let total = 0;
+  for (const [phaseName, field] of Object.entries(PHASE_BUDGET_FIELD)) {
+    const raw = epic.rawData[field];
+    const hours = raw && raw.trim() ? parseFloat(raw) : NaN;
+    if (!isNaN(hours) && hours > 0) {
+      hoursByPhase[phaseName] = hours;
+      total += hours;
+    }
+  }
+  if (total <= 0) return null;
+
+  const todayVal = toDayValue(today);
+  let progress = 0;
+  for (const [phaseName, hours] of Object.entries(hoursByPhase)) {
+    const weight = hours / total;
+    const phase = epic.phases.find((p) => p.phaseName === phaseName);
+    let fraction = 0;
+    if (phase) {
+      const startVal = toDayValue(phase.startDate);
+      const endVal = toDayValue(phase.endDate);
+      if (todayVal >= endVal) fraction = 1;
+      else if (todayVal >= startVal) {
+        const duration = endVal - startVal;
+        fraction = duration > 0 ? (todayVal - startVal) / duration : 1;
+      }
+    }
+    progress += weight * fraction;
+  }
+  return Math.round(progress * 100);
+}
+
+/**
+ * Prefer the charge-weighted completion; fall back to JIRA's raw
+ * "% of progress" field when no Budget Hours are set on the epic.
+ */
+export function getDisplayProgress(epic, today = new Date()) {
+  const weighted = computeWeightedProgress(epic, today);
+  if (weighted !== null) return weighted;
+  const raw = epic.rawData["Custom field (% of progress)"];
+  if (!raw || !raw.trim()) return null;
+  const val = Math.round(parseFloat(raw));
+  return isNaN(val) ? null : val;
+}
+
 export function getCellText(epic, col, isInitiative) {
   if (isInitiative && col !== "epicName" && col !== "progress") return "";
   switch (col) {
@@ -274,10 +337,9 @@ export function getCellText(epic, col, isInitiative) {
     case "epicName": return epic.epicName || "";
     case "status": return epic.status || "";
     case "progress": {
-      const raw = epic.rawData["Custom field (% of progress)"];
-      if (!raw || !raw.trim()) return "";
-      const val = Math.round(parseFloat(raw));
-      return isNaN(val) ? "" : String(val);
+      if (isInitiative) return "";
+      const val = getDisplayProgress(epic);
+      return val === null ? "" : String(val);
     }
     default: return "";
   }

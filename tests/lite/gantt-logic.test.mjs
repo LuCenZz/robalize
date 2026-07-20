@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   toDayValue, getWeekNumber, detectInconsistencies, detectAlerts,
   computeDateRange, makeDayOffset, buildTimelineHeaders, computeWeekLines,
-  getCellText, applyGanttRowFilters, ZOOM_CONFIG, TIMELINE_MARGIN,
+  getCellText, applyGanttRowFilters, computeWeightedProgress, ZOOM_CONFIG, TIMELINE_MARGIN,
 } from "../../public/lite/js/gantt-logic.js";
 
 function epic(id, phases, status = "In Progress", raw = {}) {
@@ -121,4 +121,56 @@ test("getCellText: initiative shows only name and progress columns", () => {
   assert.equal(getCellText(e, "product", false), "P1");
   assert.equal(getCellText(e, "progress", false), "42");
   assert.equal(getCellText(e, "epicName", true), "Epic 1");
+});
+
+test("computeWeightedProgress: null when no budget hours are set", () => {
+  const e = epic(1, [phase("Development", new Date(2026, 0, 1), new Date(2026, 1, 1))]);
+  assert.equal(computeWeightedProgress(e, new Date(2026, 5, 1)), null);
+});
+
+test("computeWeightedProgress: finished phases count fully, future phases count 0", () => {
+  const today = new Date(2026, 3, 1); // 1 Apr 2026
+  const e = epic(1, [
+    phase("Analysis", new Date(2026, 0, 1), new Date(2026, 0, 31)),   // finished
+    phase("Development", new Date(2026, 5, 1), new Date(2026, 6, 1)), // hasn't started
+  ], "In Progress", {
+    "Custom field (Budget Hours CO)": "40",   // Analysis: half the total weight
+    "Custom field (Budget Hours DEV)": "40",  // Development: half the total weight
+  });
+  // Analysis (50% weight, done) + Development (50% weight, not started) = 50%
+  assert.equal(computeWeightedProgress(e, today), 50);
+});
+
+test("computeWeightedProgress: current phase counts pro-rata by elapsed days", () => {
+  const today = new Date(2026, 0, 11); // 10 days into a 20-day phase
+  const e = epic(1, [
+    phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 21)),
+  ], "In Progress", {
+    "Custom field (Budget Hours DEV)": "100",
+  });
+  // Single phase = 100% of weight, 10/20 days elapsed = 50% of that phase done
+  assert.equal(computeWeightedProgress(e, today), 50);
+});
+
+test("computeWeightedProgress: Budget Hours DOC is ignored", () => {
+  const today = new Date(2026, 5, 1);
+  const e = epic(1, [
+    phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 31)), // finished
+  ], "In Progress", {
+    "Custom field (Budget Hours DEV)": "50",
+    "Custom field (Budget Hours DOC)": "500", // must not dilute the weighting
+  });
+  assert.equal(computeWeightedProgress(e, today), 100);
+});
+
+test("computeWeightedProgress: a budgeted phase with no scheduled dates counts as not started", () => {
+  const today = new Date(2026, 5, 1);
+  const e = epic(1, [
+    phase("Analysis", new Date(2026, 0, 1), new Date(2026, 0, 31)), // finished
+    // Development has budget hours but no dates in epic.phases
+  ], "In Progress", {
+    "Custom field (Budget Hours CO)": "50",
+    "Custom field (Budget Hours DEV)": "50",
+  });
+  assert.equal(computeWeightedProgress(e, today), 50);
 });
