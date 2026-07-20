@@ -198,6 +198,23 @@ button, input, textarea, select { font-family: var(--font); }
   padding: 11px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 
+/* ===== Product pills ===== */
+.product-row {
+  background: var(--surface);
+  border-bottom: 1px solid var(--hairline);
+  padding: 8px 20px;
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+}
+.product-pill {
+  border: 1.5px solid transparent; border-radius: 100px; padding: 5px 14px;
+  font-size: 12px; font-weight: 600; cursor: pointer; letter-spacing: 0.2px;
+  transition: filter 0.1s, background 0.15s;
+}
+.product-pill-active { color: white; }
+.product-pill-active:hover { filter: brightness(1.08); }
+.product-pill-inactive { background: white; }
+.product-pill-inactive:hover { background: color-mix(in srgb, currentColor 12%, white); }
+
 /* ===== Filter bar ===== */
 .filterbar {
   background: var(--filterbar-bg);

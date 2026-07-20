@@ -1,7 +1,16 @@
 // Port of src/components/FilterBar.tsx: chips with checkbox dropdowns,
 // favorites (★, persisted), add-filter dropdown, reset, drag & drop reorder.
+// Also renders a dedicated row of colored Product pills — a quick-access
+// shortcut for the same "Custom field (Product)" filter.
 import { extractUniqueValues } from "./transform.js";
 import { loadFavorites, saveFavorites } from "./prefs.js";
+
+const PRODUCT_COLUMN = "Custom field (Product)";
+const PRODUCT_COLORS = [
+  "#4A6CF7", "#8B5CF6", "#16A34A", "#F59E0B",
+  "#EF4444", "#06B6D4", "#F43F5E", "#84CC16",
+  "#6366F1", "#EC4899",
+];
 
 let openDropdown = null; // {kind: "chip", column} | {kind: "add"} | null
 let dropdownSearch = "";
@@ -72,7 +81,12 @@ export function renderFilterBar(container, state, actions) {
     c.toLowerCase().includes(dropdownSearch.toLowerCase())
   );
 
+  const productValues = state.columns.includes(PRODUCT_COLUMN)
+    ? extractUniqueValues(state.rawData, PRODUCT_COLUMN)
+    : [];
+
   container.innerHTML = `
+    ${productValues.length > 0 ? productRowHtml(state, productValues) : ""}
     <div class="filterbar">
       <span class="filterbar-label">Filters</span>
       ${chipsHtml}
@@ -98,6 +112,27 @@ export function renderFilterBar(container, state, actions) {
   `;
 
   wireEvents(container, state, actions);
+}
+
+function productRowHtml(state, productValues) {
+  const filter = state.activeFilters.find((f) => f.column === PRODUCT_COLUMN);
+  const hasSelection = !!filter && filter.values.length > 0;
+  return `
+    <div class="product-row">
+      <span class="filterbar-label">Product</span>
+      ${productValues.map((val, i) => {
+        const color = PRODUCT_COLORS[i % PRODUCT_COLORS.length];
+        const active = !hasSelection || filter.values.includes(val);
+        return `
+          <button class="product-pill ${active ? "product-pill-active" : "product-pill-inactive"}"
+                  data-value="${esc(val)}"
+                  style="${active ? `background:${color};border-color:${color};` : `color:${color};border-color:${color};`}">
+            ${esc(val)}
+          </button>
+        `;
+      }).join("")}
+    </div>
+  `;
 }
 
 function chipDropdownHtml(filter, state) {
@@ -133,6 +168,25 @@ function chipDropdownHtml(filter, state) {
 }
 
 function wireEvents(container, state, actions) {
+  // Product pills: toggle this value in/out of the Custom field (Product)
+  // filter. No selection at all means "show everything" (all pills lit).
+  container.querySelectorAll(".product-pill").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const value = btn.dataset.value;
+      const existing = state.activeFilters.find((f) => f.column === PRODUCT_COLUMN);
+      if (!existing) {
+        actions.setFilters([...state.activeFilters, { column: PRODUCT_COLUMN, values: [value] }]);
+        return;
+      }
+      const values = existing.values.includes(value)
+        ? existing.values.filter((v) => v !== value)
+        : [...existing.values, value];
+      actions.setFilters(state.activeFilters.map((f) =>
+        f.column === PRODUCT_COLUMN ? { ...f, values } : f
+      ));
+    });
+  });
+
   // Chip label → toggle dropdown
   container.querySelectorAll(".chip-label").forEach((btn) => {
     btn.addEventListener("click", () => {
