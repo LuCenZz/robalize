@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   toDayValue, getWeekNumber, detectInconsistencies, detectAlerts,
   computeDateRange, makeDayOffset, buildTimelineHeaders, computeWeekLines,
-  getCellText, applyGanttRowFilters, computeWeightedProgress, ZOOM_CONFIG, TIMELINE_MARGIN,
+  getCellText, applyGanttRowFilters, computeWeightedProgress,
+  computePhaseCumulativeWeights, ZOOM_CONFIG, TIMELINE_MARGIN,
 } from "../../public/lite/js/gantt-logic.js";
 
 function epic(id, phases, status = "In Progress", raw = {}) {
@@ -173,4 +174,30 @@ test("computeWeightedProgress: a budgeted phase with no scheduled dates counts a
     "Custom field (Budget Hours DEV)": "50",
   });
   assert.equal(computeWeightedProgress(e, today), 50);
+});
+
+test("computePhaseCumulativeWeights: running total through phase order, DOC ignored", () => {
+  const e = epic(1, [
+    phase("Analysis", new Date(2026, 0, 1), new Date(2026, 0, 10)),
+    phase("Development", new Date(2026, 0, 10), new Date(2026, 1, 10)),
+    phase("QA / Test", new Date(2026, 1, 10), new Date(2026, 1, 20)),
+  ], "In Progress", {
+    "Custom field (Budget Hours CO)": "20",
+    "Custom field (Budget Hours DEV)": "40",
+    "Custom field (Budget Hours Tester)": "15",
+    "Custom field (Budget Hours UAT)": "15",
+    "Custom field (Budget Hours Pilot)": "10",
+    "Custom field (Budget Hours DOC)": "999",
+  });
+  const cum = computePhaseCumulativeWeights(e);
+  assert.equal(cum["Analysis"], 20);
+  assert.equal(cum["Development"], 60);
+  assert.equal(cum["QA / Test"], 75);
+  assert.equal(cum["Customer UAT"], 90);
+  assert.equal(cum["Pilot"], 100);
+});
+
+test("computePhaseCumulativeWeights: null when no budget hours are set", () => {
+  const e = epic(1, [phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 10))]);
+  assert.equal(computePhaseCumulativeWeights(e), null);
 });

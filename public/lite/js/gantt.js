@@ -4,7 +4,7 @@ import {
   ZOOM_CONFIG, ROW_HEIGHT, BAR_HEIGHT, BAR_TOP, TIMELINE_MARGIN,
   detectInconsistencies, detectAlerts, computeDateRange, makeDayOffset,
   buildTimelineHeaders, computeWeekLines, getCellText, applyGanttRowFilters,
-  getDisplayProgress,
+  getDisplayProgress, computePhaseCumulativeWeights,
 } from "./gantt-logic.js";
 import { PHASE_CONFIG, parseJiraDate } from "./transform.js";
 
@@ -375,18 +375,21 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
         `;
       }
     }
+    const cumWeights = computePhaseCumulativeWeights(epic);
     bars += epic.phases.map((phase) => {
       const left = dayOffset(phase.startDate);
       const width = dayOffset(phase.endDate) - left + config.dayWidth;
       if (width <= 0) return "";
       const isConflicting = info?.conflictingPhases.has(phase.phaseName);
       const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
-      const showLabel = width >= short.length * 6.5 + 14;
+      const cum = cumWeights ? cumWeights[phase.phaseName] : null;
+      const label = cum !== null && cum !== undefined ? `${short} ${cum}%` : short;
+      const showLabel = width >= label.length * 6.2 + 14;
       return `
         <div class="phase-bar ${isConflicting ? "phase-bar-conflict" : ""}"
              data-phase-id="${esc(phase.id)}" data-row-idx="${i}"
              style="left:${left}px;top:${BAR_TOP}px;width:${width}px;height:${BAR_HEIGHT}px;background:${phase.color}">
-          ${showLabel ? `<span class="phase-bar-label">${esc(short)}</span>` : ""}
+          ${showLabel ? `<span class="phase-bar-label">${esc(label)}</span>` : ""}
         </div>
       `;
     }).join("");

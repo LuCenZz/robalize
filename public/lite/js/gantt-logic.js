@@ -317,6 +317,36 @@ export function computeWeightedProgress(epic, today = new Date()) {
 }
 
 /**
+ * Cumulative share of the project's total budgeted effort completed once
+ * each phase, in turn, finishes: phase N's value = its own weight plus
+ * every earlier phase's weight (in PHASE_ORDER). Unlike
+ * computeWeightedProgress, this ignores dates entirely — it's a static
+ * "how much of the project does finishing this step represent" figure.
+ * Returns null when no budget hours are set anywhere on the epic.
+ */
+export function computePhaseCumulativeWeights(epic) {
+  const hoursByPhase = {};
+  let total = 0;
+  for (const [phaseName, field] of Object.entries(PHASE_BUDGET_FIELD)) {
+    const raw = epic.rawData[field];
+    const hours = raw && raw.trim() ? parseFloat(raw) : NaN;
+    if (!isNaN(hours) && hours > 0) {
+      hoursByPhase[phaseName] = hours;
+      total += hours;
+    }
+  }
+  if (total <= 0) return null;
+
+  const cumulative = {};
+  let running = 0;
+  for (const phaseName of PHASE_ORDER) {
+    running += (hoursByPhase[phaseName] || 0) / total;
+    cumulative[phaseName] = Math.round(running * 100);
+  }
+  return cumulative;
+}
+
+/**
  * Prefer the charge-weighted completion; fall back to JIRA's raw
  * "% of progress" field when no Budget Hours are set on the epic.
  */
