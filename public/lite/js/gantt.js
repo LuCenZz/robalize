@@ -1,11 +1,12 @@
 // DOM rendering + interactions for the Gantt chart.
 // Port of src/components/GanttChart.tsx on top of the pure gantt-logic.js.
 import {
-  ZOOM_CONFIG, ROW_HEIGHT, BAR_HEIGHT, BAR_TOP, TIMELINE_MARGIN,
+  ZOOM_CONFIG, ROW_HEIGHT, BAR_HEIGHT, BAR_TOP, TIMELINE_MARGIN, HEADER_ROW_HEIGHT,
   detectInconsistencies, detectAlerts, detectEddIssues, computeDateRange, makeDayOffset,
   buildTimelineHeaders, computeWeekLines, getCellText, applyGanttRowFilters,
   getDisplayProgress, computePhaseCumulativeWeights, computePhaseWeight,
-  computePhaseWorkloadDays,
+  computePhaseWorkloadDays, computePhasePrice, computePhasePriceCumulative,
+  computePeriodForecast,
 } from "./gantt-logic.js";
 import { PHASE_CONFIG, parseJiraDate } from "./transform.js";
 
@@ -47,7 +48,7 @@ const ui = {
   sortCol: null,
   sortDir: null,
   colFilters: {},
-  colWidths: { product: 100, acto: 92, epicName: 250, status: 120, progress: 50 },
+  colWidths: { product: 108, acto: 100, epicName: 270, status: 132, progress: 96 },
   lastResetKey: 0,
   filterDropdown: null, // {col, rect: {left, bottom}}
   scrollKey: "",        // zoom+rowcount signature → scroll to today when it changes
@@ -72,6 +73,26 @@ function esc(v) {
 const formatDate = (d) =>
   d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
+function formatMoney(val) {
+  return Math.round(val).toLocaleString("fr-FR");
+}
+
+// Compact form for tight spaces (the grid's % column): 1046 -> "1k", 793 -> "793".
+function formatMoneyCompact(val) {
+  const abs = Math.abs(val);
+  if (abs >= 1000) return `${(val / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  return String(Math.round(val));
+}
+
+// The epic's total NRR — not per-phase data, so every phase box shows the
+// same figure when the toggle is set to NRR mode.
+function getEpicNrr(epic) {
+  const raw = epic.rawData["Custom field ((€)NRR New (DEV))"];
+  if (!raw || !raw.trim()) return null;
+  const val = parseFloat(raw);
+  return isNaN(val) ? null : formatMoney(val);
+}
+
 export function renderGantt(container, state, actions) {
   rerender = () => renderGantt(container, state, actions);
 
@@ -88,10 +109,13 @@ export function renderGantt(container, state, actions) {
     ui.filterDropdown = null;
   }
 
-  const { allEpicTasks, filteredEpicTasks, displayRows } = state.derived;
-  const inconsistencies = detectInconsistencies(allEpicTasks);
-  const alerts = detectAlerts(allEpicTasks);
-  const eddIssues = detectEddIssues(allEpicTasks);
+  const { filteredEpicTasks, displayRows } = state.derived;
+  // Computed from the currently filtered epics (Product/Project/column
+  // filters), not the full dataset — otherwise this badge count wouldn't
+  // match the rows actually shown below once a filter narrows the list.
+  const inconsistencies = detectInconsistencies(filteredEpicTasks);
+  const alerts = detectAlerts(filteredEpicTasks);
+  const eddIssues = detectEddIssues(filteredEpicTasks);
   const displayedRows = applyGanttRowFilters(displayRows, {
     showInconsistencies: ui.showInconsistencies,
     showAlerts: ui.showAlerts,
@@ -117,7 +141,7 @@ export function renderGantt(container, state, actions) {
 
   const gridTotalWidth = COLS.reduce((s, c) => s + ui.colWidths[c.col], 0);
   unschedStickyLeft = (ui.gridCollapsed ? 0 : gridTotalWidth) + 26;
-  const headerHeight = 20 * 2 + (mainHeaders.length > 0 ? 20 : 0) + (subHeaders.length > 0 ? 20 : 0) + 2;
+  const headerHeight = HEADER_ROW_HEIGHT * 2 + (mainHeaders.length > 0 ? HEADER_ROW_HEIGHT : 0) + (subHeaders.length > 0 ? HEADER_ROW_HEIGHT : 0) + 2;
   const rowsHeight = displayedRows.length * ROW_HEIGHT;
   const todayX = dayOffset(new Date());
 
@@ -153,13 +177,13 @@ export function renderGantt(container, state, actions) {
             ${yearHeaders.map((h) => `<div class="tl-cell tl-cell-year" style="left:${h.left}px;width:${h.width}px">${h.label}</div>`).join("")}
           </div>
           <div class="tl-header-row">
-            ${quarterHeaders.map((h) => `<div class="tl-cell tl-cell-quarter" style="left:${h.left}px;width:${h.width}px">${h.label}</div>`).join("")}
+            ${quarterHeaders.map((h) => `<div class="tl-cell tl-cell-quarter" ${periodAttrs(h)} style="left:${h.left}px;width:${h.width}px">${h.label}</div>`).join("")}
           </div>
           ${mainHeaders.length > 0 ? `<div class="tl-header-row">
-            ${mainHeaders.map((h) => `<div class="tl-cell tl-cell-main" style="left:${h.left}px;width:${h.width}px">${h.label}</div>`).join("")}
+            ${mainHeaders.map((h) => `<div class="tl-cell tl-cell-main" ${periodAttrs(h)} style="left:${h.left}px;width:${h.width}px">${h.label}</div>`).join("")}
           </div>` : ""}
           ${subHeaders.length > 0 ? `<div class="tl-header-row tl-header-row-last">
-            ${subHeaders.map((h) => `<div class="tl-cell tl-cell-sub ${h.left <= todayX && todayX < h.left + h.width ? "tl-cell-current" : ""}" style="left:${h.left}px;width:${h.width}px">${h.label}</div>`).join("")}
+            ${subHeaders.map((h) => `<div class="tl-cell tl-cell-sub ${h.left <= todayX && todayX < h.left + h.width ? "tl-cell-current" : ""}" ${periodAttrs(h)} style="left:${h.left}px;width:${h.width}px">${h.label}</div>`).join("")}
           </div>` : ""}
         </div>
       </div>
@@ -176,7 +200,7 @@ export function renderGantt(container, state, actions) {
             ${todayX >= 0 && todayX <= totalWidth ? `
               <div class="today-line" style="left:${todayX}px;height:${rowsHeight}px"><div class="today-dot"></div></div>` : ""}
             ${weekLines.map((x) => `<div class="week-line" style="left:${x}px;height:${rowsHeight}px"></div>`).join("")}
-            ${displayedRows.map((row, i) => timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, eddIssues)).join("")}
+            ${displayedRows.map((row, i) => timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, eddIssues, state.boxMode)).join("")}
           </div>
         </div>
       </div>
@@ -245,6 +269,14 @@ function toolbarHtml(inconsistencies, alerts, eddIssues) {
   `;
 }
 
+// Whole-month / whole-quarter header cells carry start/end (see
+// buildTimelineHeaders) so their NRR forecast can be computed on hover;
+// week/day cells don't and get no attributes (no tooltip wired for them).
+function periodAttrs(h) {
+  if (!h.start || !h.end) return "";
+  return `data-period-start="${h.start.toISOString()}" data-period-end="${h.end.toISOString()}"`;
+}
+
 function emptyStateHtml() {
   const icon = ui.showInconsistencies ? "⚠" : ui.showAlerts ? "🔔" : ui.showEddIssues ? "📅" : "📋";
   const detail = ui.showInconsistencies
@@ -286,6 +318,22 @@ function gridRowHtml(row, i, inconsistencies, alerts, eddIssues) {
   const product = epic.rawData["Custom field (Product)"] || "";
   const displayProgress = isInitiative ? null : getDisplayProgress(epic);
   const progress = displayProgress !== null ? `${displayProgress}%` : "";
+  // NRR reached / total expected at the current progress %, from the same
+  // Budget Price total as the phase boxes' NRR mode (Pilot's cumulative
+  // value = the sum of every step's own Budget Price).
+  let nrrProgressHtml = "";
+  if (!isInitiative && displayProgress !== null) {
+    const cumPrices = computePhasePriceCumulative(epic);
+    const totalNrr = cumPrices ? cumPrices["Pilot"] : null;
+    if (totalNrr) {
+      const reached = totalNrr * (displayProgress / 100);
+      nrrProgressHtml = `
+        <div class="grid-cell-progress-nrr" title="€${formatMoney(reached)} atteint sur €${formatMoney(totalNrr)} attendu">
+          €${formatMoneyCompact(reached)}/€${formatMoneyCompact(totalNrr)}
+        </div>
+      `;
+    }
+  }
   const hasDetails = (isInconsistent || isAlerted || isEddIssue);
   return `
     <div class="grid-row ${rowMeta(row, i, inconsistencies, alerts, eddIssues).rowClass}"
@@ -312,12 +360,13 @@ function gridRowHtml(row, i, inconsistencies, alerts, eddIssues) {
       </div>
       <div class="grid-cell grid-cell-progress" data-colw="progress" style="width:${ui.colWidths.progress}px">
         ${progress}
+        ${nrrProgressHtml}
       </div>
     </div>
   `;
 }
 
-function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, eddIssues) {
+function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, eddIssues, boxMode) {
   const { epic, isInitiative, isInconsistent } = rowMeta(row, i, inconsistencies, alerts, eddIssues);
   const info = isInconsistent ? inconsistencies.get(epic.id) : null;
   let bars = "";
@@ -332,9 +381,9 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, edd
       const label = `${epic.epicKey} — ${epic.epicName}${client ? ` [${client}]` : ""}`;
       // Slim "summary task" bar with the label in small caps above it
       bars = `
-        <div class="initiative-bar" style="left:${minLeft}px;top:26px;width:${w}px"></div>
+        <div class="initiative-bar" style="left:${minLeft}px;top:31px;width:${w}px"></div>
         <div class="initiative-label" data-bar-left="${minLeft}" data-bar-width="${w}"
-             style="left:${minLeft + w / 2}px;top:6px;height:14px">
+             style="left:${minLeft + w / 2}px;top:7px;height:16px">
           <span>${esc(label)}</span>
         </div>
       `;
@@ -364,20 +413,33 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, edd
       }
     }
     const cumWeights = computePhaseCumulativeWeights(epic);
+    const cumPrices = boxMode === "nrr" ? computePhasePriceCumulative(epic) : null;
     bars += epic.phases.map((phase) => {
       const left = dayOffset(phase.startDate);
       const width = dayOffset(phase.endDate) - left + config.dayWidth;
       if (width <= 0) return "";
       const isConflicting = info?.conflictingPhases.has(phase.phaseName);
-      const cum = cumWeights ? cumWeights[phase.phaseName] : null;
-      const label = cum !== null && cum !== undefined ? `${cum}%` : PHASE_SHORT[phase.phaseName] || phase.phaseName;
+      const fallback = PHASE_SHORT[phase.phaseName] || phase.phaseName;
+      let label;
+      if (boxMode === "effort") {
+        const days = computePhaseWorkloadDays(epic, phase.phaseName);
+        label = days !== null ? `${days}d` : fallback;
+      } else if (boxMode === "nrr") {
+        // Running total of Budget Price through this phase — same data as
+        // the "Step budget" tooltip row, cumulative like % Progress.
+        const cum = cumPrices ? cumPrices[phase.phaseName] : null;
+        label = cum !== null && cum !== undefined ? `€${formatMoneyCompact(cum)}` : fallback;
+      } else {
+        const cum = cumWeights ? cumWeights[phase.phaseName] : null;
+        label = cum !== null && cum !== undefined ? `${cum}%` : fallback;
+      }
       // The label always sits above the box, centered on it — narrow
       // boxes (Pilot especially) never have room for text inside them.
       return `
         <div class="phase-bar ${isConflicting ? "phase-bar-conflict" : ""}"
              data-phase-id="${esc(phase.id)}" data-row-idx="${i}"
              style="left:${left}px;top:${BAR_TOP}px;width:${width}px;height:${BAR_HEIGHT}px;background:${phase.color}"></div>
-        <span class="phase-bar-label-above" style="left:${left}px;top:${BAR_TOP - 13}px;color:${phase.color}">${esc(label)}</span>
+        <span class="phase-bar-label-above" style="left:${left}px;top:${BAR_TOP - 15}px;color:${phase.color}">${esc(label)}</span>
       `;
     }).join("");
   }
@@ -405,13 +467,9 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, edd
 
 function buildEpicCardHtml(epic, phase) {
   const stepWeight = computePhaseWeight(epic, phase.phaseName);
-  const nrrRaw = epic.rawData["Custom field (NRR)"];
-  let nrr = null;
-  if (nrrRaw && nrrRaw.trim()) {
-    const val = parseFloat(nrrRaw);
-    if (!isNaN(val)) nrr = Math.round(val).toLocaleString("fr-FR");
-  }
+  const nrr = getEpicNrr(epic);
   const workloadDays = computePhaseWorkloadDays(epic, phase.phaseName);
+  const phasePrice = computePhasePrice(epic, phase.phaseName);
 
   // Only the hovered phase's dates are shown — not the full schedule.
   const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
@@ -426,6 +484,7 @@ function buildEpicCardHtml(epic, phase) {
     ${epic.status ? `<div class="epic-card-row"><span>Status</span><b>${esc(epic.status)}</b></div>` : ""}
     ${nrr !== null ? `<div class="epic-card-row"><span>NRR</span><b class="epic-card-nrr">€${nrr}</b></div>` : ""}
     ${workloadDays !== null ? `<div class="epic-card-row"><span>Step workload</span><b>${workloadDays} ${workloadDays === "1" ? "day" : "days"}</b></div>` : ""}
+    ${phasePrice !== null ? `<div class="epic-card-row"><span>Step budget</span><b class="epic-card-nrr">€${formatMoney(phasePrice)}</b></div>` : ""}
     ${stepWeight !== null ? `<div class="epic-card-row"><span>Step weight</span><span class="epic-card-progress-pill">${stepWeight}%</span></div>` : ""}
     ${phaseRows ? `<div class="epic-card-divider"></div>${phaseRows}` : ""}
   `;
@@ -606,6 +665,19 @@ function wireEvents(container, state, actions, ctx) {
     marker.addEventListener("mouseleave", hideTooltip);
   });
 
+  // Whole-month / whole-quarter header cells → NRR forecast tooltip,
+  // computed from exactly the rows currently shown in the Gantt below.
+  container.querySelectorAll("[data-period-start]").forEach((cell) => {
+    cell.addEventListener("mouseenter", () => {
+      const start = new Date(cell.dataset.periodStart);
+      const end = new Date(cell.dataset.periodEnd);
+      const forecast = computePeriodForecast(displayedRows, start, end);
+      const rect = cell.getBoundingClientRect();
+      showMarkerTooltip(rect.left + rect.width / 2, rect.bottom + 6, `NRR forecast: €${formatMoney(forecast)}`, "below");
+    });
+    cell.addEventListener("mouseleave", hideTooltip);
+  });
+
   // Phase bars → epic summary card on hover (dates shown are the hovered phase's only);
   // double-click opens that epic's ACTO directly in JIRA.
   container.querySelectorAll(".phase-bar").forEach((bar) => {
@@ -751,10 +823,10 @@ function hideTooltip() {
   tooltipEl = null;
 }
 
-function showMarkerTooltip(x, y, text) {
+function showMarkerTooltip(x, y, text, align = "above") {
   hideTooltip();
   tooltipEl = document.createElement("div");
-  tooltipEl.className = "gantt-tooltip gantt-tooltip-marker";
+  tooltipEl.className = `gantt-tooltip gantt-tooltip-marker ${align === "below" ? "gantt-tooltip-marker-below" : ""}`;
   tooltipEl.style.left = `${x}px`;
   tooltipEl.style.top = `${y}px`;
   tooltipEl.textContent = text;

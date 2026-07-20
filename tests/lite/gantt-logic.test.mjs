@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import {
   toDayValue, getWeekNumber, detectInconsistencies, detectAlerts, detectEddIssues,
   computeDateRange, makeDayOffset, buildTimelineHeaders, computeWeekLines,
-  getCellText, applyGanttRowFilters, computeWeightedProgress,
+  getCellText, applyGanttRowFilters, computeWeightedProgress, getDisplayProgress,
   computePhaseCumulativeWeights, computePhaseWeight, computePhaseWorkloadDays,
+  computePhasePrice, computePhasePriceCumulative, computePeriodForecast,
   ZOOM_CONFIG, TIMELINE_MARGIN,
 } from "../../public/lite/js/gantt-logic.js";
 
@@ -229,6 +230,22 @@ test("computeWeightedProgress: a budgeted phase with no scheduled dates counts a
   assert.equal(computeWeightedProgress(e, today), 50);
 });
 
+test("getDisplayProgress: prefers JIRA's raw % of progress over the weighted date-based estimate", () => {
+  const e = epic(1, [], "In Progress", {
+    "Custom field (Budget Hours DEV)": "100",
+    "Custom field (% of progress)": "60",
+  });
+  assert.equal(getDisplayProgress(e), 60);
+});
+
+test("getDisplayProgress: falls back to the weighted estimate when no raw % is set", () => {
+  const today = new Date(2026, 5, 1);
+  const e = epic(1, [
+    phase("Analysis", new Date(2026, 0, 1), new Date(2026, 0, 31)),
+  ], "In Progress", { "Custom field (Budget Hours CO)": "50" });
+  assert.equal(getDisplayProgress(e, today), 100);
+});
+
 test("computePhaseCumulativeWeights: running total through phase order", () => {
   const e = epic(1, [
     phase("Analysis", new Date(2026, 0, 1), new Date(2026, 0, 10)),
@@ -308,3 +325,109 @@ test("computePhaseWorkloadDays: null for an unbudgeted phase", () => {
   const e = epic(1, [], "In Progress", { "Custom field (Budget Hours DEV)": "48" });
   assert.equal(computePhaseWorkloadDays(e, "Analysis"), null);
 });
+
+test("computePhasePrice: a single phase's own cost", () => {
+  const e = epic(1, [], "In Progress", {
+    "Custom field (Budget Price CO)": "1046.48",
+    "Custom field (Budget Price DEV)": "3138.93",
+  });
+  assert.equal(computePhasePrice(e, "Analysis"), 1046.48);
+  assert.equal(computePhasePrice(e, "Development"), 3138.93);
+});
+
+test("computePhasePrice: DOC and PM are split evenly across all 5 phases, not folded into Pilot", () => {
+  const e = epic(1, [], "In Progress", {
+    "Custom field (Budget Price CO)": "100",
+    "Custom field (Budget Price Pilot)": "50",
+    "Custom field (Budget Price DOC)": "200",
+    "Custom field (Budget Price PM)": "300",
+  });
+  const share = (200 + 300) / 5; // 100
+  assert.equal(computePhasePrice(e, "Analysis"), 100 + share);
+  assert.equal(computePhasePrice(e, "Pilot"), 50 + share);
+  // QA / Test has no budget of its own but still gets its share of DOC+PM.
+  assert.equal(computePhasePrice(e, "QA / Test"), share);
+});
+
+test("computePhasePrice: null for an unbudgeted phase", () => {
+  const e = epic(1, [], "In Progress", { "Custom field (Budget Price DEV)": "3138.93" });
+  assert.equal(computePhasePrice(e, "Analysis"), null);
+});
+
+test("computePhasePriceCumulative: running total through phase order", () => {
+  const e = epic(1, [], "In Progress", {
+    "Custom field (Budget Price CO)": "100",
+    "Custom field (Budget Price DEV)": "200",
+    "Custom field (Budget Price Pilot)": "50",
+  });
+  const cum = computePhasePriceCumulative(e);
+  assert.equal(cum["Analysis"], 100);
+  assert.equal(cum["Development"], 300);
+  assert.equal(cum["QA / Test"], 300); // unbudgeted phase carries the running total forward
+  assert.equal(cum["Pilot"], 350);
+});
+
+test("computePhasePriceCumulative: DOC and PM are split evenly, reaching the same grand total at Pilot", () => {
+  const e = epic(1, [], "In Progress", {
+    "Custom field (Budget Price CO)": "100",
+    "Custom field (Budget Price Pilot)": "50",
+    "Custom field (Budget Price DOC)": "174.39",
+    "Custom field (Budget Price PM)": "669.6",
+  });
+  const cum = computePhasePriceCumulative(e);
+  // The grand total is unchanged by the redistribution (100 + 50 + DOC + PM).
+  assert.equal(Math.round(cum["Pilot"] * 100) / 100, 100 + 50 + 174.39 + 669.6);
+});
+
+test("computePhasePriceCumulative: null when no phase has a budgeted price", () => {
+  assert.equal(computePhasePriceCumulative(epic(1, [])), null);
+});
+
+test("computePeriodForecast: a phase fully inside the period counts in full", () => {
+  const e = epic(1, [phase("Development", new Date(2026, 0, 10), new Date(2026, 0, 19))], "In Progress", {
+    "Custom field (Budget Price DEV)": "1000",
+  });
+  const total = computePeriodForecast(
+    [{ type: "epic", epic: e }], new Date(2026, 0, 1), new Date(2026, 1, 1)
+  );
+  assert.equal(total, 1000);
+});
+
+test("computePeriodForecast: a phase fully outside the period contributes 0", () => {
+  const e = epic(1, [phase("Development", new Date(2026, 0, 10), new Date(2026, 0, 19))], "In Progress", {
+    "Custom field (Budget Price DEV)": "1000",
+  });
+  const total = computePeriodForecast(
+    [{ type: "epic", epic: e }], new Date(2026, 1, 1), new Date(2026, 2, 1)
+  );
+  assert.equal(total, 0);
+});
+
+test("computePeriodForecast: a phase straddling the boundary is pro-rated by overlapping days", () => {
+  // 10-day phase (Jan 26 - Feb 4 inclusive), 6 days in January, 4 in February.
+  const e = epic(1, [phase("Development", new Date(2026, 0, 26), new Date(2026, 1, 4))], "In Progress", {
+    "Custom field (Budget Price DEV)": "1000",
+  });
+  const jan = computePeriodForecast([{ type: "epic", epic: e }], new Date(2026, 0, 1), new Date(2026, 1, 1));
+  const feb = computePeriodForecast([{ type: "epic", epic: e }], new Date(2026, 1, 1), new Date(2026, 2, 1));
+  assert.equal(jan, 600);
+  assert.equal(feb, 400);
+});
+
+test("computePeriodForecast: sums across epics and skips initiative rows", () => {
+  const e1 = epic(1, [phase("Development", new Date(2026, 0, 5), new Date(2026, 0, 10))], "In Progress", {
+    "Custom field (Budget Price DEV)": "500",
+  });
+  const e2 = epic(2, [phase("Development", new Date(2026, 0, 5), new Date(2026, 0, 10))], "In Progress", {
+    "Custom field (Budget Price DEV)": "300",
+  });
+  const initiative = epic(3, [phase("Development", new Date(2026, 0, 5), new Date(2026, 0, 10))], "", {
+    "Custom field (Budget Price DEV)": "9999",
+  });
+  const total = computePeriodForecast(
+    [{ type: "epic", epic: e1 }, { type: "epic", epic: e2 }, { type: "initiative", epic: initiative }],
+    new Date(2026, 0, 1), new Date(2026, 1, 1)
+  );
+  assert.equal(total, 800);
+});
+

@@ -29,10 +29,11 @@ export const ZOOM_CONFIG = {
   },
 };
 
-export const ROW_HEIGHT = 44;
-export const BAR_HEIGHT = 20;
+export const ROW_HEIGHT = 52;
+export const BAR_HEIGHT = 24;
 export const BAR_TOP = (ROW_HEIGHT - BAR_HEIGHT) / 2;
 export const TIMELINE_MARGIN = 20;
+export const HEADER_ROW_HEIGHT = 24;
 
 // Expected phase order: each phase must start after the previous one starts,
 // and must start after the previous one ends.
@@ -217,16 +218,20 @@ export function buildTimelineHeaders({ minDate, maxDate, zoom, dayOffset }) {
       const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
       const ml = dayOffset(monthStart < minDate ? minDate : monthStart);
       const mr = dayOffset(monthEnd > maxDate ? maxDate : monthEnd);
-      subs.push({ label: config.subFormat(cursor), left: ml, width: mr - ml });
+      // start/end are the true (unclipped) calendar month bounds — used for
+      // the NRR forecast tooltip, which needs the whole period, not just
+      // the visible slice.
+      subs.push({ label: config.subFormat(cursor), left: ml, width: mr - ml, start: monthStart, end: monthEnd });
       cursor.setMonth(cursor.getMonth() + 1);
     }
   } else if (zoom === "week") {
     const cursor = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
     while (cursor <= maxDate) {
+      const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
       const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
       const ml = dayOffset(cursor < minDate ? minDate : cursor);
       const mr = dayOffset(monthEnd > maxDate ? maxDate : monthEnd);
-      mains.push({ label: config.headerFormat(cursor), left: ml, width: mr - ml });
+      mains.push({ label: config.headerFormat(cursor), left: ml, width: mr - ml, start: monthStart, end: monthEnd });
       cursor.setMonth(cursor.getMonth() + 1);
     }
     const weekCursor = new Date(minDate);
@@ -243,10 +248,11 @@ export function buildTimelineHeaders({ minDate, maxDate, zoom, dayOffset }) {
     // Day: Main: months, Sub: days
     const cursor = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
     while (cursor <= maxDate) {
+      const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
       const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
       const ml = dayOffset(cursor < minDate ? minDate : cursor);
       const mr = dayOffset(monthEnd > maxDate ? maxDate : monthEnd);
-      mains.push({ label: config.headerFormat(cursor), left: ml, width: mr - ml });
+      mains.push({ label: config.headerFormat(cursor), left: ml, width: mr - ml, start: monthStart, end: monthEnd });
       cursor.setMonth(cursor.getMonth() + 1);
     }
     const dayCursor = new Date(minDate);
@@ -276,7 +282,10 @@ export function buildTimelineHeaders({ minDate, maxDate, zoom, dayOffset }) {
     const qEnd = new Date(qCursor.getFullYear(), qCursor.getMonth() + 3, 1);
     const ql = dayOffset(qCursor < minDate ? minDate : qCursor);
     const qr = dayOffset(qEnd > maxDate ? maxDate : qEnd);
-    qtrs.push({ label: `Q${Math.floor(qCursor.getMonth() / 3) + 1}`, left: ql, width: qr - ql });
+    qtrs.push({
+      label: `Q${Math.floor(qCursor.getMonth() / 3) + 1}`, left: ql, width: qr - ql,
+      start: new Date(qCursor), end: qEnd,
+    });
     qCursor.setMonth(qCursor.getMonth() + 3);
   }
 
@@ -405,17 +414,128 @@ export function computePhaseWorkloadDays(epic, phaseName) {
   return Number.isInteger(days) ? String(days) : days.toFixed(1);
 }
 
+// Maps each timeline phase to the JIRA "Budget Price <discipline>" field
+// that represents its own cost. DOC and PM have no phase of their own —
+// unlike Budget Hours DOC, they are NOT folded into Pilot; see
+// computePhasePrices, which splits them evenly across all 5 phases.
+const PHASE_PRICE_FIELDS = {
+  "Analysis": ["Custom field (Budget Price CO)"],
+  "Development": ["Custom field (Budget Price DEV)"],
+  "QA / Test": ["Custom field (Budget Price Tester)"],
+  "Customer UAT": ["Custom field (Budget Price UAT)"],
+  "Pilot": ["Custom field (Budget Price Pilot)"],
+};
+
+const DOC_PM_PRICE_FIELDS = ["Custom field (Budget Price DOC)", "Custom field (Budget Price PM)"];
+
 /**
- * Prefer the charge-weighted completion; fall back to JIRA's raw
- * "% of progress" field when no Budget Hours are set on the epic.
+ * Sums each phase's own Budget Price field, then spreads Budget Price
+ * DOC + PM evenly across all 5 phases (1/5 each) — they represent
+ * project-wide overhead, not work tied to any single phase.
+ */
+function computePhasePrices(epic) {
+  const priceByPhase = {};
+  for (const [phaseName, fields] of Object.entries(PHASE_PRICE_FIELDS)) {
+    let total = 0;
+    let any = false;
+    for (const field of fields) {
+      const raw = epic.rawData[field];
+      const val = raw && raw.trim() ? parseFloat(raw) : NaN;
+      if (!isNaN(val) && val > 0) { total += val; any = true; }
+    }
+    if (any) priceByPhase[phaseName] = total;
+  }
+
+  let docPm = 0;
+  for (const field of DOC_PM_PRICE_FIELDS) {
+    const raw = epic.rawData[field];
+    const val = raw && raw.trim() ? parseFloat(raw) : NaN;
+    if (!isNaN(val) && val > 0) docPm += val;
+  }
+  if (docPm > 0) {
+    const share = docPm / PHASE_ORDER.length;
+    for (const name of PHASE_ORDER) {
+      priceByPhase[name] = (priceByPhase[name] || 0) + share;
+    }
+  }
+
+  return priceByPhase;
+}
+
+/**
+ * A single phase's own budgeted cost, summed across its mapped Budget
+ * Price field(s). Returns null when that phase has no budgeted price.
+ */
+export function computePhasePrice(epic, phaseName) {
+  if (!PHASE_PRICE_FIELDS[phaseName]) return null;
+  const priceByPhase = computePhasePrices(epic);
+  return priceByPhase[phaseName] ?? null;
+}
+
+/**
+ * Cumulative budgeted cost through PHASE_ORDER, keyed by phase name: each
+ * phase's value is its own price plus every earlier phase's price — the
+ * running total once that phase finishes. Mirrors
+ * computePhaseCumulativeWeights but in € rather than %. Returns null when
+ * no phase has a budgeted price anywhere.
+ */
+export function computePhasePriceCumulative(epic) {
+  const priceByPhase = computePhasePrices(epic);
+  if (Object.keys(priceByPhase).length === 0) return null;
+
+  const cumulative = {};
+  let running = 0;
+  for (const name of PHASE_ORDER) {
+    running += priceByPhase[name] || 0;
+    cumulative[name] = running;
+  }
+  return cumulative;
+}
+
+/**
+ * NRR forecast for a calendar period (a month or a quarter): the sum,
+ * across every non-initiative row, of each phase's own Budget Price
+ * pro-rated by how much of that phase's own duration falls inside the
+ * period. A phase entirely outside the period contributes 0; one fully
+ * inside contributes its whole price; one straddling the boundary
+ * contributes a fraction (overlapping days ÷ the phase's total days).
+ * periodEnd is exclusive (e.g. the 1st of the next month).
+ */
+export function computePeriodForecast(rows, periodStart, periodEnd) {
+  const periodStartDay = toDayValue(periodStart);
+  const periodEndDay = toDayValue(periodEnd);
+  let total = 0;
+  for (const row of rows) {
+    if (row.type === "initiative") continue;
+    const epic = row.epic;
+    for (const phase of epic.phases) {
+      const price = computePhasePrice(epic, phase.phaseName);
+      if (price === null) continue;
+      const phaseStartDay = toDayValue(phase.startDate);
+      const phaseEndDay = toDayValue(phase.endDate) + 1; // exclusive
+      const overlap = Math.min(phaseEndDay, periodEndDay) - Math.max(phaseStartDay, periodStartDay);
+      if (overlap <= 0) continue;
+      const totalDays = phaseEndDay - phaseStartDay;
+      total += price * (overlap / totalDays);
+    }
+  }
+  return total;
+}
+
+/**
+ * Prefer JIRA's own "% of progress" field (the team's actual reported
+ * completion) over the charge-weighted, date-based estimate — the
+ * schedule can say a phase "should" be 93% done while the real reported
+ * progress is 60%. Fall back to the weighted estimate only when the epic
+ * has no raw progress value at all.
  */
 export function getDisplayProgress(epic, today = new Date()) {
-  const weighted = computeWeightedProgress(epic, today);
-  if (weighted !== null) return weighted;
   const raw = epic.rawData["Custom field (% of progress)"];
-  if (!raw || !raw.trim()) return null;
-  const val = Math.round(parseFloat(raw));
-  return isNaN(val) ? null : val;
+  if (raw && raw.trim()) {
+    const val = Math.round(parseFloat(raw));
+    if (!isNaN(val)) return val;
+  }
+  return computeWeightedProgress(epic, today);
 }
 
 export function getCellText(epic, col, isInitiative) {

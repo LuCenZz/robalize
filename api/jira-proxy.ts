@@ -32,7 +32,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const text = await jiraRes.text();
-    res.status(jiraRes.status).setHeader("Content-Type", "application/json").send(text);
+    res
+      .status(jiraRes.status)
+      .setHeader("Content-Type", "application/json")
+      .setHeader("Cache-Control", "no-store, no-cache, must-revalidate")
+      .send(text);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Proxy error";
     res.status(500).json({ error: message });

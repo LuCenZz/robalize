@@ -25,7 +25,9 @@ export default defineConfig(({ mode }) => {
             if (req.url === '/api/config') {
               // Mirrors api/config.ts, which isn't executed by plain `vite dev`.
               res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ jql: env.JIRA_DEFAULT_JQL ? stripWrappingQuotes(env.JIRA_DEFAULT_JQL) : null }))
+              res.end(JSON.stringify({
+                jql: env.JIRA_DEFAULT_JQL ? stripWrappingQuotes(env.JIRA_DEFAULT_JQL) : null,
+              }))
               return
             }
             if (req.url === '/' || req.url === '') req.url = '/lite/index.html'

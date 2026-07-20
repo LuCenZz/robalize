@@ -28,18 +28,17 @@ export function saveJiraConfig(config) {
 }
 
 // Fetched once per session (cached) from /api/config, backed by the
-// JIRA_DEFAULT_JQL Vercel env var — lets the org-wide default query change
-// without a code deploy, while each visitor's own saved JQL still wins.
-let serverDefaultJqlPromise = null;
+// JIRA_DEFAULT_JQL Vercel env var — lets the org-wide default change
+// without a code deploy.
+let serverConfigPromise = null;
 
-function getServerDefaultJql() {
-  if (!serverDefaultJqlPromise) {
-    serverDefaultJqlPromise = fetch("/api/config")
+function getServerConfig() {
+  if (!serverConfigPromise) {
+    serverConfigPromise = fetch("/api/config")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => data?.jql || null)
       .catch(() => null);
   }
-  return serverDefaultJqlPromise;
+  return serverConfigPromise;
 }
 
 /**
@@ -50,7 +49,8 @@ function getServerDefaultJql() {
  */
 export async function resolveJiraConfig() {
   const saved = loadJiraConfig() || {};
-  const jql = saved.jql || (await getServerDefaultJql()) || DEFAULT_JQL;
+  const serverConfig = await getServerConfig();
+  const jql = saved.jql || serverConfig?.jql || DEFAULT_JQL;
   return { ...DEFAULT_CONFIG, ...saved, jql };
 }
 
@@ -87,6 +87,10 @@ export async function fetchJiraData(config, onProgress, onBatch) {
     const url = `/api/jira-proxy${path}`;
     const res = await fetch(url, {
       method,
+      // Every refresh must hit JIRA fresh — a GET the browser considers
+      // identical to a prior one (same JQL/page) can otherwise be served
+      // straight from the HTTP cache instead of actually re-fetching.
+      cache: "no-store",
       headers: {
         ...(auth ? { "Authorization": `Basic ${auth}` } : {}),
         "Accept": "application/json",

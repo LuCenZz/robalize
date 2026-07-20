@@ -144,6 +144,23 @@ export function renderFilterBar(container, state, actions) {
   wireEvents(container, state, actions);
 }
 
+const BOX_MODES = [
+  { mode: "progress", label: "% Progress" },
+  { mode: "effort", label: "Effort" },
+  { mode: "nrr", label: "NRR" },
+];
+
+function boxModeToggleHtml(state) {
+  return `
+    <div class="zoom-group mode-toggle-wrap">
+      ${BOX_MODES.map(({ mode, label }) => `
+        <button class="zoom-btn ${state.boxMode === mode ? "zoom-btn-active" : ""}" data-box-mode="${mode}">
+          ${label}
+        </button>`).join("")}
+    </div>
+  `;
+}
+
 function productRowHtml(state, productValues) {
   const filter = state.activeFilters.find((f) => f.column === PRODUCT_COLUMN);
   const hasSelection = !!filter && filter.values.length > 0;
@@ -161,6 +178,7 @@ function productRowHtml(state, productValues) {
           </button>
         `;
       }).join("")}
+      ${boxModeToggleHtml(state)}
     </div>
   `;
 }
@@ -306,6 +324,13 @@ function wireEvents(container, state, actions) {
       updateProject([]);
     });
   }
+
+  // Phase-box display mode toggle (% Progress / Effort / NRR)
+  container.querySelectorAll("[data-box-mode]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      actions.setBoxMode(btn.dataset.boxMode);
+    });
+  });
 
   // Chip label → toggle dropdown
   container.querySelectorAll(".chip-label").forEach((btn) => {

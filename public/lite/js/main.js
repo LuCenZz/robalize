@@ -18,6 +18,9 @@ export const state = {
   jiraConnected: false,
   refreshing: false,
   resetKey: 0,
+  // What the phase-box label above each bar shows: cumulative weight %,
+  // the phase's own budgeted workload in days, or the epic's NRR amount.
+  boxMode: "progress",
   derived: {
     allEpicTasks: [], allDisplayRows: [], filteredEpicTasks: [],
     filteredKeys: new Set(), hasActiveFilters: false, displayRows: [],
@@ -90,19 +93,32 @@ export function setupAutoRefresh() {
   if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
   const config = loadJiraConfig();
   if (state.jiraConnected && config && config.refreshInterval > 0) {
-    refreshTimer = setInterval(() => actions.refreshFromJira(true), config.refreshInterval * 1000);
+    refreshTimer = setInterval(() => {
+      actions.refreshFromJira(true);
+    }, config.refreshInterval * 1000);
   }
+}
+
+// The Gantt only ever shows Epics/Initiatives — filtered here regardless of
+// what the configured JQL actually returns (its type filter is user-editable
+// in the connector, and a broadened query — e.g. one that also fetches
+// Story/Testing for some other reason — must never leak into the chart).
+function keepEpicRows(rows) {
+  return rows.filter((r) => {
+    const type = (r["Issue Type"] || "").trim();
+    return type === "" || type === "Epic" || type === "Initiative";
+  });
 }
 
 export const actions = {
   setData(rows, { silent = false } = {}) {
-    state.rawData = rows;
-    state.columns = extractColumns(rows);
+    state.rawData = keepEpicRows(rows);
+    state.columns = extractColumns(state.rawData);
     if (!silent) {
       state.activeFilters = [];
       state.searchTerm = "";
     }
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify(rows)); } catch { /* quota */ }
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(state.rawData)); } catch { /* quota */ }
     deriveData();
     renderAll();
   },
@@ -124,6 +140,11 @@ export const actions = {
     renderAll();
   },
 
+  setBoxMode(mode) {
+    state.boxMode = mode;
+    renderAll();
+  },
+
   async refreshFromJira(background = false) {
     // No connection step: saved config if any, otherwise the server-managed
     // default JQL/credentials.
@@ -134,17 +155,23 @@ export const actions = {
     if (!background) { state.refreshing = true; renderAll(); }
     let gotFirstBatch = false;
     try {
-      const rows = await fetchJiraData(config, undefined, (batchRows) => {
-        // Render as soon as the first page arrives; the rest keeps loading
-        // in the background instead of blocking the whole fetch.
+      // Foreground: swap state.rawData in per page, so the Gantt shows the
+      // first results immediately while the rest streams in. Background
+      // (auto-refresh, user already looking at a stable view): don't touch
+      // state.rawData until the whole fetch is done — replacing it page by
+      // page would flash "No results" whenever the currently active filters
+      // only match epics from a page that hasn't arrived yet.
+      const rows = await fetchJiraData(config, undefined, background ? undefined : (batchRows) => {
         state.jiraConnected = true;
-        if (!background && !gotFirstBatch) {
+        if (!gotFirstBatch) {
           gotFirstBatch = true;
           state.refreshing = false;
         }
         actions.setData(batchRows, { silent: true });
       });
       if (rows.length > 0) {
+        state.jiraConnected = true;
+        if (background || !gotFirstBatch) actions.setData(rows, { silent: true });
         clearError();
         setupAutoRefresh();
       }
@@ -172,8 +199,9 @@ function boot() {
   try {
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
-      const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      const rawParsed = JSON.parse(cached);
+      const parsed = Array.isArray(rawParsed) ? keepEpicRows(rawParsed) : [];
+      if (parsed.length > 0) {
         state.rawData = parsed;
         state.columns = extractColumns(parsed);
         state.jiraConnected = true;
