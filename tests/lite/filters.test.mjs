@@ -37,9 +37,13 @@ test("computeDisplayRows: search matches initiative name and keeps all its child
   assert.ok(!keys.includes("B-1"));
 });
 
-test("computeDisplayRows: search ignores active filters (searches all rows)", () => {
+test("computeDisplayRows: search intersects with active filters (does not bypass them)", () => {
   const all = buildDisplayRows(transformToEpicTasks(rows));
-  const display = computeDisplayRows(all, { hasActiveFilters: true, filteredKeys: new Set(["B-1"]), searchTerm: "beta" });
+  const filteredRows = applyFilters(rows, [{ column: "Status", values: ["Done"] }]);
+  const filteredKeys = computeFilteredKeys(transformToEpicTasks(filteredRows), filteredRows);
+  const display = computeDisplayRows(all, { hasActiveFilters: true, filteredKeys, searchTerm: "initiative" });
   const keys = display.map((r) => r.epic.epicKey);
-  assert.ok(keys.includes("A-2"), "search bypasses filters");
+  assert.ok(keys.includes("INIT-1"), "initiative still shown (matches search and has a matching child)");
+  assert.ok(keys.includes("A-1"), "A-1 matches both the Done filter and the search");
+  assert.ok(!keys.includes("A-2"), "A-2 matches the search only via its parent — the Done filter still excludes it");
 });
