@@ -27,6 +27,33 @@ export function saveJiraConfig(config) {
   localStorage.setItem(JIRA_STORAGE_KEY, JSON.stringify(config));
 }
 
+// Fetched once per session (cached) from /api/config, backed by the
+// JIRA_DEFAULT_JQL Vercel env var — lets the org-wide default query change
+// without a code deploy, while each visitor's own saved JQL still wins.
+let serverDefaultJqlPromise = null;
+
+function getServerDefaultJql() {
+  if (!serverDefaultJqlPromise) {
+    serverDefaultJqlPromise = fetch("/api/config")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => data?.jql || null)
+      .catch(() => null);
+  }
+  return serverDefaultJqlPromise;
+}
+
+/**
+ * The JIRA config to use: the visitor's own saved JQL if they've set one,
+ * otherwise the server-managed default, otherwise the hardcoded fallback.
+ * Other fields (email/apiToken/maxRows/refreshInterval) come from the
+ * saved config when present, DEFAULT_CONFIG otherwise.
+ */
+export async function resolveJiraConfig() {
+  const saved = loadJiraConfig() || {};
+  const jql = saved.jql || (await getServerDefaultJql()) || DEFAULT_JQL;
+  return { ...DEFAULT_CONFIG, ...saved, jql };
+}
+
 export function formatFieldValue(value) {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
@@ -46,7 +73,13 @@ export function formatFieldValue(value) {
   return String(value);
 }
 
-export async function fetchJiraData(config, onProgress) {
+/**
+ * @param onProgress (loaded, total) => void — for a progress bar/text.
+ * @param onBatch (rowsSoFar) => void — called after each page (~100 rows)
+ *   so the caller can render partial results while the rest keeps loading
+ *   in the background, instead of waiting for the whole fetch to finish.
+ */
+export async function fetchJiraData(config, onProgress, onBatch) {
   // Without local credentials, the proxy falls back to its server-side ones.
   const auth = config.email && config.apiToken ? btoa(`${config.email}:${config.apiToken}`) : null;
 
@@ -117,6 +150,7 @@ export async function fetchJiraData(config, onProgress) {
     const isLastPage = data.isLast !== false;
     const estimatedTotal = isLastPage ? allRows.length : allRows.length + 100;
     onProgress?.(allRows.length, estimatedTotal);
+    if (allRows.length > 0) onBatch?.(allRows);
 
     if (issues.length === 0 || isLastPage) break;
   }

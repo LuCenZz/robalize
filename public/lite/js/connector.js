@@ -1,11 +1,13 @@
 // Port of src/components/JiraConnector.tsx — no admin/Supabase logic:
 // everyone edits the full config, stored in localStorage only.
-import { loadJiraConfig, saveJiraConfig, fetchJiraData, DEFAULT_JQL } from "./jira.js";
+import { saveJiraConfig, fetchJiraData, resolveJiraConfig } from "./jira.js";
 import { setupAutoRefresh, clearError } from "./main.js";
 
-export function openConnector(state, actions) {
+export async function openConnector(state, actions) {
   const root = document.getElementById("connector-root");
-  const saved = loadJiraConfig() || {};
+  // Same resolution as the automatic fetch (saved config, else the
+  // server-managed default), so the form reflects what's actually active.
+  const saved = await resolveJiraConfig();
   const connected = state.jiraConnected;
 
   root.innerHTML = `
@@ -57,7 +59,7 @@ export function openConnector(state, actions) {
   const $ = (sel) => root.querySelector(sel);
   $("#jc-email").value = saved.email || "";
   $("#jc-token").value = saved.apiToken || "";
-  $("#jc-jql").value = saved.jql || DEFAULT_JQL;
+  $("#jc-jql").value = saved.jql;
   $("#jc-maxrows").value = saved.maxRows ?? 5000;
   $("#jc-refresh").value = saved.refreshInterval ?? 0;
 

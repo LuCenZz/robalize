@@ -11,7 +11,13 @@ export default defineConfig(({ mode }) => {
       {
         name: 'lite-rewrite',
         configureServer(server) {
-          server.middlewares.use((req, _res, next) => {
+          server.middlewares.use((req, res, next) => {
+            if (req.url === '/api/config') {
+              // Mirrors api/config.ts, which isn't executed by plain `vite dev`.
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ jql: env.JIRA_DEFAULT_JQL || null }))
+              return
+            }
             if (req.url === '/' || req.url === '') req.url = '/lite/index.html'
             else if (req.url === '/legacy' || req.url === '/legacy/') req.url = '/index.html'
             else if (req.url === '/lite' || req.url === '/lite/') req.url = '/lite/index.html'

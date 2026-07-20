@@ -1,6 +1,6 @@
 import { transformToEpicTasks, buildDisplayRows, extractColumns } from "./transform.js";
 import { applyFilters, computeFilteredKeys, computeDisplayRows } from "./filters.js";
-import { loadJiraConfig, fetchJiraData, DEFAULT_CONFIG } from "./jira.js";
+import { loadJiraConfig, fetchJiraData, resolveJiraConfig } from "./jira.js";
 import { loadFilters, saveFilters, loadSearchTerm, saveSearchTerm } from "./prefs.js";
 import { renderTopBar } from "./topbar.js";
 import { renderFilterBar } from "./filterbar.js";
@@ -125,25 +125,33 @@ export const actions = {
   },
 
   async refreshFromJira(background = false) {
-    // No connection step: saved config if any, otherwise defaults with
-    // server-managed credentials.
-    const config = { ...DEFAULT_CONFIG, ...(loadJiraConfig() || {}) };
+    // No connection step: saved config if any, otherwise the server-managed
+    // default JQL/credentials.
+    const config = await resolveJiraConfig();
     // Foreground (page load/reload): blocking overlay. Background (the
     // periodic auto-refresh timer while the app stays open): silent, so it
     // never interrupts someone actively working in the Gantt.
     if (!background) { state.refreshing = true; renderAll(); }
+    let gotFirstBatch = false;
     try {
-      const rows = await fetchJiraData(config);
-      if (rows.length > 0) {
+      const rows = await fetchJiraData(config, undefined, (batchRows) => {
+        // Render as soon as the first page arrives; the rest keeps loading
+        // in the background instead of blocking the whole fetch.
         state.jiraConnected = true;
-        actions.setData(rows, { silent: true });
+        if (!background && !gotFirstBatch) {
+          gotFirstBatch = true;
+          state.refreshing = false;
+        }
+        actions.setData(batchRows, { silent: true });
+      });
+      if (rows.length > 0) {
         clearError();
         setupAutoRefresh();
       }
     } catch (err) {
       showError(err instanceof Error ? err.message : "JIRA fetch failed");
     } finally {
-      if (!background) { state.refreshing = false; renderAll(); }
+      if (!background && !gotFirstBatch) { state.refreshing = false; renderAll(); }
     }
   },
 
