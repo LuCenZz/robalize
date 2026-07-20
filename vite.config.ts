@@ -1,6 +1,16 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Same defensive stripping as api/config.ts — see the comment there.
+function stripWrappingQuotes(value: string): string {
+  const first = value[0]
+  const last = value[value.length - 1]
+  if (value.length >= 2 && (first === "'" || first === '"') && first === last) {
+    return value.slice(1, -1)
+  }
+  return value
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
@@ -15,7 +25,7 @@ export default defineConfig(({ mode }) => {
             if (req.url === '/api/config') {
               // Mirrors api/config.ts, which isn't executed by plain `vite dev`.
               res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ jql: env.JIRA_DEFAULT_JQL || null }))
+              res.end(JSON.stringify({ jql: env.JIRA_DEFAULT_JQL ? stripWrappingQuotes(env.JIRA_DEFAULT_JQL) : null }))
               return
             }
             if (req.url === '/' || req.url === '') req.url = '/lite/index.html'
