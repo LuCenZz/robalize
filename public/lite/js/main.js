@@ -90,7 +90,7 @@ export function setupAutoRefresh() {
   if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
   const config = loadJiraConfig();
   if (state.jiraConnected && config && config.refreshInterval > 0) {
-    refreshTimer = setInterval(() => actions.refreshFromJira(), config.refreshInterval * 1000);
+    refreshTimer = setInterval(() => actions.refreshFromJira(true), config.refreshInterval * 1000);
   }
 }
 
@@ -124,12 +124,14 @@ export const actions = {
     renderAll();
   },
 
-  async refreshFromJira() {
+  async refreshFromJira(background = false) {
     // No connection step: saved config if any, otherwise defaults with
     // server-managed credentials.
     const config = { ...DEFAULT_CONFIG, ...(loadJiraConfig() || {}) };
-    state.refreshing = true;
-    renderAll();
+    // Foreground (page load/reload): blocking overlay. Background (the
+    // periodic auto-refresh timer while the app stays open): silent, so it
+    // never interrupts someone actively working in the Gantt.
+    if (!background) { state.refreshing = true; renderAll(); }
     try {
       const rows = await fetchJiraData(config);
       if (rows.length > 0) {
@@ -141,8 +143,7 @@ export const actions = {
     } catch (err) {
       showError(err instanceof Error ? err.message : "JIRA fetch failed");
     } finally {
-      state.refreshing = false;
-      renderAll();
+      if (!background) { state.refreshing = false; renderAll(); }
     }
   },
 
@@ -177,8 +178,8 @@ function boot() {
   renderAll();
 
   if (hasCache) {
-    // Instant display from cache, then refresh in the background — the
-    // overlay makes the sync visible even though data is already on screen.
+    // Instant display from cache, then a foreground refresh (blocking
+    // overlay) so a browser reload always shows that a sync is happening.
     setupAutoRefresh();
     actions.refreshFromJira();
     return;
