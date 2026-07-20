@@ -4,7 +4,8 @@ import {
   toDayValue, getWeekNumber, detectInconsistencies, detectAlerts,
   computeDateRange, makeDayOffset, buildTimelineHeaders, computeWeekLines,
   getCellText, applyGanttRowFilters, computeWeightedProgress,
-  computePhaseCumulativeWeights, computePhaseWeight, ZOOM_CONFIG, TIMELINE_MARGIN,
+  computePhaseCumulativeWeights, computePhaseWeight, computePhaseWorkloadDays,
+  ZOOM_CONFIG, TIMELINE_MARGIN,
 } from "../../public/lite/js/gantt-logic.js";
 
 function epic(id, phases, status = "In Progress", raw = {}) {
@@ -236,4 +237,26 @@ test("computePhaseWeight: 0 for an unbudgeted phase, null when nothing is budget
   const e = epic(1, [], "In Progress", { "Custom field (Budget Hours DEV)": "40" });
   assert.equal(computePhaseWeight(e, "Analysis"), 0);
   assert.equal(computePhaseWeight(epic(2, []), "Development"), null);
+});
+
+test("computePhaseWorkloadDays: a single phase's own hours ÷ 8, not the epic total", () => {
+  const e = epic(1, [], "In Progress", {
+    "Custom field (Budget Hours CO)": "16",
+    "Custom field (Budget Hours DEV)": "48",
+  });
+  assert.equal(computePhaseWorkloadDays(e, "Analysis"), "2");
+  assert.equal(computePhaseWorkloadDays(e, "Development"), "6");
+});
+
+test("computePhaseWorkloadDays: DOC folds into Pilot's own workload", () => {
+  const e = epic(1, [], "In Progress", {
+    "Custom field (Budget Hours Pilot)": "8",
+    "Custom field (Budget Hours DOC)": "4",
+  });
+  assert.equal(computePhaseWorkloadDays(e, "Pilot"), "1.5"); // (8+4)/8
+});
+
+test("computePhaseWorkloadDays: null for an unbudgeted phase", () => {
+  const e = epic(1, [], "In Progress", { "Custom field (Budget Hours DEV)": "48" });
+  assert.equal(computePhaseWorkloadDays(e, "Analysis"), null);
 });

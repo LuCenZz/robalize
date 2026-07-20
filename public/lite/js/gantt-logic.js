@@ -363,6 +363,20 @@ export function computePhaseWeight(epic, phaseName) {
 }
 
 /**
+ * A single phase's own budgeted effort, in days (÷ 8h). Like
+ * computePhaseWeight, this is per-step — not the epic's total workload
+ * across all disciplines. Returns null when that phase has no budgeted
+ * hours (whether or not other phases do).
+ */
+export function computePhaseWorkloadDays(epic, phaseName) {
+  const { hoursByPhase } = computePhaseHours(epic);
+  const hours = hoursByPhase[phaseName];
+  if (!hours) return null;
+  const days = hours / 8;
+  return Number.isInteger(days) ? String(days) : days.toFixed(1);
+}
+
+/**
  * Prefer the charge-weighted completion; fall back to JIRA's raw
  * "% of progress" field when no Budget Hours are set on the epic.
  */

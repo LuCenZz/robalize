@@ -5,6 +5,7 @@ import {
   detectInconsistencies, detectAlerts, computeDateRange, makeDayOffset,
   buildTimelineHeaders, computeWeekLines, getCellText, applyGanttRowFilters,
   getDisplayProgress, computePhaseCumulativeWeights, computePhaseWeight,
+  computePhaseWorkloadDays,
 } from "./gantt-logic.js";
 import { PHASE_CONFIG, parseJiraDate } from "./transform.js";
 
@@ -20,30 +21,6 @@ const PHASE_SHORT = {
 };
 
 // Epic-level workload: sum of all "Budget Hours <discipline>" fields, ÷ 8h/day
-const BUDGET_HOURS_FIELDS = [
-  "Custom field (Budget Hours CO)",
-  "Custom field (Budget Hours DEV)",
-  "Custom field (Budget Hours Tester)",
-  "Custom field (Budget Hours DOC)",
-  "Custom field (Budget Hours UAT)",
-  "Custom field (Budget Hours Pilot)",
-];
-
-function computeWorkloadDays(epic) {
-  let totalHours = 0;
-  let any = false;
-  for (const field of BUDGET_HOURS_FIELDS) {
-    const raw = epic.rawData[field];
-    if (raw && raw.trim()) {
-      const val = parseFloat(raw);
-      if (!isNaN(val)) { totalHours += val; any = true; }
-    }
-  }
-  if (!any) return null;
-  const days = totalHours / 8;
-  return Number.isInteger(days) ? String(days) : days.toFixed(1);
-}
-
 // Status pill colors [background, foreground] — roadmap-reference style
 const STATUS_COLORS = {
   "blocked": ["#FDE8E8", "#DC2626"],
@@ -423,7 +400,7 @@ function buildEpicCardHtml(epic, phase) {
     const val = parseFloat(nrrRaw);
     if (!isNaN(val)) nrr = Math.round(val).toLocaleString("fr-FR");
   }
-  const workloadDays = computeWorkloadDays(epic);
+  const workloadDays = computePhaseWorkloadDays(epic, phase.phaseName);
 
   // Only the hovered phase's dates are shown — not the full schedule.
   const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
@@ -437,7 +414,7 @@ function buildEpicCardHtml(epic, phase) {
     </div>
     ${epic.status ? `<div class="epic-card-row"><span>Status</span><b>${esc(epic.status)}</b></div>` : ""}
     ${nrr !== null ? `<div class="epic-card-row"><span>NRR</span><b class="epic-card-nrr">€${nrr}</b></div>` : ""}
-    ${workloadDays !== null ? `<div class="epic-card-row"><span>Workload</span><b>${workloadDays} ${workloadDays === "1" ? "day" : "days"}</b></div>` : ""}
+    ${workloadDays !== null ? `<div class="epic-card-row"><span>Step workload</span><b>${workloadDays} ${workloadDays === "1" ? "day" : "days"}</b></div>` : ""}
     ${stepWeight !== null ? `<div class="epic-card-row"><span>Step weight</span><span class="epic-card-progress-pill">${stepWeight}%</span></div>` : ""}
     ${phaseRows ? `<div class="epic-card-divider"></div>${phaseRows}` : ""}
   `;
