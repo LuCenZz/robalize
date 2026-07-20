@@ -4,7 +4,7 @@ import {
   ZOOM_CONFIG, ROW_HEIGHT, BAR_HEIGHT, BAR_TOP, TIMELINE_MARGIN,
   detectInconsistencies, detectAlerts, computeDateRange, makeDayOffset,
   buildTimelineHeaders, computeWeekLines, getCellText, applyGanttRowFilters,
-  getDisplayProgress, computePhaseCumulativeWeights,
+  getDisplayProgress, computePhaseCumulativeWeights, computePhaseWeight,
 } from "./gantt-logic.js";
 import { PHASE_CONFIG, parseJiraDate } from "./transform.js";
 
@@ -416,7 +416,7 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
 }
 
 function buildEpicCardHtml(epic, phase) {
-  const progress = getDisplayProgress(epic);
+  const stepWeight = computePhaseWeight(epic, phase.phaseName);
   const nrrRaw = epic.rawData["Custom field (NRR)"];
   let nrr = null;
   if (nrrRaw && nrrRaw.trim()) {
@@ -438,7 +438,7 @@ function buildEpicCardHtml(epic, phase) {
     ${epic.status ? `<div class="epic-card-row"><span>Status</span><b>${esc(epic.status)}</b></div>` : ""}
     ${nrr !== null ? `<div class="epic-card-row"><span>NRR</span><b class="epic-card-nrr">€${nrr}</b></div>` : ""}
     ${workloadDays !== null ? `<div class="epic-card-row"><span>Workload</span><b>${workloadDays} ${workloadDays === "1" ? "day" : "days"}</b></div>` : ""}
-    ${progress !== null ? `<div class="epic-card-row"><span>Progress</span><span class="epic-card-progress-pill">${progress}%</span></div>` : ""}
+    ${stepWeight !== null ? `<div class="epic-card-row"><span>Step weight</span><span class="epic-card-progress-pill">${stepWeight}%</span></div>` : ""}
     ${phaseRows ? `<div class="epic-card-divider"></div>${phaseRows}` : ""}
   `;
 }

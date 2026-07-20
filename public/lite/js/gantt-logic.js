@@ -350,6 +350,19 @@ export function computePhaseCumulativeWeights(epic) {
 }
 
 /**
+ * A single phase's own share of the project's total budgeted effort —
+ * not cumulative, not time-prorated. E.g. if Development is 40% of the
+ * total budgeted hours, this returns 40 regardless of what came before
+ * it or how far along it is. Returns null when no budget hours are set
+ * anywhere on the epic.
+ */
+export function computePhaseWeight(epic, phaseName) {
+  const { hoursByPhase, total } = computePhaseHours(epic);
+  if (total <= 0) return null;
+  return Math.round(((hoursByPhase[phaseName] || 0) / total) * 100);
+}
+
+/**
  * Prefer the charge-weighted completion; fall back to JIRA's raw
  * "% of progress" field when no Budget Hours are set on the epic.
  */
