@@ -1,14 +1,13 @@
 // Port of src/utils/transformData.ts + PHASE_CONFIG from src/types/index.ts.
 // Logic must stay identical to the TypeScript source.
 
-// Flat, vivid roadmap palette (amber → blue → purple → green → teal),
-// modeled on the DMS Epics Roadmap reference.
+// Same colors as the original Robalize app (src/types/index.ts).
 export const PHASE_CONFIG = [
-  { name: "Analysis", color: "#E9A23B", startCol: "Custom field (Analysis Start Date)", endCol: "Custom field (Analysis End Date)" },
-  { name: "Development", color: "#4A6CF7", startCol: "Custom field (Development Start Date)", endCol: "Custom field (Development End Date)" },
-  { name: "QA / Test", color: "#8B5CF6", startCol: "Custom field (QA Start Date)", endCol: "Custom field (QA End Date)" },
-  { name: "Customer UAT", color: "#2BB673", startCol: "Custom field (Customer UAT Start Date)", endCol: "Custom field (Customer UAT End Date)" },
-  { name: "Pilot", color: "#0E8A73", startCol: "Custom field (Pilot Start Date)", endCol: "Custom field (Pilot End Date)" },
+  { name: "Analysis", color: "#ffd43b", startCol: "Custom field (Analysis Start Date)", endCol: "Custom field (Analysis End Date)" },
+  { name: "Development", color: "#ff922b", startCol: "Custom field (Development Start Date)", endCol: "Custom field (Development End Date)" },
+  { name: "QA / Test", color: "#51cf66", startCol: "Custom field (QA Start Date)", endCol: "Custom field (QA End Date)" },
+  { name: "Customer UAT", color: "#339af0", startCol: "Custom field (Customer UAT Start Date)", endCol: "Custom field (Customer UAT End Date)" },
+  { name: "Pilot", color: "#1864ab", startCol: "Custom field (Pilot Start Date)", endCol: "Custom field (Pilot End Date)" },
 ];
 
 const MONTH_INDEX = {
