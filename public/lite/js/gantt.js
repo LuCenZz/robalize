@@ -47,7 +47,7 @@ const ui = {
   sortCol: null,
   sortDir: null,
   colFilters: {},
-  colWidths: { product: 100, acto: 80, epicName: 250, status: 120, progress: 50 },
+  colWidths: { product: 100, acto: 92, epicName: 250, status: 120, progress: 50 },
   lastResetKey: 0,
   filterDropdown: null, // {col, rect: {left, bottom}}
   scrollKey: "",        // zoom+rowcount signature → scroll to today when it changes
