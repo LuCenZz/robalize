@@ -5,7 +5,7 @@ export function renderTopBar(container, state, actions) {
   container.innerHTML = `
     <div class="brand">
       <div class="brand-lines ${state.refreshing ? "brand-lines-loading" : ""}"><i></i><i></i><i></i></div>
-      <div class="brand-name">rob<span>a</span>l<span>i</span>ze <em>lite</em></div>
+      <div class="brand-name">rob<span>a</span>l<span>i</span>ze</div>
     </div>
     <div class="topbar-actions">
       ${count > 0 ? `

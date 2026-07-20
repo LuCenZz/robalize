@@ -107,10 +107,6 @@ button, input, textarea, select { font-family: var(--font); }
   font-weight: 900; font-size: 22px; line-height: 1; letter-spacing: -1.5px; color: #fff;
 }
 .brand-name span { color: #5DE8B0; }
-.brand-name em {
-  font-style: normal; font-size: 11px; font-weight: 600; letter-spacing: 1px;
-  vertical-align: super; opacity: 0.7; margin-left: 4px;
-}
 .topbar-actions { display: flex; gap: 10px; align-items: center; }
 .pill {
   border: none; padding: 8px 18px; border-radius: 100px; cursor: pointer;
