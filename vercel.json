@@ -4,8 +4,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/jira-proxy/:path*", "destination": "/api/jira-proxy" },
+    { "source": "/legacy", "destination": "/index.html" },
+    { "source": "/legacy/:path*", "destination": "/index.html" },
     { "source": "/lite", "destination": "/lite/index.html" },
     { "source": "/lite/", "destination": "/lite/index.html" },
-    { "source": "/((?!api/|lite/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|legacy|lite/).*)", "destination": "/lite/index.html" }
   ]
 }

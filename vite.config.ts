@@ -6,13 +6,15 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      // Dev-only: /lite and /lite/ must serve the lite app, not fall back to
-      // the SPA index.html (prod equivalent lives in vercel.json rewrites).
+      // Dev-only mirror of the prod routing in vercel.json: Lite is now the
+      // official app served at "/", the previous React app moved to /legacy/.
       {
         name: 'lite-rewrite',
         configureServer(server) {
           server.middlewares.use((req, _res, next) => {
-            if (req.url === '/lite' || req.url === '/lite/') req.url = '/lite/index.html'
+            if (req.url === '/' || req.url === '') req.url = '/lite/index.html'
+            else if (req.url === '/legacy' || req.url === '/legacy/') req.url = '/index.html'
+            else if (req.url === '/lite' || req.url === '/lite/') req.url = '/lite/index.html'
             next()
           })
         },
