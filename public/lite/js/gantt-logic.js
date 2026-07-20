@@ -1,5 +1,6 @@
 // Pure computations extracted from src/components/GanttChart.tsx.
 // Same behavior as the React source; `today`/`now` are injectable for tests.
+import { parseJiraDate } from "./transform.js";
 
 export const ZOOM_CONFIG = {
   day: {
@@ -132,6 +133,34 @@ export function detectAlerts(tasks, today = new Date()) {
 
     if (details.length > 0) {
       result.set(epic.id, { epicId: epic.id, details });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Flags epics whose Estimated Delivery Date falls before their Customer
+ * UAT phase even starts — a scheduling inconsistency (delivery can't
+ * reasonably precede the UAT that validates it). Epics with no EDD or no
+ * scheduled UAT phase are skipped (nothing to compare).
+ */
+export function detectEddIssues(tasks) {
+  const result = new Map();
+
+  for (const epic of tasks) {
+    const eddRaw = epic.rawData["Custom field (Estimated Delivery Date)"];
+    const edd = eddRaw ? parseJiraDate(eddRaw) : null;
+    if (!edd) continue;
+
+    const uat = epic.phases.find((p) => p.phaseName === "Customer UAT");
+    if (!uat) continue;
+
+    if (toDayValue(edd) < toDayValue(uat.startDate)) {
+      result.set(epic.id, {
+        epicId: epic.id,
+        details: [`Estimated delivery ${edd.toLocaleDateString("en-GB")} is before Customer UAT starts ${uat.startDate.toLocaleDateString("en-GB")}`],
+      });
     }
   }
 
@@ -412,8 +441,8 @@ function isInPhaseToday(epic, phaseName, today) {
 }
 
 export function applyGanttRowFilters(displayRows, {
-  showInconsistencies, showAlerts, phaseFilter, colFilters,
-  sortCol, sortDir, inconsistencies, alerts, today = new Date(),
+  showInconsistencies, showAlerts, showEddIssues, phaseFilter, colFilters,
+  sortCol, sortDir, inconsistencies, alerts, eddIssues, today = new Date(),
 }) {
   let rows = displayRows;
 
@@ -431,6 +460,14 @@ export function applyGanttRowFilters(displayRows, {
         return r.children?.some((c) => alerts.has(c.id));
       }
       return alerts.has(r.epic.id);
+    });
+  }
+  if (showEddIssues) {
+    rows = rows.filter((r) => {
+      if (r.type === "initiative") {
+        return r.children?.some((c) => eddIssues.has(c.id));
+      }
+      return eddIssues.has(r.epic.id);
     });
   }
   if (phaseFilter) {

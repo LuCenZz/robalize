@@ -352,6 +352,7 @@ button, input, textarea, select { font-family: var(--font); }
 .btn-toggle:hover { background: #F5F4F9; color: var(--text-secondary); }
 .btn-toggle-danger-active, .btn-toggle-danger-active:hover { background: #FEF2F2; color: #DC2626; font-weight: 600; }
 .btn-toggle-warn-active, .btn-toggle-warn-active:hover { background: #FFFBEB; color: #D97706; font-weight: 600; }
+.btn-toggle-edd-active, .btn-toggle-edd-active:hover { background: #EFF6FF; color: #2563EB; font-weight: 600; }
 .legend { margin-left: auto; display: flex; gap: 2px; align-items: center; }
 .legend-btn {
   display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted);
@@ -430,6 +431,7 @@ button, input, textarea, select { font-family: var(--font); }
 .grid-row.row-initiative:hover { background: white; }
 .grid-row.row-inconsistent { background: #FFF7F7; border-left: 2px solid #e03131; }
 .grid-row.row-alerted { background: #FFFBF0; border-left: 2px solid #e67700; }
+.grid-row.row-edd { background: #F5F9FF; border-left: 2px solid #2563EB; }
 .grid-cell {
   flex-shrink: 0; min-width: 0; font-size: 11.5px; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; padding: 0 8px;
@@ -458,6 +460,7 @@ button, input, textarea, select { font-family: var(--font); }
 .tl-row { position: relative; border-bottom: 1px solid var(--hairline); background: transparent; }
 .tl-row.row-inconsistent { background: #FFF7F7; }
 .tl-row.row-alerted { background: #FFFBF0; }
+.tl-row.row-edd { background: #F5F9FF; }
 .today-line { position: absolute; top: 0; width: 1.5px; background: #E5484D; z-index: 5; pointer-events: none; }
 .today-dot { position: absolute; top: -4px; left: -3.25px; width: 8px; height: 8px; border-radius: 50%; background: #E5484D; }
 .week-line { position: absolute; top: 0; width: 1px; background: #F6F4FB; z-index: 0; pointer-events: none; }
@@ -552,9 +555,11 @@ button, input, textarea, select { font-family: var(--font); }
 }
 .gantt-tooltip-danger { background: #1a1a2e; border-left: 3px solid #e03131; }
 .gantt-tooltip-warn { background: #2d2006; border-left: 3px solid #e67700; }
+.gantt-tooltip-edd { background: #101a2d; border-left: 3px solid #2563EB; }
 .gantt-tooltip-title { font-weight: 700; margin-bottom: 4px; font-size: 12px; }
 .gantt-tooltip-danger .gantt-tooltip-title { color: #e03131; }
 .gantt-tooltip-warn .gantt-tooltip-title { color: #e67700; }
+.gantt-tooltip-edd .gantt-tooltip-title { color: #60A5FA; }
 .gantt-tooltip-marker {
   transform: translate(-50%, -100%); background: var(--text-dark);
   padding: 5px 10px; border-radius: 6px; white-space: nowrap; max-width: none;

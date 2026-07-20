@@ -2,7 +2,7 @@
 // Port of src/components/GanttChart.tsx on top of the pure gantt-logic.js.
 import {
   ZOOM_CONFIG, ROW_HEIGHT, BAR_HEIGHT, BAR_TOP, TIMELINE_MARGIN,
-  detectInconsistencies, detectAlerts, computeDateRange, makeDayOffset,
+  detectInconsistencies, detectAlerts, detectEddIssues, computeDateRange, makeDayOffset,
   buildTimelineHeaders, computeWeekLines, getCellText, applyGanttRowFilters,
   getDisplayProgress, computePhaseCumulativeWeights, computePhaseWeight,
   computePhaseWorkloadDays,
@@ -20,7 +20,6 @@ const PHASE_SHORT = {
   "Pilot": "Pilot",
 };
 
-// Epic-level workload: sum of all "Budget Hours <discipline>" fields, ÷ 8h/day
 // Status pill colors [background, foreground] — roadmap-reference style
 const STATUS_COLORS = {
   "blocked": ["#FDE8E8", "#DC2626"],
@@ -42,6 +41,7 @@ const ui = {
   zoom: "month",
   showInconsistencies: false,
   showAlerts: false,
+  showEddIssues: false,
   phaseFilter: null,
   gridCollapsed: false,
   sortCol: null,
@@ -81,6 +81,7 @@ export function renderGantt(container, state, actions) {
     ui.phaseFilter = null;
     ui.showInconsistencies = false;
     ui.showAlerts = false;
+    ui.showEddIssues = false;
     ui.sortCol = null;
     ui.sortDir = null;
     ui.colFilters = {};
@@ -90,15 +91,18 @@ export function renderGantt(container, state, actions) {
   const { allEpicTasks, filteredEpicTasks, displayRows } = state.derived;
   const inconsistencies = detectInconsistencies(allEpicTasks);
   const alerts = detectAlerts(allEpicTasks);
+  const eddIssues = detectEddIssues(allEpicTasks);
   const displayedRows = applyGanttRowFilters(displayRows, {
     showInconsistencies: ui.showInconsistencies,
     showAlerts: ui.showAlerts,
+    showEddIssues: ui.showEddIssues,
     phaseFilter: ui.phaseFilter,
     colFilters: ui.colFilters,
     sortCol: ui.sortCol,
     sortDir: ui.sortDir,
     inconsistencies,
     alerts,
+    eddIssues,
   });
 
   const config = ZOOM_CONFIG[ui.zoom];
@@ -123,7 +127,7 @@ export function renderGantt(container, state, actions) {
   const scrollKey = `${ui.zoom}|${state.rawData.length}`;
 
   container.innerHTML = `
-    ${toolbarHtml(inconsistencies, alerts)}
+    ${toolbarHtml(inconsistencies, alerts, eddIssues)}
     <div class="gantt-header-row">
       ${ui.gridCollapsed ? "" : `
       <div class="gantt-grid-header" style="width:${gridTotalWidth}px;height:${headerHeight}px">
@@ -166,13 +170,13 @@ export function renderGantt(container, state, actions) {
           ${displayedRows.length === 0 ? emptyStateHtml() : ""}
           ${ui.gridCollapsed ? "" : `
           <div class="gantt-grid" style="width:${gridTotalWidth}px">
-            ${displayedRows.map((row, i) => gridRowHtml(row, i, inconsistencies, alerts)).join("")}
+            ${displayedRows.map((row, i) => gridRowHtml(row, i, inconsistencies, alerts, eddIssues)).join("")}
           </div>`}
           <div class="gantt-timeline" style="width:${totalWidth + TIMELINE_MARGIN * 2}px">
             ${todayX >= 0 && todayX <= totalWidth ? `
               <div class="today-line" style="left:${todayX}px;height:${rowsHeight}px"><div class="today-dot"></div></div>` : ""}
             ${weekLines.map((x) => `<div class="week-line" style="left:${x}px;height:${rowsHeight}px"></div>`).join("")}
-            ${displayedRows.map((row, i) => timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts)).join("")}
+            ${displayedRows.map((row, i) => timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, eddIssues)).join("")}
           </div>
         </div>
       </div>
@@ -181,7 +185,7 @@ export function renderGantt(container, state, actions) {
   `;
 
   wireEvents(container, state, actions, {
-    dayOffset, displayedRows, inconsistencies, alerts, todayX, config,
+    dayOffset, displayedRows, inconsistencies, alerts, eddIssues, todayX, config,
   });
 
   // Scroll: today on zoom/data change, otherwise preserve
@@ -201,7 +205,7 @@ export function renderGantt(container, state, actions) {
 
 /* ---------- HTML builders ---------- */
 
-function toolbarHtml(inconsistencies, alerts) {
+function toolbarHtml(inconsistencies, alerts, eddIssues) {
   return `
     <div class="gantt-toolbar">
       <div class="zoom-group">
@@ -221,6 +225,10 @@ function toolbarHtml(inconsistencies, alerts) {
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
         ${ui.showAlerts ? `${alerts.size} alerts` : "Alerts"}
       </button>
+      <button class="btn-toggle ${ui.showEddIssues ? "btn-toggle-edd-active" : ""}" data-toggle="edd" title="Epics whose Estimated Delivery Date is before Customer UAT even starts">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        ${ui.showEddIssues ? `${eddIssues.size} EDD issues` : "Check EDD"}
+      </button>
       <div class="legend">
         ${PHASE_CONFIG.map((p) => {
           const active = ui.phaseFilter === p.name;
@@ -238,12 +246,14 @@ function toolbarHtml(inconsistencies, alerts) {
 }
 
 function emptyStateHtml() {
-  const icon = ui.showInconsistencies ? "⚠" : ui.showAlerts ? "🔔" : "📋";
+  const icon = ui.showInconsistencies ? "⚠" : ui.showAlerts ? "🔔" : ui.showEddIssues ? "📅" : "📋";
   const detail = ui.showInconsistencies
     ? "No date inconsistencies found in the current filtered view."
     : ui.showAlerts
       ? "No status alerts found in the current filtered view."
-      : "No projects match the current filters.";
+      : ui.showEddIssues
+        ? "No EDD issues found in the current filtered view."
+        : "No projects match the current filters.";
   return `
     <div class="gantt-empty">
       <div class="gantt-empty-icon">${icon}</div>
@@ -253,31 +263,32 @@ function emptyStateHtml() {
   `;
 }
 
-function rowMeta(row, i, inconsistencies, alerts) {
+function rowMeta(row, i, inconsistencies, alerts, eddIssues) {
   const epic = row.epic;
   const isInitiative = row.type === "initiative";
   const isInconsistent = ui.showInconsistencies && inconsistencies.has(epic.id);
   const isAlerted = ui.showAlerts && alerts.has(epic.id);
-  const isHighlighted = isInconsistent || isAlerted;
+  const isEddIssue = ui.showEddIssues && eddIssues.has(epic.id);
+  const isHighlighted = isInconsistent || isAlerted || isEddIssue;
   return {
-    epic, isInitiative, isInconsistent, isAlerted, isHighlighted,
-    highlightColor: isInconsistent ? "#e03131" : "#e67700",
+    epic, isInitiative, isInconsistent, isAlerted, isEddIssue, isHighlighted,
+    highlightColor: isInconsistent ? "#e03131" : isAlerted ? "#e67700" : "#2563EB",
     rowClass: [
       isInitiative ? "row-initiative" : "",
-      isHighlighted ? (isInconsistent ? "row-inconsistent" : "row-alerted") : "",
+      isHighlighted ? (isInconsistent ? "row-inconsistent" : isAlerted ? "row-alerted" : "row-edd") : "",
     ].filter(Boolean).join(" "),
   };
 }
 
-function gridRowHtml(row, i, inconsistencies, alerts) {
-  const { epic, isInitiative, isInconsistent, isAlerted, isHighlighted, highlightColor } =
-    rowMeta(row, i, inconsistencies, alerts);
+function gridRowHtml(row, i, inconsistencies, alerts, eddIssues) {
+  const { epic, isInitiative, isInconsistent, isAlerted, isEddIssue, isHighlighted, highlightColor } =
+    rowMeta(row, i, inconsistencies, alerts, eddIssues);
   const product = epic.rawData["Custom field (Product)"] || "";
   const displayProgress = isInitiative ? null : getDisplayProgress(epic);
   const progress = displayProgress !== null ? `${displayProgress}%` : "";
-  const hasDetails = (isInconsistent || isAlerted);
+  const hasDetails = (isInconsistent || isAlerted || isEddIssue);
   return `
-    <div class="grid-row ${rowMeta(row, i, inconsistencies, alerts).rowClass}"
+    <div class="grid-row ${rowMeta(row, i, inconsistencies, alerts, eddIssues).rowClass}"
          data-row-idx="${i}" ${hasDetails ? `data-has-details="1"` : ""}
          style="height:${ROW_HEIGHT}px;${isInitiative && !isHighlighted ? "" : ""}">
       <div class="grid-cell" data-colw="product" style="width:${ui.colWidths.product}px" title="${esc(product)}">
@@ -306,8 +317,8 @@ function gridRowHtml(row, i, inconsistencies, alerts) {
   `;
 }
 
-function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
-  const { epic, isInitiative, isInconsistent } = rowMeta(row, i, inconsistencies, alerts);
+function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, eddIssues) {
+  const { epic, isInitiative, isInconsistent } = rowMeta(row, i, inconsistencies, alerts, eddIssues);
   const info = isInconsistent ? inconsistencies.get(epic.id) : null;
   let bars = "";
 
@@ -386,7 +397,7 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
   }
 
   return `
-    <div class="tl-row ${rowMeta(row, i, inconsistencies, alerts).rowClass}" style="height:${ROW_HEIGHT}px">
+    <div class="tl-row ${rowMeta(row, i, inconsistencies, alerts, eddIssues).rowClass}" style="height:${ROW_HEIGHT}px">
       ${bars}
     </div>
   `;
@@ -453,7 +464,7 @@ function filterDropdownHtml(displayRows) {
 /* ---------- events ---------- */
 
 function wireEvents(container, state, actions, ctx) {
-  const { dayOffset, displayedRows, inconsistencies, alerts, todayX } = ctx;
+  const { dayOffset, displayedRows, inconsistencies, alerts, eddIssues, todayX } = ctx;
   const body = container.querySelector(".gantt-body");
 
   const centerOnToday = () => {
@@ -467,12 +478,16 @@ function wireEvents(container, state, actions, ctx) {
   container.querySelector(".btn-today")?.addEventListener("click", centerOnToday);
   container.querySelectorAll(".btn-toggle").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (btn.dataset.toggle === "inconsistencies") {
+      const toggle = btn.dataset.toggle;
+      if (toggle === "inconsistencies") {
         ui.showInconsistencies = !ui.showInconsistencies;
-        if (ui.showInconsistencies) ui.showAlerts = false;
-      } else {
+        if (ui.showInconsistencies) { ui.showAlerts = false; ui.showEddIssues = false; }
+      } else if (toggle === "alerts") {
         ui.showAlerts = !ui.showAlerts;
-        if (ui.showAlerts) ui.showInconsistencies = false;
+        if (ui.showAlerts) { ui.showInconsistencies = false; ui.showEddIssues = false; }
+      } else {
+        ui.showEddIssues = !ui.showEddIssues;
+        if (ui.showEddIssues) { ui.showInconsistencies = false; ui.showAlerts = false; }
       }
       rerender();
     });
@@ -614,15 +629,25 @@ function wireEvents(container, state, actions, ctx) {
       });
     }
     if (rowEl.dataset.hasDetails) {
-      const info = inconsistencies.get(row.epic.id);
-      const alertInfo = alerts.get(row.epic.id);
-      const isInconsistent = ui.showInconsistencies && !!info;
-      const details = (isInconsistent ? info?.details : alertInfo?.details) || [];
-      rowEl.addEventListener("mouseenter", () => {
-        const rect = rowEl.getBoundingClientRect();
-        showTooltip(rect.right + 8, rect.top + rect.height / 2, isInconsistent, details);
-      });
-      rowEl.addEventListener("mouseleave", hideTooltip);
+      let kind = null;
+      let details = [];
+      if (ui.showInconsistencies && inconsistencies.has(row.epic.id)) {
+        kind = "danger";
+        details = inconsistencies.get(row.epic.id).details;
+      } else if (ui.showAlerts && alerts.has(row.epic.id)) {
+        kind = "warn";
+        details = alerts.get(row.epic.id).details;
+      } else if (ui.showEddIssues && eddIssues.has(row.epic.id)) {
+        kind = "edd";
+        details = eddIssues.get(row.epic.id).details;
+      }
+      if (kind) {
+        rowEl.addEventListener("mouseenter", () => {
+          const rect = rowEl.getBoundingClientRect();
+          showTooltip(rect.right + 8, rect.top + rect.height / 2, kind, details);
+        });
+        rowEl.addEventListener("mouseleave", hideTooltip);
+      }
     }
   });
 
@@ -690,15 +715,21 @@ function autoFitColumn(col, state) {
 
 let tooltipEl = null;
 
-function showTooltip(x, y, isInconsistent, details) {
+const TOOLTIP_TITLES = {
+  danger: "Date inconsistencies",
+  warn: "Status alerts",
+  edd: "EDD issues",
+};
+
+function showTooltip(x, y, kind, details) {
   hideTooltip();
   tooltipEl = document.createElement("div");
-  tooltipEl.className = `gantt-tooltip ${isInconsistent ? "gantt-tooltip-danger" : "gantt-tooltip-warn"}`;
+  tooltipEl.className = `gantt-tooltip gantt-tooltip-${kind}`;
   tooltipEl.style.left = `${x}px`;
   tooltipEl.style.top = `${y}px`;
   const title = document.createElement("div");
   title.className = "gantt-tooltip-title";
-  title.textContent = isInconsistent ? "Date inconsistencies" : "Status alerts";
+  title.textContent = TOOLTIP_TITLES[kind] || "";
   tooltipEl.appendChild(title);
   for (const d of details) {
     const line = document.createElement("div");

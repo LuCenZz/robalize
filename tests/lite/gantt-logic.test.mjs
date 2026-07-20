@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  toDayValue, getWeekNumber, detectInconsistencies, detectAlerts,
+  toDayValue, getWeekNumber, detectInconsistencies, detectAlerts, detectEddIssues,
   computeDateRange, makeDayOffset, buildTimelineHeaders, computeWeekLines,
   getCellText, applyGanttRowFilters, computeWeightedProgress,
   computePhaseCumulativeWeights, computePhaseWeight, computePhaseWorkloadDays,
@@ -43,6 +43,34 @@ test("detectAlerts: analysis ended but status still Backlog", () => {
   const result = detectAlerts([late, fine], today);
   assert.ok(result.has(1));
   assert.ok(!result.has(2));
+});
+
+test("detectEddIssues: EDD before Customer UAT start is flagged", () => {
+  const e = epic(1, [phase("Customer UAT", new Date(2026, 5, 1), new Date(2026, 5, 15))], "In Progress", {
+    "Custom field (Estimated Delivery Date)": "01 May 2026",
+  });
+  const result = detectEddIssues([e]);
+  assert.ok(result.has(1));
+  assert.match(result.get(1).details[0], /Estimated delivery/);
+});
+
+test("detectEddIssues: EDD on or after Customer UAT start is not flagged", () => {
+  const onStart = epic(1, [phase("Customer UAT", new Date(2026, 5, 1), new Date(2026, 5, 15))], "In Progress", {
+    "Custom field (Estimated Delivery Date)": "01 Jun 2026",
+  });
+  const after = epic(2, [phase("Customer UAT", new Date(2026, 5, 1), new Date(2026, 5, 15))], "In Progress", {
+    "Custom field (Estimated Delivery Date)": "20 Jun 2026",
+  });
+  const result = detectEddIssues([onStart, after]);
+  assert.equal(result.size, 0);
+});
+
+test("detectEddIssues: skipped when EDD or the UAT phase is missing", () => {
+  const noEdd = epic(1, [phase("Customer UAT", new Date(2026, 5, 1), new Date(2026, 5, 15))]);
+  const noUat = epic(2, [phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 15))], "In Progress", {
+    "Custom field (Estimated Delivery Date)": "01 Jan 2026",
+  });
+  assert.equal(detectEddIssues([noEdd, noUat]).size, 0);
 });
 
 test("computeDateRange always covers current year with 14-day padding", () => {
@@ -115,6 +143,26 @@ test("applyGanttRowFilters: phase filter keeps epics currently in phase", () => 
   });
   assert.equal(filtered.length, 1);
   assert.equal(filtered[0].epic.id, 1);
+});
+
+test("applyGanttRowFilters: showEddIssues keeps only flagged epics (and their initiative)", () => {
+  const flagged = epic(1, [], "In Progress", {});
+  const fine = epic(2, [], "In Progress", {});
+  const eddIssues = new Map([[1, { epicId: 1, details: ["bad"] }]]);
+  const rows = [
+    { type: "initiative", epic: epic(-1, []), initiativeKey: "I-1", children: [flagged, fine] },
+    { type: "epic", epic: flagged, initiativeKey: "I-1" },
+    { type: "epic", epic: fine, initiativeKey: "I-1" },
+  ];
+  const filtered = applyGanttRowFilters(rows, {
+    showInconsistencies: false, showAlerts: false, showEddIssues: true, phaseFilter: null,
+    colFilters: {}, sortCol: null, sortDir: null,
+    inconsistencies: new Map(), alerts: new Map(), eddIssues,
+  });
+  assert.equal(filtered.length, 2); // initiative (has a flagged child) + the flagged epic itself
+  assert.ok(filtered.some((r) => r.type === "initiative"));
+  assert.ok(filtered.some((r) => r.epic.id === 1));
+  assert.ok(!filtered.some((r) => r.epic.id === 2));
 });
 
 test("getCellText: initiative shows only name and progress columns", () => {
