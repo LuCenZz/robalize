@@ -16,7 +16,6 @@ export const state = {
   activeFilters: [],
   searchTerm: "",
   jiraConnected: false,
-  loading: false,
   refreshing: false,
   resetKey: 0,
   derived: {
@@ -41,11 +40,31 @@ export function deriveData() {
 export function renderAll() {
   renderTopBar(document.getElementById("topbar"), state, actions);
   renderFilterBar(document.getElementById("filterbar"), state, actions);
-  document.getElementById("loading").classList.toggle("hidden", !state.loading);
   const gantt = document.getElementById("gantt");
-  gantt.classList.toggle("hidden", state.loading || state.rawData.length === 0);
-  if (!state.loading && state.rawData.length > 0) {
+  gantt.classList.toggle("hidden", state.rawData.length === 0);
+  if (state.rawData.length > 0) {
     renderGantt(gantt, state, actions);
+  }
+  renderRefreshOverlay();
+}
+
+// Built once per refresh cycle (not on every re-render) so its CSS
+// animations don't restart from unrelated state changes while it's showing.
+function renderRefreshOverlay() {
+  const overlay = document.getElementById("refresh-overlay");
+  if (!state.refreshing) {
+    overlay.classList.add("hidden");
+    return;
+  }
+  if (overlay.classList.contains("hidden")) {
+    overlay.innerHTML = `
+      <div class="refresh-overlay-content">
+        <div class="brand-lines brand-lines-loading brand-lines-xl"><i></i><i></i><i></i></div>
+        <div class="brand-name-xl">rob<span>a</span>l<span>i</span>ze</div>
+        <div class="refresh-overlay-label">Syncing with JIRA<span class="loading-dots"></span></div>
+      </div>
+    `;
+    overlay.classList.remove("hidden");
   }
 }
 
@@ -71,7 +90,7 @@ export function setupAutoRefresh() {
   if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
   const config = loadJiraConfig();
   if (state.jiraConnected && config && config.refreshInterval > 0) {
-    refreshTimer = setInterval(() => actions.refreshFromJira(true), config.refreshInterval * 1000);
+    refreshTimer = setInterval(() => actions.refreshFromJira(), config.refreshInterval * 1000);
   }
 }
 
@@ -105,12 +124,11 @@ export const actions = {
     renderAll();
   },
 
-  async refreshFromJira(silent = false) {
+  async refreshFromJira() {
     // No connection step: saved config if any, otherwise defaults with
     // server-managed credentials.
     const config = { ...DEFAULT_CONFIG, ...(loadJiraConfig() || {}) };
     state.refreshing = true;
-    if (!silent) state.loading = true;
     renderAll();
     try {
       const rows = await fetchJiraData(config);
@@ -124,7 +142,6 @@ export const actions = {
       showError(err instanceof Error ? err.message : "JIRA fetch failed");
     } finally {
       state.refreshing = false;
-      if (!silent) state.loading = false;
       renderAll();
     }
   },
@@ -160,14 +177,15 @@ function boot() {
   renderAll();
 
   if (hasCache) {
-    // Instant display from cache, then refresh silently in the background.
+    // Instant display from cache, then refresh in the background — the
+    // overlay makes the sync visible even though data is already on screen.
     setupAutoRefresh();
-    actions.refreshFromJira(true);
+    actions.refreshFromJira();
     return;
   }
 
   // Straight to the Gantt: fetch immediately, no connection step.
-  actions.refreshFromJira(false);
+  actions.refreshFromJira();
 }
 
 boot();
