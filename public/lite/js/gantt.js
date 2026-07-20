@@ -381,9 +381,8 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
       const width = dayOffset(phase.endDate) - left + config.dayWidth;
       if (width <= 0) return "";
       const isConflicting = info?.conflictingPhases.has(phase.phaseName);
-      const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
       const cum = cumWeights ? cumWeights[phase.phaseName] : null;
-      const label = cum !== null && cum !== undefined ? `${short} ${cum}%` : short;
+      const label = cum !== null && cum !== undefined ? `${cum}%` : PHASE_SHORT[phase.phaseName] || phase.phaseName;
       // The label always sits above the box, centered on it — narrow
       // boxes (Pilot especially) never have room for text inside them.
       return `
