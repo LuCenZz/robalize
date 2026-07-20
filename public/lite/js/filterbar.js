@@ -30,15 +30,24 @@ let last = null; // {container, state, actions} for outside-click re-render
 let projectQuery = "";
 let projectSuggestOpen = false;
 
+// A click anywhere outside the specific open panel closes it — not just
+// outside the whole filter bar, so clicking the Gantt, the toolbar, or any
+// other chip/field always dismisses whatever is currently open.
 document.addEventListener("mousedown", (e) => {
   if (!last) return;
-  const outside = !last.container.contains(e.target);
-  if (!outside) return;
+
   if (openDropdown) {
-    openDropdown = null;
-    dropdownSearch = "";
-    renderFilterBar(last.container, last.state, last.actions);
-  } else if (projectSuggestOpen) {
+    const stillInside =
+      (openDropdown.kind === "chip" && e.target.closest(".chip-wrap")) ||
+      (openDropdown.kind === "add" && e.target.closest(".add-wrap"));
+    if (!stillInside) {
+      openDropdown = null;
+      dropdownSearch = "";
+      renderFilterBar(last.container, last.state, last.actions);
+    }
+  }
+
+  if (projectSuggestOpen && !e.target.closest(".project-search-wrap")) {
     projectSuggestOpen = false;
     projectQuery = "";
     renderFilterBar(last.container, last.state, last.actions);
