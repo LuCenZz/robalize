@@ -12,7 +12,13 @@ const PRODUCT_COLORS = [
   "#6366F1", "#EC4899",
 ];
 
-let openDropdown = null; // {kind: "chip", column} | {kind: "add"} | null
+// "Project" = the initiative an epic belongs to. Stored on every child row
+// as the raw "Parent summary" field, so it's filterable the same way as
+// any other column — this control is just a friendlier, searchable
+// shortcut to it (initiatives can number in the dozens, too many for pills).
+const PROJECT_COLUMN = "Parent summary";
+
+let openDropdown = null; // {kind: "chip", column} | {kind: "add"} | {kind: "project"} | null
 let dropdownSearch = "";
 let favorites = null; // lazy-loaded
 let dragFrom = null;
@@ -84,9 +90,13 @@ export function renderFilterBar(container, state, actions) {
   const productValues = state.columns.includes(PRODUCT_COLUMN)
     ? extractUniqueValues(state.rawData, PRODUCT_COLUMN)
     : [];
+  const projectValues = state.columns.includes(PROJECT_COLUMN)
+    ? extractUniqueValues(state.rawData, PROJECT_COLUMN)
+    : [];
 
   container.innerHTML = `
     ${productValues.length > 0 ? productRowHtml(state, productValues) : ""}
+    ${projectValues.length > 0 ? projectRowHtml(state, projectValues) : ""}
     <div class="filterbar">
       <span class="filterbar-label">Filters</span>
       ${chipsHtml}
@@ -131,6 +141,48 @@ function productRowHtml(state, productValues) {
           </button>
         `;
       }).join("")}
+    </div>
+  `;
+}
+
+function projectRowHtml(state, projectValues) {
+  const filter = state.activeFilters.find((f) => f.column === PROJECT_COLUMN);
+  const selected = filter ? filter.values : [];
+  const label = selected.length === 0 ? "All projects"
+    : selected.length === 1 ? selected[0]
+    : `${selected.length} projects`;
+  const isOpen = openDropdown?.kind === "project";
+  const filtered = projectValues.filter((v) => v.toLowerCase().includes(dropdownSearch.toLowerCase()));
+
+  return `
+    <div class="product-row">
+      <span class="filterbar-label">Project</span>
+      <div class="project-select-wrap">
+        <button class="project-select-btn ${selected.length > 0 ? "project-select-btn-active" : ""}">
+          <span class="chip-text">${esc(label)}</span>
+          <span class="chip-arrow ${isOpen ? "chip-arrow-open" : ""}">▼</span>
+        </button>
+        ${isOpen ? `
+          <div class="dropdown dropdown-chip">
+            <div class="dropdown-search-wrap">
+              <input class="dropdown-search dropdown-search-project" type="text" placeholder="Search projects..." />
+            </div>
+            <div class="dropdown-actions">
+              <button class="dropdown-select-all" data-role="project-select-all">Tout sélectionner</button>
+              <button class="dropdown-clear" data-role="project-clear">Effacer</button>
+            </div>
+            <div class="dropdown-options">
+              ${filtered.map((val) => `
+                <label class="dropdown-option ${selected.includes(val) ? "dropdown-option-checked" : ""}">
+                  <input type="checkbox" data-value="${esc(val)}" ${selected.includes(val) ? "checked" : ""} />
+                  <span>${esc(val)}</span>
+                </label>
+              `).join("")}
+              ${filtered.length === 0 ? '<div class="dropdown-empty">Aucun résultat</div>' : ""}
+            </div>
+          </div>
+        ` : ""}
+      </div>
     </div>
   `;
 }
@@ -186,6 +238,53 @@ function wireEvents(container, state, actions) {
       ));
     });
   });
+
+  // Project select: toggle dropdown, then search + multi-select checkboxes
+  container.querySelector(".project-select-btn")?.addEventListener("click", () => {
+    const isOpen = openDropdown?.kind === "project";
+    openDropdown = isOpen ? null : { kind: "project" };
+    dropdownSearch = "";
+    renderFilterBar(container, state, actions);
+    if (!isOpen) container.querySelector(".dropdown-search-project")?.focus();
+  });
+
+  const projectDd = openDropdown?.kind === "project" ? container.querySelector(".dropdown-chip") : null;
+  if (projectDd) {
+    const filter = state.activeFilters.find((f) => f.column === PROJECT_COLUMN);
+    const update = (values) => {
+      if (!filter) {
+        actions.setFilters([...state.activeFilters, { column: PROJECT_COLUMN, values }]);
+      } else {
+        actions.setFilters(state.activeFilters.map((f) =>
+          f.column === PROJECT_COLUMN ? { ...f, values } : f
+        ));
+      }
+    };
+
+    const search = projectDd.querySelector(".dropdown-search-project");
+    search.value = dropdownSearch;
+    search.addEventListener("input", (e) => {
+      const pos = e.target.selectionStart;
+      dropdownSearch = e.target.value;
+      renderFilterBar(container, state, actions);
+      const next = container.querySelector(".dropdown-search-project");
+      if (next) { next.focus(); next.setSelectionRange(pos, pos); }
+    });
+
+    projectDd.querySelector(".dropdown-select-all").addEventListener("click", () => {
+      update(extractUniqueValues(state.rawData, PROJECT_COLUMN));
+    });
+    projectDd.querySelector(".dropdown-clear").addEventListener("click", () => update([]));
+
+    projectDd.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+      cb.addEventListener("change", () => {
+        const val = cb.dataset.value;
+        const current = filter ? filter.values : [];
+        if (current.includes(val)) update(current.filter((v) => v !== val));
+        else update([...current, val]);
+      });
+    });
+  }
 
   // Chip label → toggle dropdown
   container.querySelectorAll(".chip-label").forEach((btn) => {
