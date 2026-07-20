@@ -606,7 +606,8 @@ function wireEvents(container, state, actions, ctx) {
     marker.addEventListener("mouseleave", hideTooltip);
   });
 
-  // Phase bars → epic summary card on hover (dates shown are the hovered phase's only)
+  // Phase bars → epic summary card on hover (dates shown are the hovered phase's only);
+  // double-click opens that epic's ACTO directly in JIRA.
   container.querySelectorAll(".phase-bar").forEach((bar) => {
     bar.addEventListener("mouseenter", (e) => {
       const row = displayedRows[Number(bar.dataset.rowIdx)];
@@ -616,6 +617,11 @@ function wireEvents(container, state, actions, ctx) {
       showEpicCard(e.clientX, e.clientY, row.epic, phase);
     });
     bar.addEventListener("mouseleave", hideEpicCard);
+    bar.addEventListener("dblclick", () => {
+      const row = displayedRows[Number(bar.dataset.rowIdx)];
+      if (!row?.epic.epicKey) return;
+      window.open(`https://imawebgroup.atlassian.net/browse/${encodeURIComponent(row.epic.epicKey)}`, "_blank", "noopener,noreferrer");
+    });
   });
 
   // Grid rows: click scrolls to closest phase; hover shows details tooltip
