@@ -5,7 +5,7 @@ import {
   detectInconsistencies, detectAlerts, computeDateRange, makeDayOffset,
   buildTimelineHeaders, computeWeekLines, getCellText, applyGanttRowFilters,
 } from "./gantt-logic.js";
-import { PHASE_CONFIG } from "./transform.js";
+import { PHASE_CONFIG, parseJiraDate } from "./transform.js";
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
@@ -395,6 +395,20 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts) {
     }).join("");
   }
 
+  // Estimated delivery milestone — shown for any epic that has the field,
+  // scheduled or not.
+  if (!isInitiative) {
+    const deliveryRaw = epic.rawData["Custom field (Estimated Delivery Date)"];
+    const deliveryDate = deliveryRaw ? parseJiraDate(deliveryRaw) : null;
+    if (deliveryDate) {
+      const dx = dayOffset(deliveryDate);
+      bars += `
+        <div class="delivery-marker" data-date="${esc(formatDate(deliveryDate))}"
+             style="left:${dx}px;top:${BAR_TOP + BAR_HEIGHT / 2}px"></div>
+      `;
+    }
+  }
+
   return `
     <div class="tl-row ${rowMeta(row, i, inconsistencies, alerts).rowClass}" style="height:${ROW_HEIGHT}px">
       ${bars}
@@ -597,6 +611,15 @@ function wireEvents(container, state, actions, ctx) {
     });
   });
 
+  // Delivery milestones → small date tooltip on hover
+  container.querySelectorAll(".delivery-marker").forEach((marker) => {
+    marker.addEventListener("mouseenter", () => {
+      const rect = marker.getBoundingClientRect();
+      showMarkerTooltip(rect.left + rect.width / 2, rect.top - 6, `Est. delivery: ${marker.dataset.date}`);
+    });
+    marker.addEventListener("mouseleave", hideTooltip);
+  });
+
   // Phase bars → epic summary card on hover (dates shown are the hovered phase's only)
   container.querySelectorAll(".phase-bar").forEach((bar) => {
     bar.addEventListener("mouseenter", (e) => {
@@ -718,6 +741,16 @@ function showTooltip(x, y, isInconsistent, details) {
 function hideTooltip() {
   tooltipEl?.remove();
   tooltipEl = null;
+}
+
+function showMarkerTooltip(x, y, text) {
+  hideTooltip();
+  tooltipEl = document.createElement("div");
+  tooltipEl.className = "gantt-tooltip gantt-tooltip-marker";
+  tooltipEl.style.left = `${x}px`;
+  tooltipEl.style.top = `${y}px`;
+  tooltipEl.textContent = text;
+  document.body.appendChild(tooltipEl);
 }
 
 /* ---------- epic summary card (hover over a phase bar) ---------- */

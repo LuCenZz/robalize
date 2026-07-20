@@ -446,6 +446,16 @@ button, input, textarea, select { font-family: var(--font); }
   text-transform: uppercase; letter-spacing: 0.6px;
 }
 
+/* ===== Delivery milestone marker ===== */
+.delivery-marker {
+  position: absolute; width: 10px; height: 10px; background: var(--text-dark);
+  border: 1.5px solid white; border-radius: 2px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  box-shadow: 0 1px 4px rgba(27, 19, 64, 0.35);
+  cursor: pointer; z-index: 4;
+}
+.delivery-marker:hover { background: var(--primary); }
+
 /* ===== Epic summary card (hover over a phase bar) ===== */
 .epic-card {
   position: fixed; transform: translate(-50%, -100%); z-index: 1000;
@@ -489,6 +499,10 @@ button, input, textarea, select { font-family: var(--font); }
 .gantt-tooltip-title { font-weight: 700; margin-bottom: 4px; font-size: 12px; }
 .gantt-tooltip-danger .gantt-tooltip-title { color: #e03131; }
 .gantt-tooltip-warn .gantt-tooltip-title { color: #e67700; }
+.gantt-tooltip-marker {
+  transform: translate(-50%, -100%); background: var(--text-dark);
+  padding: 5px 10px; border-radius: 6px; white-space: nowrap; max-width: none;
+}
 
 /* ===== Column filter dropdown ===== */
 .col-filter-overlay { position: fixed; inset: 0; z-index: 999; }
