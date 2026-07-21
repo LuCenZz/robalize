@@ -525,10 +525,23 @@ export function computePhasePriceCumulative(epic) {
  * inside contributes its whole price; one straddling the boundary
  * contributes a fraction (overlapping days ÷ the phase's total days).
  * periodEnd is exclusive (e.g. the 1st of the next month).
+ *
+ * Development and QA / Test are the two phases with a real, reported
+ * completion % (from Story/Testing Story Points — see
+ * computeStoryMetrics). When storyMetrics is supplied, those two phases
+ * stop pro-rating their *full* price across their *full* scheduled span —
+ * that would keep forecasting the whole thing as if nothing had actually
+ * been recognized yet. Instead only the still-unrecognized remainder
+ * (price × (1 − real%)) is spread across the remaining days (today through
+ * the phase's end — or, if the phase is already overdue against that real
+ * %, treated as fully outstanding right now). Other phases (Analysis,
+ * Customer UAT, Pilot) have no such real-progress signal and keep the
+ * plain date pro-ration.
  */
-export function computePeriodForecast(rows, periodStart, periodEnd) {
+export function computePeriodForecast(rows, periodStart, periodEnd, storyMetrics = null, today = new Date()) {
   const periodStartDay = toDayValue(periodStart);
   const periodEndDay = toDayValue(periodEnd);
+  const todayDay = toDayValue(today);
   let total = 0;
   for (const row of rows) {
     if (row.type === "initiative") continue;
@@ -536,15 +549,64 @@ export function computePeriodForecast(rows, periodStart, periodEnd) {
     for (const phase of epic.phases) {
       const price = computePhasePrice(epic, phase.phaseName);
       if (price === null) continue;
-      const phaseStartDay = toDayValue(phase.startDate);
-      const phaseEndDay = toDayValue(phase.endDate) + 1; // exclusive
+
+      const realPct = phase.phaseName === "Development" ? storyMetrics?.dev.get(epic.epicKey)?.pct
+        : phase.phaseName === "QA / Test" ? storyMetrics?.qa.get(epic.epicKey)?.pct
+        : undefined;
+
+      let effectivePrice = price;
+      let phaseStartDay = toDayValue(phase.startDate);
+      let phaseEndDay = toDayValue(phase.endDate) + 1; // exclusive
+
+      if (realPct !== undefined) {
+        effectivePrice = price * (1 - realPct / 100);
+        if (effectivePrice <= 0) continue;
+        phaseStartDay = Math.max(phaseStartDay, todayDay);
+        if (phaseEndDay <= phaseStartDay) phaseEndDay = phaseStartDay + 1; // overdue: outstanding as of today
+      }
+
       const overlap = Math.min(phaseEndDay, periodEndDay) - Math.max(phaseStartDay, periodStartDay);
       if (overlap <= 0) continue;
       const totalDays = phaseEndDay - phaseStartDay;
-      total += price * (overlap / totalDays);
+      total += effectivePrice * (overlap / totalDays);
     }
   }
   return total;
+}
+
+/**
+ * "This month" breakdown for a single phase, for the epic-card tooltip:
+ * how many of its budgeted workload days fall in the current month, what
+ * fraction of the phase's own budget that represents, and the € it's
+ * worth — all three sharing one ratio so they can never disagree.
+ *
+ * That ratio is computePeriodForecast's own this-month/this-phase € figure
+ * divided by the phase's full budgeted price — for Development/QA (where
+ * computePeriodForecast already prorates only the real, unrecognized
+ * remainder across the remaining days) this naturally comes out smaller
+ * than the plain calendar-overlap fraction would, exactly like the
+ * Forecast Detail table. Returns null when there's nothing to show (no
+ * price/workload data, or the phase doesn't reach into this month at all).
+ */
+export function computePhaseThisMonth(epic, phase, storyMetrics, today = new Date()) {
+  const price = computePhasePrice(epic, phase.phaseName);
+  if (price === null || price === 0) return null;
+
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const monthEndExclusive = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const nrr = computePeriodForecast(
+    [{ type: "epic", epic: { ...epic, phases: [phase] } }], monthStart, monthEndExclusive, storyMetrics, today
+  );
+  if (nrr <= 0) return null;
+
+  const ratio = nrr / price;
+  const workloadDaysRaw = computePhaseWorkloadDays(epic, phase.phaseName);
+  const workloadDays = workloadDaysRaw !== null ? parseFloat(workloadDaysRaw) : null;
+  return {
+    nrr,
+    pct: Math.round(ratio * 100),
+    days: workloadDays !== null ? Math.round(workloadDays * ratio * 10) / 10 : null,
+  };
 }
 
 /**
@@ -567,6 +629,9 @@ export function computeProjectedProgress(epic, targetDate, today = new Date()) {
 // work is created after the budget is set and can diverge from it.
 const STORY_POINTS_FIELD = "Custom field (Story Points)";
 const STORY_DONE_STATUSES = new Set(["done", "ready to be released"]);
+// Once a Story hands off to QA, dev work on it is finished — counts as
+// 100% for the Dev bucket even though the ticket itself isn't Done yet.
+const STORY_DEV_HANDOFF_STATUSES = new Set(["ready for testing"]);
 const STORY_EXCLUDED_STATUSES = new Set(["ceased"]);
 // If logged time disagrees with the date-based estimate by more than this,
 // assume the team isn't logging time reliably and trust the dates instead.
@@ -575,6 +640,8 @@ const STORY_TIME_DEVIATION_THRESHOLD = 0.3;
 /**
  * A single Story/Testing issue's completion fraction (0–1):
  * - Done / Ready to be Released → 1
+ * - Ready for testing on a Story (Dev) issue → 1 (dev work is done, it's
+ *   just waiting on QA); has no special meaning for Testing issues
  * - No start+due date on the issue → 0 (nothing to pro-rate against)
  * - Otherwise, pro-rated by elapsed days between start and due date; if
  *   JIRA's own "Original estimate" is set, cross-check against logged
@@ -582,9 +649,10 @@ const STORY_TIME_DEVIATION_THRESHOLD = 0.3;
  *   than STORY_TIME_DEVIATION_THRESHOLD, in which case the date-based
  *   figure wins (the team likely isn't logging time).
  */
-function computeStoryIssueProgress(row, today) {
+function computeStoryIssueProgress(row, today, isDev) {
   const status = (row["Status"] || "").trim().toLowerCase();
   if (STORY_DONE_STATUSES.has(status)) return 1;
+  if (isDev && STORY_DEV_HANDOFF_STATUSES.has(status)) return 1;
 
   const start = row["Custom field (Start date)"] ? parseJiraDate(row["Custom field (Start date)"]) : null;
   const due = row["Due date"] ? parseJiraDate(row["Due date"]) : null;
@@ -639,7 +707,7 @@ export function computeStoryMetrics(rows, today = new Date()) {
     const bucket = type === "Story" ? devPoints : type === "Testing" ? qaPoints : null;
     if (!bucket) continue;
 
-    const progress = computeStoryIssueProgress(row, today);
+    const progress = computeStoryIssueProgress(row, today, type === "Story");
     const timeSpent = parseFloat(row["Time Spent"]);
     const entry = bucket.get(parentKey) || { total: 0, done: 0, timeSpentSeconds: 0 };
     entry.total += points;

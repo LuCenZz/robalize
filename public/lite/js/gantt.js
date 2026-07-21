@@ -7,6 +7,7 @@ import {
   getDisplayProgress, computePhaseCumulativeWeights, computePhaseWeight,
   computePhaseWorkloadDays, computePhasePrice, computePhasePriceCumulative,
   computePeriodForecast, resolvePhaseRenderBounds, computeProjectedProgress,
+  computePhaseThisMonth,
 } from "./gantt-logic.js";
 import { PHASE_CONFIG, parseJiraDate } from "./transform.js";
 
@@ -212,7 +213,7 @@ export function renderGantt(container, state, actions) {
     <div class="gantt-body-wrap">
       <div class="gantt-body">
         <div class="gantt-canvas">
-          ${displayedRows.length === 0 ? emptyStateHtml() : ""}
+          ${displayedRows.length === 0 ? emptyStateHtml(state.refreshing) : ""}
           ${ui.gridCollapsed ? "" : `
           <div class="gantt-grid" style="width:${gridTotalWidth}px">
             ${displayedRows.map((row, i) => gridRowHtml(row, i, inconsistencies, alerts, eddIssues)).join("")}
@@ -245,6 +246,26 @@ export function renderGantt(container, state, actions) {
     }
     syncHeaderScroll(container, body);
     updateInitiativeLabels(container, body);
+
+    // Double-clicking a row in the Forecast Detail table sets this, then
+    // switches to this view — land on that exact row (both axes) and
+    // flash it, since it's one row among many that otherwise look alike.
+    if (state.focusRowKey) {
+      const idx = displayedRows.findIndex(
+        (r) => (r.type === "initiative" ? r.initiativeKey : r.epic.epicKey) === state.focusRowKey
+      );
+      if (idx >= 0) {
+        body.scrollTop = idx * ROW_HEIGHT - body.clientHeight / 2 + ROW_HEIGHT / 2;
+        scrollToClosestPhase(displayedRows[idx].epic, body, dayOffset);
+        syncHeaderScroll(container, body);
+        const rowEl = container.querySelector(`.grid-row[data-row-key="${CSS.escape(state.focusRowKey)}"]`);
+        if (rowEl) {
+          rowEl.classList.add("grid-row-focus-flash");
+          setTimeout(() => rowEl.classList.remove("grid-row-focus-flash"), 1600);
+        }
+      }
+      state.focusRowKey = null;
+    }
   }
 }
 
@@ -298,7 +319,20 @@ function periodAttrs(h) {
   return `data-period-start="${h.start.toISOString()}" data-period-end="${h.end.toISOString()}"`;
 }
 
-function emptyStateHtml() {
+function emptyStateHtml(refreshing) {
+  // A JIRA refresh in flight can legitimately take a few seconds (several
+  // paginated requests, plus JIRA's own search-index lag for anything just
+  // edited) — showing the same "No results" during that window as for a
+  // filter that truly matches nothing reads as broken rather than loading.
+  if (refreshing) {
+    return `
+      <div class="gantt-empty">
+        <div class="gantt-empty-icon">⏳</div>
+        <div class="gantt-empty-title">Loading…</div>
+        <div class="gantt-empty-detail">Still fetching the latest data from JIRA — this can take a few seconds.</div>
+      </div>
+    `;
+  }
   const icon = ui.showInconsistencies ? "⚠" : ui.showAlerts ? "🔔" : ui.showEddIssues ? "📅" : "📋";
   const detail = ui.showInconsistencies
     ? "No date inconsistencies found in the current filtered view."
@@ -434,7 +468,8 @@ function gridRowHtml(row, i, inconsistencies, alerts, eddIssues) {
   const hasDetails = (isInconsistent || isAlerted || isEddIssue);
   return `
     <div class="grid-row ${rowMeta(row, i, inconsistencies, alerts, eddIssues).rowClass}"
-         data-row-idx="${i}" ${hasDetails ? `data-has-details="1"` : ""}
+         data-row-idx="${i}" data-row-key="${esc(isInitiative ? row.initiativeKey : row.epic.epicKey)}"
+         ${hasDetails ? `data-has-details="1"` : ""}
          style="height:${ROW_HEIGHT}px;${isInitiative && !isHighlighted ? "" : ""}">
       <div class="grid-cell" data-colw="product" style="width:${ui.colWidths.product}px" title="${esc(product)}">
         ${isInitiative ? "" : esc(product || "—")}
@@ -595,6 +630,7 @@ function buildEpicCardHtml(epic, phase, storyMetrics) {
     : phase.phaseName === "QA / Test" ? storyMetrics?.qa.get(epic.epicKey)
     : undefined;
   const realNrr = realStory !== undefined && phasePrice !== null ? phasePrice * (realStory.pct / 100) : null;
+  const thisMonth = computePhaseThisMonth(epic, phase, storyMetrics);
 
   // Only the hovered phase's dates are shown — not the full schedule.
   const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
@@ -614,6 +650,10 @@ function buildEpicCardHtml(epic, phase, storyMetrics) {
     ${realStory !== undefined ? `<div class="epic-card-row"><span>Real progress (US)</span><b class="epic-card-secondary">${formatPoints(realStory.done)}/${formatPoints(realStory.total)} pts (${realStory.pct}%)</b></div>` : ""}
     ${realNrr !== null ? `<div class="epic-card-row"><span>Real NRR (US)</span><b class="epic-card-secondary">€${formatMoney(realNrr)}</b></div>` : ""}
     ${realStory?.timeSpentSeconds > 0 ? `<div class="epic-card-row"><span>Time spent (US)</span><b class="epic-card-secondary">${formatTimeSpent(realStory.timeSpentSeconds)}</b></div>` : ""}
+    ${thisMonth ? `<div class="epic-card-divider"></div>` : ""}
+    ${thisMonth?.days !== null && thisMonth ? `<div class="epic-card-row"><span>Planned this month</span><b>${thisMonth.days}d (${thisMonth.pct}%)</b></div>` : ""}
+    ${thisMonth && thisMonth.days === null ? `<div class="epic-card-row"><span>Planned this month</span><b>${thisMonth.pct}%</b></div>` : ""}
+    ${thisMonth ? `<div class="epic-card-row"><span>NRR this month</span><b class="epic-card-nrr">€${formatMoney(thisMonth.nrr)}</b></div>` : ""}
     ${phaseRows ? `<div class="epic-card-divider"></div>${phaseRows}` : ""}
   `;
 }
@@ -815,7 +855,7 @@ function wireEvents(container, state, actions, ctx) {
     cell.addEventListener("mouseenter", () => {
       const start = new Date(cell.dataset.periodStart);
       const end = new Date(cell.dataset.periodEnd);
-      const forecast = computePeriodForecast(displayedRows, start, end);
+      const forecast = computePeriodForecast(displayedRows, start, end, state.storyMetrics);
       const rect = cell.getBoundingClientRect();
       showMarkerTooltip(rect.left + rect.width / 2, rect.bottom + 6, `NRR forecast: €${formatMoney(forecast)}`, "below");
     });

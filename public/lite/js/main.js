@@ -4,7 +4,7 @@ import { loadJiraConfig, fetchJiraData, resolveJiraConfig } from "./jira.js";
 import { computeStoryMetrics } from "./gantt-logic.js";
 import { loadFilters, saveFilters, loadSearchTerm, saveSearchTerm } from "./prefs.js";
 import { renderTopBar } from "./topbar.js";
-import { renderFilterBar } from "./filterbar.js";
+import { renderFilterBar, PROJECT_COLUMN } from "./filterbar.js";
 import { renderGantt } from "./gantt.js";
 import { renderForecastTable } from "./forecast.js";
 import { openConnector } from "./connector.js";
@@ -31,6 +31,14 @@ export const state = {
   // month's forecast. Chart/cards/Total row stay unfiltered (the
   // portfolio aggregate being drilled into).
   forecastMonthFilter: null,
+  // Row key (initiativeKey or epicKey) to scroll to next time the Gantt
+  // renders — set by double-clicking a Forecast row, consumed and cleared
+  // by renderGantt once it's acted on.
+  focusRowKey: null,
+  // Sort column/direction for the Forecast Detail table — col is a sticky
+  // column name ("name"/"orderValue"/"remaining") or "pct:<i>"/"nrr:<i>"
+  // for a specific month column; null col means unsorted (original order).
+  forecastSort: { col: null, dir: null },
   // Real Dev/QA completion %, keyed by epic key — from Story/Testing
   // Story Points, fetched independently of the main epic data (see
   // refreshStoryMetrics below).
@@ -205,6 +213,27 @@ export const actions = {
     renderAll();
   },
 
+  focusRowInGantt(rowKey, projectName) {
+    state.viewMode = "gantt";
+    state.focusRowKey = rowKey;
+    // Standalone epics (no parent initiative) have no "Parent summary" to
+    // filter by — for those, just scroll to the row without touching filters.
+    if (projectName) {
+      state.activeFilters = [{ column: PROJECT_COLUMN, values: [projectName] }];
+      saveFilters(state.activeFilters);
+    }
+    deriveData();
+    renderAll();
+  },
+
+  setForecastSort(col) {
+    const cur = state.forecastSort;
+    if (cur.col !== col) state.forecastSort = { col, dir: "asc" };
+    else if (cur.dir === "asc") state.forecastSort = { col, dir: "desc" };
+    else state.forecastSort = { col: null, dir: null };
+    renderAll();
+  },
+
   async refreshFromJira(background = false) {
     // No connection step: saved config if any, otherwise the server-managed
     // default JQL/credentials.
@@ -213,15 +242,19 @@ export const actions = {
     // periodic auto-refresh timer while the app stays open): silent, so it
     // never interrupts someone actively working in the Gantt.
     if (!background) { state.refreshing = true; renderAll(); }
+    // Progressive per-page rendering is only safe on a true cold start
+    // (nothing shown yet, so any partial page is strictly better than a
+    // blank screen). If a previous fetch (or cached data) already
+    // populated the Gantt, swapping state.rawData in page by page would
+    // briefly REPLACE that complete set with just the first ~100 fresh
+    // rows — and if the currently active filter's project happens to be
+    // on a page that hasn't arrived yet, that's a real, visible "No
+    // results" flash, not just an internal timing detail. Once there's
+    // something to lose, wait for the whole fetch and swap once, atomically.
+    const coldStart = !background && state.rawData.length === 0;
     let gotFirstBatch = false;
     try {
-      // Foreground: swap state.rawData in per page, so the Gantt shows the
-      // first results immediately while the rest streams in. Background
-      // (auto-refresh, user already looking at a stable view): don't touch
-      // state.rawData until the whole fetch is done — replacing it page by
-      // page would flash "No results" whenever the currently active filters
-      // only match epics from a page that hasn't arrived yet.
-      const rows = await fetchJiraData(config, undefined, background ? undefined : (batchRows) => {
+      const rows = await fetchJiraData(config, undefined, !coldStart ? undefined : (batchRows) => {
         state.jiraConnected = true;
         if (!gotFirstBatch) {
           gotFirstBatch = true;
@@ -231,7 +264,7 @@ export const actions = {
       });
       if (rows.length > 0) {
         state.jiraConnected = true;
-        if (background || !gotFirstBatch) actions.setData(rows, { silent: true });
+        if (!coldStart || !gotFirstBatch) actions.setData(rows, { silent: true });
         clearError();
         setupAutoRefresh();
         refreshStoryMetrics(rows);

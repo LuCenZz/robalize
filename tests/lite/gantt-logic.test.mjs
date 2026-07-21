@@ -7,6 +7,7 @@ import {
   computePhaseCumulativeWeights, computePhaseWeight, computePhaseWorkloadDays,
   computePhasePrice, computePhasePriceCumulative, computePeriodForecast,
   computeStoryMetrics, resolvePhaseRenderBounds, computeProjectedProgress,
+  computePhaseThisMonth,
   ZOOM_CONFIG, TIMELINE_MARGIN,
 } from "../../public/lite/js/gantt-logic.js";
 
@@ -454,6 +455,122 @@ test("computePeriodForecast: sums across epics and skips initiative rows", () =>
   assert.equal(total, 800);
 });
 
+test("computePeriodForecast: Development with real progress only forecasts the unrecognized remainder", () => {
+  // 1000 budgeted, 50% already really done per Story Points → only 500
+  // left to forecast, spread over the remaining days of the phase.
+  const e = epic(1, [phase("Development", new Date(2026, 0, 10), new Date(2026, 0, 20))], "In Progress", {
+    "Custom field (Budget Price DEV)": "1000",
+  });
+  const storyMetrics = { dev: new Map([["E-1", { pct: 50, done: 0, total: 0, timeSpentSeconds: 0 }]]), qa: new Map() };
+  const total = computePeriodForecast(
+    [{ type: "epic", epic: e }], new Date(2026, 0, 1), new Date(2026, 1, 1), storyMetrics, new Date(2026, 0, 10)
+  );
+  assert.equal(total, 500);
+});
+
+test("computePeriodForecast: Development real progress remainder is spread from today, not the original phase start", () => {
+  const e = epic(1, [phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 20))], "In Progress", {
+    "Custom field (Budget Price DEV)": "1000",
+  });
+  const storyMetrics = { dev: new Map([["E-1", { pct: 50, done: 0, total: 0, timeSpentSeconds: 0 }]]), qa: new Map() };
+  // Remaining 500 spans today (Jan 15) through Jan 20 (6 days) — none of
+  // it should land earlier in the month, even though the phase itself
+  // started Jan 1.
+  const firstHalf = computePeriodForecast(
+    [{ type: "epic", epic: e }], new Date(2026, 0, 1), new Date(2026, 0, 15), storyMetrics, new Date(2026, 0, 15)
+  );
+  const total = computePeriodForecast(
+    [{ type: "epic", epic: e }], new Date(2026, 0, 1), new Date(2026, 1, 1), storyMetrics, new Date(2026, 0, 15)
+  );
+  assert.equal(firstHalf, 0);
+  assert.equal(total, 500);
+});
+
+test("computePeriodForecast: overdue Development (real % < 100 past its end date) is outstanding as of today", () => {
+  const e = epic(1, [phase("Development", new Date(2025, 11, 1), new Date(2025, 11, 31))], "In Progress", {
+    "Custom field (Budget Price DEV)": "1000",
+  });
+  const storyMetrics = { dev: new Map([["E-1", { pct: 60, done: 0, total: 0, timeSpentSeconds: 0 }]]), qa: new Map() };
+  const today = new Date(2026, 0, 10); // three weeks past the scheduled end
+  const decemberForecast = computePeriodForecast(
+    [{ type: "epic", epic: e }], new Date(2025, 11, 1), new Date(2026, 0, 1), storyMetrics, today
+  );
+  const januaryForecast = computePeriodForecast(
+    [{ type: "epic", epic: e }], new Date(2026, 0, 1), new Date(2026, 1, 1), storyMetrics, today
+  );
+  assert.equal(decemberForecast, 0); // nothing left in the month it was scheduled for
+  assert.equal(januaryForecast, 400); // the unrecognized 40% (1000 * 0.4) lands in today's month instead
+});
+
+test("computePeriodForecast: QA / Test gets the same real-progress treatment as Development", () => {
+  const e = epic(1, [phase("QA / Test", new Date(2026, 0, 10), new Date(2026, 0, 20))], "In Progress", {
+    "Custom field (Budget Price Tester)": "800",
+  });
+  const storyMetrics = { dev: new Map(), qa: new Map([["E-1", { pct: 25, done: 0, total: 0, timeSpentSeconds: 0 }]]) };
+  const total = computePeriodForecast(
+    [{ type: "epic", epic: e }], new Date(2026, 0, 1), new Date(2026, 1, 1), storyMetrics, new Date(2026, 0, 10)
+  );
+  assert.equal(total, 600); // 800 * (1 - 0.25)
+});
+
+test("computePeriodForecast: phases other than Development/QA ignore storyMetrics entirely", () => {
+  const e = epic(1, [phase("Analysis", new Date(2026, 0, 10), new Date(2026, 0, 19))], "In Progress", {
+    "Custom field (Budget Price CO)": "1000",
+  });
+  const storyMetrics = { dev: new Map([["E-1", { pct: 90, done: 0, total: 0, timeSpentSeconds: 0 }]]), qa: new Map() };
+  const total = computePeriodForecast(
+    [{ type: "epic", epic: e }], new Date(2026, 0, 1), new Date(2026, 1, 1), storyMetrics, new Date(2026, 0, 10)
+  );
+  assert.equal(total, 1000); // unaffected — Analysis has no real-progress signal
+});
+
+test("computePeriodForecast: without storyMetrics, Development still uses the plain schedule pro-ration", () => {
+  const e = epic(1, [phase("Development", new Date(2026, 0, 10), new Date(2026, 0, 19))], "In Progress", {
+    "Custom field (Budget Price DEV)": "1000",
+  });
+  const total = computePeriodForecast([{ type: "epic", epic: e }], new Date(2026, 0, 1), new Date(2026, 1, 1));
+  assert.equal(total, 1000);
+});
+
+test("computePhaseThisMonth: days/pct/NRR all derive from the same ratio", () => {
+  // 800€, 16 budgeted workload-days, phase spans the whole month (Jan
+  // 1-31), no real progress data → plain calendar pro-ration for however
+  // much of the phase falls in "this month" (all of it, so full amounts).
+  const e = epic(1, [phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 31))], "In Progress", {
+    "Custom field (Budget Price DEV)": "800",
+    "Custom field (Budget Hours DEV)": "128", // 128 / 8 = 16 days
+  });
+  const result = computePhaseThisMonth(e, e.phases[0], null, new Date(2026, 0, 15));
+  assert.equal(result.nrr, 800);
+  assert.equal(result.pct, 100);
+  assert.equal(result.days, 16);
+});
+
+test("computePhaseThisMonth: with real progress, only the unrecognized remainder counts", () => {
+  const e = epic(1, [phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 31))], "In Progress", {
+    "Custom field (Budget Price DEV)": "1000",
+    "Custom field (Budget Hours DEV)": "80", // 10 days
+  });
+  const storyMetrics = { dev: new Map([["E-1", { pct: 40, done: 0, total: 0, timeSpentSeconds: 0 }]]), qa: new Map() };
+  // Remaining 60% (600€, 6 days) spread from "today" (Jan 15) to Jan 31.
+  const result = computePhaseThisMonth(e, e.phases[0], storyMetrics, new Date(2026, 0, 15));
+  assert.equal(result.nrr, 600);
+  assert.equal(result.pct, 60);
+  assert.equal(result.days, 6);
+});
+
+test("computePhaseThisMonth: null when the phase doesn't reach into the current month", () => {
+  const e = epic(1, [phase("Development", new Date(2025, 0, 1), new Date(2025, 0, 31))], "Done", {
+    "Custom field (Budget Price DEV)": "1000",
+  });
+  assert.equal(computePhaseThisMonth(e, e.phases[0], null, new Date(2026, 0, 15)), null);
+});
+
+test("computePhaseThisMonth: null when the phase has no budgeted price", () => {
+  const e = epic(1, [phase("Analysis", new Date(2026, 0, 1), new Date(2026, 0, 31))], "In Progress", {});
+  assert.equal(computePhaseThisMonth(e, e.phases[0], null, new Date(2026, 0, 15)), null);
+});
+
 test("computeStoryMetrics: Done counts fully regardless of dates", () => {
   const rows = [storyRow({ type: "Story", parentKey: "E-1", points: 5, status: "Done" })];
   const { dev } = computeStoryMetrics(rows, new Date(2026, 0, 1));
@@ -522,6 +639,18 @@ test("computeStoryMetrics: issues without Story Points don't count", () => {
   const rows = [storyRow({ type: "Story", parentKey: "E-1", status: "To Do" })]; // no points
   const { dev } = computeStoryMetrics(rows, new Date(2026, 0, 1));
   assert.equal(dev.has("E-1"), false);
+});
+
+test("computeStoryMetrics: Ready for testing counts as 100% for dev, regardless of dates", () => {
+  const rows = [storyRow({ type: "Story", parentKey: "E-1", points: 5, status: "Ready for testing" })];
+  const { dev } = computeStoryMetrics(rows, new Date(2026, 0, 1));
+  assert.deepEqual(dev.get("E-1"), { pct: 100, done: 5, total: 5, timeSpentSeconds: 0 });
+});
+
+test("computeStoryMetrics: Ready for testing has no special meaning for qa (Testing issues)", () => {
+  const rows = [storyRow({ type: "Testing", parentKey: "E-1", points: 5, status: "Ready for testing" })];
+  const { qa } = computeStoryMetrics(rows, new Date(2026, 0, 1));
+  assert.equal(qa.get("E-1").pct, 0); // no dates → pro-rated to 0, same as any other non-Done status
 });
 
 test("computeStoryMetrics: Story feeds dev, Testing feeds qa, kept separate per epic", () => {

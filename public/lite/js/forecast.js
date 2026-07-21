@@ -9,6 +9,7 @@ import {
   computeProjectedProgress, computePeriodForecast, computePhasePriceCumulative, getDisplayProgress,
 } from "./gantt-logic.js";
 import { statusColors } from "./gantt.js";
+import { PRODUCT_COLUMN } from "./filterbar.js";
 
 // Cap on how many month columns render — a portfolio with a multi-year
 // tail shouldn't produce hundreds of columns.
@@ -26,7 +27,9 @@ function esc(v) {
 }
 
 function formatK(val) {
-  return Math.round(val / 1000).toLocaleString("en-GB") + "K";
+  // One decimal place — rounding to the nearest whole K was hiding real
+  // differences between figures that only look identical once truncated.
+  return (val / 1000).toFixed(1).replace(/\.0$/, "") + "K";
 }
 
 function monthLabel(d) {
@@ -45,6 +48,97 @@ function monthKey(d) {
 // forecast) is computed the same way over this list either way.
 function epicsForRow(row) {
   return row.type === "initiative" ? row.children : [row.epic];
+}
+
+// Per-epic breakdown behind a % Completion cell — same weighted-average
+// math as computeRowMonthlyPct, but keeping each epic's own number instead
+// of only the final aggregate, so a hover can show what produced it.
+function computePctBreakdown(epics, monthEnd) {
+  const items = [];
+  let total = 0;
+  let reached = 0;
+  for (const epic of epics) {
+    const pct = computeProjectedProgress(epic, monthEnd);
+    const cumPrices = computePhasePriceCumulative(epic);
+    const epicTotal = cumPrices ? cumPrices["Pilot"] : null;
+    if (pct === null || !epicTotal) continue;
+    total += epicTotal;
+    reached += epicTotal * (pct / 100);
+    items.push({ key: epic.epicKey, name: epic.epicName, pct, total: epicTotal });
+  }
+  items.sort((a, b) => b.total - a.total);
+  return { aggregate: total > 0 ? Math.round((reached / total) * 100) : null, items };
+}
+
+// Per-epic breakdown behind a Forecast (K€) cell — each epic's own
+// pro-rated contribution for that month (computePeriodForecast run once
+// per epic instead of over the whole list at once).
+function computeNrrBreakdown(epics, monthStart, monthEndExclusive, storyMetrics) {
+  const items = [];
+  let total = 0;
+  for (const epic of epics) {
+    const amount = computePeriodForecast([{ type: "epic", epic }], monthStart, monthEndExclusive, storyMetrics);
+    if (amount > 0) {
+      items.push({ key: epic.epicKey, name: epic.epicName, amount });
+      total += amount;
+    }
+  }
+  items.sort((a, b) => b.amount - a.amount);
+  return { total, items };
+}
+
+const TOOLTIP_ITEM_CAP = 10;
+const TOOLTIP_HOVER_DELAY_MS = 3000;
+
+let forecastTooltipEl = null;
+function hideForecastTooltip() {
+  forecastTooltipEl?.remove();
+  forecastTooltipEl = null;
+}
+function showForecastTooltip(x, y, title, lines) {
+  hideForecastTooltip();
+  forecastTooltipEl = document.createElement("div");
+  forecastTooltipEl.className = "gantt-tooltip gantt-tooltip-projection";
+  forecastTooltipEl.style.left = `${x}px`;
+  forecastTooltipEl.style.top = `${y}px`;
+  const titleEl = document.createElement("div");
+  titleEl.className = "gantt-tooltip-title";
+  titleEl.textContent = title;
+  forecastTooltipEl.appendChild(titleEl);
+  for (const line of lines) {
+    const lineEl = document.createElement("div");
+    lineEl.className = "gantt-tooltip-line";
+    lineEl.textContent = line;
+    forecastTooltipEl.appendChild(lineEl);
+  }
+  document.body.appendChild(forecastTooltipEl);
+}
+
+function pctTooltipLines({ aggregate, items }) {
+  if (items.length === 0) return ["No budgeted epic contributes to this figure."];
+  const lines = items.slice(0, TOOLTIP_ITEM_CAP).map(
+    (it) => `${it.key} (${it.name.slice(0, 28)}) — ${it.pct}% of €${formatK(it.total)}`
+  );
+  if (items.length > TOOLTIP_ITEM_CAP) lines.push(`… and ${items.length - TOOLTIP_ITEM_CAP} more`);
+  lines.push(`Weighted average by budget = ${aggregate}%`);
+  return lines;
+}
+
+function nrrTooltipLines({ total, items }) {
+  if (items.length === 0) return ["No phase falls in this month for any epic here."];
+  const lines = items.slice(0, TOOLTIP_ITEM_CAP).map(
+    (it) => `${it.key} (${it.name.slice(0, 28)}) — €${formatK(it.amount)}`
+  );
+  if (items.length > TOOLTIP_ITEM_CAP) lines.push(`… and ${items.length - TOOLTIP_ITEM_CAP} more`);
+  lines.push(`Total this month = €${formatK(total)}`);
+  return lines;
+}
+
+// The same identity the Gantt uses for its own rows (see gantt.js's
+// data-row-key) — an initiative's own key, or the standalone epic's key —
+// so double-clicking a Forecast row can find the matching row there.
+function rowKey(row) {
+  return row.type === "initiative" ? row.initiativeKey : row.epic.epicKey;
 }
 
 // Every month from the current one through the month the latest currently
@@ -116,7 +210,7 @@ function computeRowMonthlyPct(epics, monthEnd) {
 
 // Everything downstream (summary cards + detail rows) reads from this —
 // computed once per row so the two never disagree with each other.
-function computeRowData(row, pctMonths, nrrMonths) {
+function computeRowData(row, pctMonths, nrrMonths, storyMetrics) {
   const epics = epicsForRow(row);
   const { total, reached } = computeRowTotals(epics);
   const remaining = total !== null && reached !== null ? total - reached : null;
@@ -128,10 +222,43 @@ function computeRowData(row, pctMonths, nrrMonths) {
   const nrrCells = nrrMonths.map((m) => {
     const monthStart = new Date(m.getFullYear(), m.getMonth(), 1);
     const monthEndExclusive = new Date(m.getFullYear(), m.getMonth() + 1, 1);
-    return computePeriodForecast(epics.map((e) => ({ type: "epic", epic: e })), monthStart, monthEndExclusive);
+    return computePeriodForecast(epics.map((e) => ({ type: "epic", epic: e })), monthStart, monthEndExclusive, storyMetrics);
   });
 
   return { row, epics, total, reached, remaining, pctCells, nrrCells };
+}
+
+// Sort key extractors for the Forecast table's clickable headers — a
+// sticky-column name ("name"/"orderValue"/"remaining") or "pct:<i>"/
+// "nrr:<i>" for a specific month column. null values always sort last
+// regardless of direction, so "no data" never masquerades as "zero".
+function sortValue(d, col) {
+  if (col === "name") return (d.row.type === "initiative" ? d.row.initiativeName : d.row.epic.epicName) || "";
+  if (col === "orderValue") return d.total;
+  if (col === "remaining") return d.remaining;
+  if (col.startsWith("pct:")) return d.pctCells[Number(col.slice(4))];
+  if (col.startsWith("nrr:")) return d.nrrCells[Number(col.slice(4))];
+  return null;
+}
+
+function sortRowsData(rowsData, sort) {
+  if (!sort.col) return rowsData;
+  const dir = sort.dir === "desc" ? -1 : 1;
+  return [...rowsData].sort((a, b) => {
+    const va = sortValue(a, sort.col);
+    const vb = sortValue(b, sort.col);
+    if (va === null && vb === null) return 0;
+    if (va === null) return 1;
+    if (vb === null) return -1;
+    if (typeof va === "string") return va.localeCompare(vb) * dir;
+    return (va - vb) * dir;
+  });
+}
+
+// ▲/▼ next to whichever header is currently the active sort — "" otherwise.
+function sortIndicator(sort, col) {
+  if (sort.col !== col) return "";
+  return sort.dir === "asc" ? " ▲" : " ▼";
 }
 
 function summaryCardsHtml(rowsData) {
@@ -215,8 +342,8 @@ function totalRowHtml(rowsData, pctMonths, nrrMonths, pctTotals, nrrTotals) {
       <td class="forecast-td-sticky"></td>
       <td class="forecast-td-sticky forecast-td-num">${total > 0 ? formatK(total) : "—"}</td>
       <td class="forecast-td-sticky forecast-td-num">${total > 0 ? formatK(remaining) : "—"}</td>
-      ${pctTotals.map((pct, i) => `<td class="forecast-td-month forecast-td-pct ${i === 0 ? "forecast-td-current" : ""}" ${pct !== null && i > 0 ? `style="color:${pctColor(pct)}"` : ""}>${pct !== null ? pct + "%" : "—"}</td>`).join("")}
-      ${nrrTotals.map((val) => `<td class="forecast-td-month forecast-td-nrr">${val > 0 ? formatK(val) : "—"}</td>`).join("")}
+      ${pctTotals.map((pct, i) => `<td class="forecast-td-month forecast-td-pct ${i === 0 ? "forecast-td-current" : ""}" data-row-i="total" data-month-i="${i}" ${pct !== null && i > 0 ? `style="color:${pctColor(pct)}"` : ""}>${pct !== null ? pct + "%" : "—"}</td>`).join("")}
+      ${nrrTotals.map((val, i) => `<td class="forecast-td-month forecast-td-nrr ${i === 0 ? "forecast-td-current" : ""}" data-row-i="total" data-month-i="${i}">${val > 0 ? formatK(val) : "—"}</td>`).join("")}
     </tr>
   `;
 }
@@ -258,11 +385,9 @@ function forecastChartHtml(pctMonths, nrrMonths, pctTotals, nrrTotals, activeMon
             ${kVal > 0 ? `<text x="${(x + barW / 2).toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="#4C2E8F" font-weight="700">${kVal}K</text>` : ""}`;
   }).join("");
 
-  // The % line uses pctTotals offset by one (pctMonths includes the
-  // current/actual month that nrrMonths doesn't) so it lines up with the
-  // same set of future months as the bars.
-  const linePct = pctTotals.slice(1);
-  const points = linePct.map((pct, i) => {
+  // nrrMonths now covers the same months as pctMonths (current month
+  // included), so the % line and bars share the same index 1:1.
+  const points = pctTotals.map((pct, i) => {
     const x = i * colW + colW / 2;
     const y = padTop + lineBandH - ((pct ?? 0) / 100) * lineBandH;
     return { x, y, pct };
@@ -306,16 +431,25 @@ function forecastChartHtml(pctMonths, nrrMonths, pctTotals, nrrTotals, activeMon
 }
 
 export function renderForecastTable(container, state, actions) {
-  const rows = state.derived.displayRows.filter(
-    (r) => r.type === "initiative" || (r.type === "epic" && !r.initiativeKey)
-  );
+  // An initiative row blends ALL its children into one aggregate — fine by
+  // default, but misleading once you're filtering by Product: one
+  // initiative can have children in several products, so its rolled-up
+  // row would mix in epics outside the product you're looking at. With a
+  // Product filter active, show every matching epic as its own row
+  // instead (displayRows already only contains epics whose own product
+  // passed the filter — see matchesFilters in filters.js).
+  const productFilterActive = state.activeFilters.some((f) => f.column === PRODUCT_COLUMN && f.values.length > 0);
+  const rows = productFilterActive
+    ? state.derived.displayRows.filter((r) => r.type === "epic")
+    : state.derived.displayRows.filter((r) => r.type === "initiative" || (r.type === "epic" && !r.initiativeKey));
   const allEpics = rows.flatMap(epicsForRow);
-  // % Completion includes the current month (shown as "actual", not
-  // projected). Forecast (K€) only makes sense for months still ahead —
-  // it starts one month later, same as the reference.
+  // % Completion and Forecast (K€) cover the same months, current month
+  // included — the current month's forecast is just prorated by however
+  // many of its days fall within already-scheduled phases, same as any
+  // other month.
   const pctMonths = computeMonthRange(allEpics);
-  const nrrMonths = pctMonths.slice(1);
-  const rowsData = rows.map((row) => computeRowData(row, pctMonths, nrrMonths));
+  const nrrMonths = pctMonths;
+  const rowsData = rows.map((row) => computeRowData(row, pctMonths, nrrMonths, state.storyMetrics));
   const { pctTotals, nrrTotals } = computePortfolioMonthlyTotals(rowsData, pctMonths, nrrMonths);
 
   // Clicking a chart bar filters the detail rows below to just the
@@ -324,15 +458,17 @@ export function renderForecastTable(container, state, actions) {
   // are the aggregate the filter is drilling into.
   const activeMonthKey = state.forecastMonthFilter || null;
   const activeMonthIndex = activeMonthKey ? nrrMonths.findIndex((m) => monthKey(m) === activeMonthKey) : -1;
-  const visibleRowsData = activeMonthIndex >= 0
+  const filteredRowsData = activeMonthIndex >= 0
     ? rowsData.filter((d) => (d.nrrCells[activeMonthIndex] || 0) > 0)
     : rowsData;
+  const sort = state.forecastSort;
+  const visibleRowsData = sortRowsData(filteredRowsData, sort);
 
   container.innerHTML = `
     <div class="forecast-wrap">
       <div class="forecast-header">
         <span class="forecast-title">Forecast Detail</span>
-        <span class="forecast-count">${rows.length} projects</span>
+        <span class="forecast-count">${rows.length} ${productFilterActive ? "epics" : "projects"}</span>
         ${rows.length > 0 ? `
           <div class="forecast-scroll-btns">
             <button id="forecast-scroll-left" class="forecast-scroll-btn" aria-label="Scroll table left">‹</button>
@@ -359,18 +495,18 @@ export function renderForecastTable(container, state, actions) {
             <tr>
               <th class="forecast-th-sticky" rowspan="2">Status</th>
               <th class="forecast-th-sticky" rowspan="2">JIRA ID</th>
-              <th class="forecast-th-sticky forecast-th-name" rowspan="2">Project Name</th>
+              <th class="forecast-th-sticky forecast-th-name forecast-th-sortable" data-sort-col="name" rowspan="2">Project Name${sortIndicator(sort, "name")}</th>
               <th class="forecast-th-sticky" rowspan="2">Brand</th>
               <th class="forecast-th-sticky" rowspan="2">Product</th>
               <th class="forecast-th-sticky" rowspan="2">PMO</th>
-              <th class="forecast-th-sticky forecast-th-num" rowspan="2">Order Value (K€)</th>
-              <th class="forecast-th-sticky forecast-th-num" rowspan="2">Remaining Backlog (K€)</th>
+              <th class="forecast-th-sticky forecast-th-num forecast-th-sortable" data-sort-col="orderValue" rowspan="2">Order Value (K€)${sortIndicator(sort, "orderValue")}</th>
+              <th class="forecast-th-sticky forecast-th-num forecast-th-sortable" data-sort-col="remaining" rowspan="2">Remaining Backlog (K€)${sortIndicator(sort, "remaining")}</th>
               ${pctMonths.length > 0 ? `<th class="forecast-group forecast-group-pct" colspan="${pctMonths.length}">% Completion</th>` : ""}
               ${nrrMonths.length > 0 ? `<th class="forecast-group forecast-group-nrr" colspan="${nrrMonths.length}">Forecast (K€)</th>` : ""}
             </tr>
             <tr>
-              ${pctMonths.map((m, i) => `<th class="forecast-th-month forecast-th-pct ${i === 0 ? "forecast-th-current" : ""}">${monthLabel(m)}</th>`).join("")}
-              ${nrrMonths.map((m) => `<th class="forecast-th-month forecast-th-nrr">${monthLabel(m)}</th>`).join("")}
+              ${pctMonths.map((m, i) => `<th class="forecast-th-month forecast-th-pct forecast-th-sortable ${i === 0 ? "forecast-th-current" : ""}" data-sort-col="pct:${i}">${monthLabel(m)}${sortIndicator(sort, `pct:${i}`)}</th>`).join("")}
+              ${nrrMonths.map((m, i) => `<th class="forecast-th-month forecast-th-nrr forecast-th-sortable ${i === 0 ? "forecast-th-current" : ""}" data-sort-col="nrr:${i}">${monthLabel(m)}${sortIndicator(sort, `nrr:${i}`)}</th>`).join("")}
             </tr>
           </thead>
           <tbody>
@@ -378,7 +514,7 @@ export function renderForecastTable(container, state, actions) {
             ${visibleRowsData.map((d) => forecastRowHtml(d)).join("")}
           </tbody>
         </table>
-        ${rows.length === 0 ? '<div class="forecast-empty">No projects match the current filters.</div>' : ""}
+        ${rows.length === 0 ? `<div class="forecast-empty">${state.refreshing ? "Still fetching the latest data from JIRA — this can take a few seconds." : "No projects match the current filters."}</div>` : ""}
         ${rows.length > 0 && visibleRowsData.length === 0 ? '<div class="forecast-empty">No projects contributed to this month.</div>' : ""}
       </div>
     </div>
@@ -436,6 +572,67 @@ export function renderForecastTable(container, state, actions) {
   container.querySelector("#forecast-scroll-left")?.addEventListener("click", () => scrollByColumns(-1));
   container.querySelector("#forecast-scroll-right")?.addEventListener("click", () => scrollByColumns(1));
 
+  container.querySelectorAll("[data-sort-col]").forEach((th) => {
+    th.addEventListener("click", () => actions.setForecastSort(th.dataset.sortCol));
+  });
+
+  container.querySelectorAll("tbody tr[data-row-key]").forEach((tr) => {
+    tr.addEventListener("dblclick", () => actions.focusRowInGantt(tr.dataset.rowKey, tr.dataset.projectName));
+  });
+
+  // Every %/€ cell → a breakdown tooltip of exactly which epics (and how
+  // much of each) produced that figure, so the numbers are checkable
+  // rather than a black box. rowsData is keyed by row key (not filtered by
+  // the month-click filter) so a hover still works on any visible cell;
+  // "total" reads across every row for the portfolio-wide Total row.
+  //
+  // Delayed by TOOLTIP_HOVER_DELAY_MS: with a dense grid of these cells,
+  // showing one instantly on every cell the cursor passes over on the way
+  // somewhere else is just noise — only a deliberate pause on one cell
+  // should bring it up.
+  const rowsDataByKey = new Map(rowsData.map((d) => [rowKey(d.row), d]));
+  const allEpicsFlat = rowsData.flatMap((d) => d.epics);
+  let tooltipTimer = null;
+  function scheduleForecastTooltip(fn) {
+    clearTimeout(tooltipTimer);
+    tooltipTimer = setTimeout(fn, TOOLTIP_HOVER_DELAY_MS);
+  }
+  function cancelForecastTooltip() {
+    clearTimeout(tooltipTimer);
+    hideForecastTooltip();
+  }
+  container.querySelectorAll(".forecast-td-pct[data-month-i]").forEach((cell) => {
+    cell.addEventListener("mouseenter", () => {
+      scheduleForecastTooltip(() => {
+        const epics = cell.dataset.rowI === "total" ? allEpicsFlat : (rowsDataByKey.get(cell.dataset.rowI)?.epics || []);
+        const monthI = Number(cell.dataset.monthI);
+        const m = pctMonths[monthI];
+        if (!m) return;
+        const monthEnd = new Date(m.getFullYear(), m.getMonth() + 1, 0);
+        const detail = computePctBreakdown(epics, monthEnd);
+        const rect = cell.getBoundingClientRect();
+        showForecastTooltip(rect.right + 8, rect.top + rect.height / 2, `% Completion — ${monthLabel(m)}`, pctTooltipLines(detail));
+      });
+    });
+    cell.addEventListener("mouseleave", cancelForecastTooltip);
+  });
+  container.querySelectorAll(".forecast-td-nrr[data-month-i]").forEach((cell) => {
+    cell.addEventListener("mouseenter", () => {
+      scheduleForecastTooltip(() => {
+        const epics = cell.dataset.rowI === "total" ? allEpicsFlat : (rowsDataByKey.get(cell.dataset.rowI)?.epics || []);
+        const monthI = Number(cell.dataset.monthI);
+        const m = nrrMonths[monthI];
+        if (!m) return;
+        const monthStart = new Date(m.getFullYear(), m.getMonth(), 1);
+        const monthEndExclusive = new Date(m.getFullYear(), m.getMonth() + 1, 1);
+        const detail = computeNrrBreakdown(epics, monthStart, monthEndExclusive, state.storyMetrics);
+        const rect = cell.getBoundingClientRect();
+        showForecastTooltip(rect.right + 8, rect.top + rect.height / 2, `Forecast (K€) — ${monthLabel(m)}`, nrrTooltipLines(detail));
+      });
+    });
+    cell.addEventListener("mouseleave", cancelForecastTooltip);
+  });
+
   // The sticky offsets below need to match the *real* rendered header
   // height exactly, or the sticky row and the header (or the row right
   // under it) briefly overlap while scrolling. Font metrics make that
@@ -458,25 +655,34 @@ export function renderForecastTable(container, state, actions) {
 
 function forecastRowHtml({ row, total, reached, remaining, pctCells, nrrCells }) {
   const epic = row.epic; // initiative's own synthetic epic, or the standalone epic itself
+  const rk = rowKey(row);
   const [, fg] = statusColors(epic.status || "");
   const brand = epic.rawData["Custom field (Client)"] || "—";
   const product = epic.rawData["Custom field (Product)"] || "—";
   const pmo = epic.rawData["Custom field (Project Manager)"] || "—";
 
+  // The double-click hint lives only on the sticky (identifying) cells —
+  // putting it on the whole <tr> made its native title tooltip fight with
+  // the %/€ cells' own custom breakdown tooltip when hovering those.
+  const dblclickHint = "Double-click to open in Planning, filtered to this project";
+  // Project-view initiative rows use their own name; a Product-view epic
+  // row still belongs to some initiative (its raw "Parent summary") even
+  // though it's shown on its own — filter+focus should work the same way.
+  const projectName = row.type === "initiative" ? row.initiativeName : (row.epic.rawData["Parent summary"] || "");
   return `
-    <tr>
-      <td class="forecast-td-sticky"><span class="forecast-status-dot" style="background:${fg}" title="${esc(epic.status || "")}"></span></td>
-      <td class="forecast-td-sticky">
+    <tr data-row-key="${esc(rk)}" ${projectName ? `data-project-name="${esc(projectName)}"` : ""}>
+      <td class="forecast-td-sticky" title="${dblclickHint}"><span class="forecast-status-dot" style="background:${fg}" title="${esc(epic.status || "")}"></span></td>
+      <td class="forecast-td-sticky" title="${dblclickHint}">
         <a href="https://imawebgroup.atlassian.net/browse/${encodeURIComponent(epic.epicKey)}" target="_blank" rel="noopener noreferrer">${esc(epic.epicKey)}</a>
       </td>
       <td class="forecast-td-sticky forecast-td-name" title="${esc(epic.epicName)}">${esc(epic.epicName)}</td>
-      <td class="forecast-td-sticky">${esc(brand)}</td>
-      <td class="forecast-td-sticky">${esc(product)}</td>
-      <td class="forecast-td-sticky">${esc(pmo)}</td>
-      <td class="forecast-td-sticky forecast-td-num">${total !== null ? formatK(total) : "—"}</td>
-      <td class="forecast-td-sticky forecast-td-num">${remaining !== null ? formatK(remaining) : "—"}</td>
-      ${pctCells.map((pct, i) => `<td class="forecast-td-month forecast-td-pct ${i === 0 ? "forecast-td-current" : ""}" ${pct !== null && i > 0 ? `style="color:${pctColor(pct)}"` : ""}>${pct !== null ? pct + "%" : "—"}</td>`).join("")}
-      ${nrrCells.map((val) => `<td class="forecast-td-month forecast-td-nrr">${val > 0 ? formatK(val) : "—"}</td>`).join("")}
+      <td class="forecast-td-sticky" title="${dblclickHint}">${esc(brand)}</td>
+      <td class="forecast-td-sticky" title="${dblclickHint}">${esc(product)}</td>
+      <td class="forecast-td-sticky" title="${dblclickHint}">${esc(pmo)}</td>
+      <td class="forecast-td-sticky forecast-td-num" title="${dblclickHint}">${total !== null ? formatK(total) : "—"}</td>
+      <td class="forecast-td-sticky forecast-td-num" title="${dblclickHint}">${remaining !== null ? formatK(remaining) : "—"}</td>
+      ${pctCells.map((pct, i) => `<td class="forecast-td-month forecast-td-pct ${i === 0 ? "forecast-td-current" : ""}" data-row-i="${esc(rk)}" data-month-i="${i}" ${pct !== null && i > 0 ? `style="color:${pctColor(pct)}"` : ""}>${pct !== null ? pct + "%" : "—"}</td>`).join("")}
+      ${nrrCells.map((val, i) => `<td class="forecast-td-month forecast-td-nrr ${i === 0 ? "forecast-td-current" : ""}" data-row-i="${esc(rk)}" data-month-i="${i}">${val > 0 ? formatK(val) : "—"}</td>`).join("")}
     </tr>
   `;
 }

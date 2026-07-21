@@ -5,7 +5,7 @@
 import { extractUniqueValues } from "./transform.js";
 import { loadFavorites, saveFavorites } from "./prefs.js";
 
-const PRODUCT_COLUMN = "Custom field (Product)";
+export const PRODUCT_COLUMN = "Custom field (Product)";
 const PRODUCT_COLORS = [
   "#4A6CF7", "#8B5CF6", "#16A34A", "#F59E0B",
   "#EF4444", "#06B6D4", "#F43F5E", "#84CC16",
@@ -16,7 +16,7 @@ const PRODUCT_COLORS = [
 // as the raw "Parent summary" field, so it's filterable the same way as
 // any other column — this control is just a friendlier, searchable
 // shortcut to it (initiatives can number in the dozens, too many for pills).
-const PROJECT_COLUMN = "Parent summary";
+export const PROJECT_COLUMN = "Parent summary";
 
 let openDropdown = null; // {kind: "chip", column} | {kind: "add"} | null
 let dropdownSearch = "";
