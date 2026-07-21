@@ -52,6 +52,11 @@ export default defineConfig(({ mode }) => {
                 const auth = Buffer.from(`${env.JIRA_EMAIL}:${env.JIRA_API_TOKEN}`).toString('base64')
                 proxyReq.setHeader('Authorization', `Basic ${auth}`)
               }
+              // Mirror api/jira-proxy.ts: without this, Atlassian's edge
+              // rejects browser-originated POST/PUT/DELETE (e.g. the
+              // POST-based search used for long JQL) with a 403 XSRF check,
+              // even though the request is authenticated.
+              proxyReq.setHeader('X-Atlassian-Token', 'no-check')
             })
           },
         },

@@ -123,6 +123,15 @@ button, input, textarea, select { font-family: var(--font); }
   50% { opacity: 0.4; transform: scale(0.75); }
 }
 .dot-pulse { animation: dot-pulse 0.9s ease-in-out infinite; }
+.view-mode-group {
+  display: flex; background: rgba(255,255,255,0.12); border-radius: 100px; padding: 3px; gap: 1px;
+}
+.view-mode-btn {
+  border: none; background: transparent; color: rgba(255,255,255,0.7); cursor: pointer;
+  font-weight: 600; font-size: 12px; letter-spacing: 0.2px; padding: 6px 16px; border-radius: 100px;
+}
+.view-mode-btn:hover { color: white; }
+.view-mode-btn-active, .view-mode-btn-active:hover { background: white; color: var(--primary-dark); }
 .search-wrap { position: relative; display: flex; align-items: center; }
 .search-wrap svg { position: absolute; left: 12px; pointer-events: none; opacity: 0.5; }
 .search-wrap input {
@@ -214,20 +223,23 @@ button, input, textarea, select { font-family: var(--font); }
 
 /* ===== Project search ===== */
 .project-search-wrap {
-  position: relative; display: flex; align-items: center; gap: 6px;
-  border: 1.5px solid var(--border-light); border-radius: 100px;
-  background: var(--background); padding: 4px 6px 4px 12px;
+  position: relative; display: flex; align-items: flex-start; gap: 6px;
+  border: 1.5px solid var(--border-light); border-radius: 14px;
+  background: var(--background); padding: 6px 6px 6px 12px;
   min-width: 220px; max-width: 420px; flex: 1;
 }
 .project-search-wrap:focus-within { border-color: var(--primary); background: white; }
-.project-search-icon { color: var(--text-muted); flex-shrink: 0; }
+.project-search-icon { color: var(--text-muted); flex-shrink: 0; margin-top: 3px; }
 .project-search-box {
   display: flex; align-items: center; flex-wrap: wrap; gap: 5px; flex: 1; min-width: 0;
 }
 .project-tag {
-  display: inline-flex; align-items: center; gap: 4px;
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
   background: #f0ebff; color: var(--primary); font-size: 11.5px; font-weight: 600;
-  padding: 3px 6px 3px 10px; border-radius: 100px; white-space: nowrap;
+  padding: 3px 6px 3px 10px; border-radius: 100px;
+}
+.project-tag-text {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
 }
 .project-tag-remove {
   background: none; border: none; color: var(--primary); cursor: pointer;
@@ -240,7 +252,7 @@ button, input, textarea, select { font-family: var(--font); }
 }
 .project-search-clear-all {
   background: none; border: none; color: var(--text-muted); cursor: pointer;
-  font-size: 15px; line-height: 1; padding: 2px 6px; flex-shrink: 0;
+  font-size: 15px; line-height: 1; padding: 2px 6px; flex-shrink: 0; margin-top: 1px;
 }
 .project-search-clear-all:hover { color: var(--primary); }
 .project-suggestions {
@@ -487,6 +499,7 @@ button, input, textarea, select { font-family: var(--font); }
   justify-content: center; align-items: center; flex-direction: column;
   gap: 1px; padding: 3px 4px; color: var(--text-muted); white-space: normal;
 }
+.grid-cell-progress[data-has-projection] { cursor: help; }
 .grid-cell-progress-nrr {
   font-size: 10.5px; font-weight: 500; color: #9C9AB5; letter-spacing: 0.1px; line-height: 1;
   white-space: nowrap;
@@ -507,10 +520,21 @@ button, input, textarea, select { font-family: var(--font); }
 }
 .phase-bar:hover { filter: brightness(1.07); }
 .phase-bar-conflict { box-shadow: inset 0 0 0 2px #e03131; }
+.phase-bar-done::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: repeating-linear-gradient(
+    45deg, rgba(255, 255, 255, 0.45) 0 4px, transparent 4px 9px
+  );
+}
 .phase-bar-label-above {
   position: absolute;
   font-size: 11px; font-weight: 700; white-space: nowrap; letter-spacing: 0.2px;
-  line-height: 1; pointer-events: none; z-index: 2;
+  line-height: 1.3; pointer-events: none; z-index: 2;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+}
+.phase-bar-label-secondary {
+  font-style: italic; font-weight: 500; font-size: 0.86em;
+  color: var(--text-muted);
 }
 .phase-track {
   position: absolute; height: 2px; border-radius: 1px; background: #DBD9E6;
@@ -572,6 +596,7 @@ button, input, textarea, select { font-family: var(--font); }
 .epic-card-row b { font-weight: 600; color: #E8E7F0; }
 .epic-card-code { color: #A9B8FF; text-decoration: underline; font-weight: 600; font-size: 13.5px; pointer-events: auto; }
 .epic-card-nrr { color: #4ADE80; }
+.epic-card-secondary { font-style: italic; font-weight: 500; color: #8B89A8; }
 .epic-card-progress-pill {
   background: #16532F; color: #6EE7A8; font-size: 12.5px; font-weight: 700;
   padding: 3px 9px; border-radius: 5px;
@@ -593,10 +618,12 @@ button, input, textarea, select { font-family: var(--font); }
 .gantt-tooltip-danger { background: #1a1a2e; border-left: 3px solid #e03131; }
 .gantt-tooltip-warn { background: #2d2006; border-left: 3px solid #e67700; }
 .gantt-tooltip-edd { background: #101a2d; border-left: 3px solid #2563EB; }
+.gantt-tooltip-projection { background: #14152A; border-left: 3px solid var(--primary); font-variant-numeric: tabular-nums; }
 .gantt-tooltip-title { font-weight: 700; margin-bottom: 4px; font-size: 13.5px; }
 .gantt-tooltip-danger .gantt-tooltip-title { color: #e03131; }
 .gantt-tooltip-warn .gantt-tooltip-title { color: #e67700; }
 .gantt-tooltip-edd .gantt-tooltip-title { color: #60A5FA; }
+.gantt-tooltip-projection .gantt-tooltip-title { color: var(--primary-light); }
 .gantt-tooltip-marker {
   transform: translate(-50%, -100%); background: var(--text-dark);
   padding: 5px 10px; border-radius: 6px; white-space: nowrap; max-width: none;
@@ -667,3 +694,132 @@ button, input, textarea, select { font-family: var(--font); }
   border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .ai-input-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ===== Forecast Detail table ===== */
+.forecast-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: white; }
+.forecast-header {
+  padding: 10px 20px; display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid var(--hairline); flex-shrink: 0;
+}
+.forecast-title { font-weight: 700; font-size: 14px; color: var(--text-dark); }
+.forecast-count { font-size: 12px; color: var(--text-muted); }
+.forecast-scroll-btns { display: flex; gap: 6px; margin-left: auto; }
+.forecast-scroll-btn {
+  width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border-light);
+  background: white; color: var(--text-secondary); font-size: 15px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.forecast-scroll-btn:hover { background: var(--filterbar-bg); color: var(--primary); border-color: var(--accent); }
+.forecast-table-scroll { flex: 1; overflow: auto; position: relative; }
+.forecast-table-scroll:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+/* Styling ::-webkit-scrollbar switches Chrome/Safari from an auto-hiding
+   overlay scrollbar to a classic always-reserved one, so the horizontal
+   scrollbar stays visible and discoverable regardless of the OS "show
+   scrollbars" setting — it no longer depends on hovering or scrolling to
+   appear. */
+.forecast-table-scroll { scrollbar-width: auto; scrollbar-color: #C7BFE0 var(--filterbar-bg); }
+.forecast-table-scroll::-webkit-scrollbar { width: 12px; height: 12px; }
+.forecast-table-scroll::-webkit-scrollbar-track { background: var(--filterbar-bg); }
+.forecast-table-scroll::-webkit-scrollbar-thumb { background: #C7BFE0; border-radius: 6px; border: 2px solid var(--filterbar-bg); }
+.forecast-table-scroll::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+.forecast-table {
+  border-collapse: separate; border-spacing: 0; font-size: 12px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+  table-layout: fixed;
+}
+.forecast-table th, .forecast-table td {
+  padding: 8px 12px; border-bottom: 1px solid var(--hairline); text-align: left;
+  /* table-layout:fixed is supposed to make the <colgroup> widths authoritative
+     regardless of content, but Chrome still expands a column to fit an
+     unbreakable (white-space:nowrap) cell's content — silently ignoring both
+     the declared width and overflow:hidden. max-width:0 is the standard
+     workaround: it forces the browser to actually treat the column width as
+     fixed. Without it, one long Project Name/PMO value anywhere in the table
+     was corrupting every column's width, including ones far away from it. */
+  max-width: 0;
+}
+.forecast-table thead th {
+  position: sticky; top: 0; z-index: 3; background: #12132B; color: white;
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.forecast-group { text-align: center; }
+.forecast-table thead th.forecast-group-pct { background: #1B4B52; }
+.forecast-table thead th.forecast-group-nrr { background: #3D2B7D; }
+.forecast-th-month { text-align: right; font-size: 10px; top: 34px; }
+.forecast-table thead th.forecast-th-pct { background: #1B4B52; }
+.forecast-table thead th.forecast-th-nrr { background: #3D2B7D; }
+.forecast-table thead th.forecast-th-current { background: #4A4C63; }
+.forecast-td-current { background: #F1F0F5; color: var(--text-secondary); font-weight: 600; }
+.forecast-th-num, .forecast-td-num { text-align: right; }
+.forecast-th-name, .forecast-td-name { min-width: 260px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+
+/* Sticky left columns (Status..Remaining Backlog). The table uses a
+   <colgroup> + table-layout:fixed (above), which forces every column to
+   its declared width regardless of content — so these `left` offsets
+   (each one the running sum of the widths before it) stay accurate
+   without any JS measurement. overflow:hidden keeps a long PMO/project
+   name from pushing a cell wider than its column. */
+.forecast-th-sticky, .forecast-td-sticky {
+  position: sticky; z-index: 2; background: white;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.forecast-table thead .forecast-th-sticky { z-index: 4; background: #12132B; }
+.forecast-table th:nth-child(1), .forecast-table td:nth-child(1) { left: 0; width: 44px; }
+.forecast-table th:nth-child(2), .forecast-table td:nth-child(2) { left: 44px; width: 110px; }
+.forecast-table th:nth-child(3), .forecast-table td:nth-child(3) { left: 154px; width: 280px; }
+.forecast-table th:nth-child(4), .forecast-table td:nth-child(4) { left: 434px; width: 110px; }
+.forecast-table th:nth-child(5), .forecast-table td:nth-child(5) { left: 544px; width: 90px; }
+.forecast-table th:nth-child(6), .forecast-table td:nth-child(6) { left: 634px; width: 140px; }
+.forecast-table th:nth-child(7), .forecast-table td:nth-child(7) { left: 774px; width: 120px; }
+.forecast-table th:nth-child(8), .forecast-table td:nth-child(8) { left: 894px; width: 150px; box-shadow: 2px 0 4px rgba(0,0,0,0.06); }
+.forecast-table tbody tr:hover td.forecast-td-sticky { background: #FBFAFF; }
+.forecast-status-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.forecast-td-pct { font-weight: 600; }
+.forecast-td-nrr { color: var(--text-secondary); }
+.forecast-empty { padding: 60px 20px; text-align: center; color: var(--text-muted); }
+
+.forecast-summary-wrap { flex-shrink: 0; border-bottom: 1px solid var(--hairline); }
+.forecast-summary-asof {
+  padding: 6px 20px; font-size: 11px; color: var(--text-muted); background: var(--filterbar-bg);
+  border-bottom: 1px solid var(--hairline);
+}
+.forecast-summary {
+  display: flex; gap: 1px; background: var(--hairline);
+}
+.forecast-summary-card { flex: 1; background: white; padding: 12px 20px; }
+.forecast-summary-value { font-size: 20px; font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+.forecast-summary-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+.forecast-chart-wrap { padding: 14px 20px; border-bottom: 1px solid var(--hairline); flex-shrink: 0; }
+.forecast-chart-title {
+  font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 8px;
+  display: flex; align-items: center; gap: 16px;
+}
+.forecast-chart-legend { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 500; color: var(--text-muted); }
+.forecast-chart-swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.forecast-chart-swatch-nrr { background: #5B3FA6; }
+.forecast-chart-swatch-pct { background: #12776F; border-radius: 50%; }
+.forecast-chart-scroll { overflow-x: auto; }
+.forecast-chart-svg { display: block; }
+.forecast-bar { transition: fill 0.1s; }
+.forecast-bar-hit { cursor: pointer; }
+.forecast-bar-hit:hover + .forecast-bar-label { opacity: 1; }
+
+.forecast-filter-banner {
+  display: flex; align-items: center; gap: 10px; padding: 8px 20px;
+  background: #EFEAFB; border-bottom: 1px solid var(--hairline);
+  font-size: 12px; color: #3D2B7D; flex-shrink: 0;
+}
+.forecast-filter-banner strong { font-weight: 700; }
+.forecast-filter-clear {
+  border: none; background: #5B3FA6; color: white; font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border-radius: 12px; cursor: pointer; margin-left: auto;
+}
+.forecast-filter-clear:hover { background: #4C2E8F; }
+
+.forecast-total-row td {
+  position: sticky; top: 68px; z-index: 1; background: #F1F0F5; font-weight: 700;
+  border-bottom: 2px solid var(--border-light);
+}
+.forecast-total-row td.forecast-td-sticky { z-index: 2; }
+.forecast-total-row td.forecast-td-current { background: #E4E2ED; }

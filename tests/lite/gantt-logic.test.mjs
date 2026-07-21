@@ -6,6 +6,7 @@ import {
   getCellText, applyGanttRowFilters, computeWeightedProgress, getDisplayProgress,
   computePhaseCumulativeWeights, computePhaseWeight, computePhaseWorkloadDays,
   computePhasePrice, computePhasePriceCumulative, computePeriodForecast,
+  computeStoryMetrics, resolvePhaseRenderBounds, computeProjectedProgress,
   ZOOM_CONFIG, TIMELINE_MARGIN,
 } from "../../public/lite/js/gantt-logic.js";
 
@@ -14,6 +15,28 @@ function epic(id, phases, status = "In Progress", raw = {}) {
 }
 function phase(name, start, end, id = name) {
   return { id, phaseName: name, color: "#000", startDate: start, endDate: end };
+}
+
+// Local Y-M-D, not toISOString() — that converts to UTC first and can land
+// on the wrong calendar day depending on the machine's timezone offset.
+function localYmd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function storyRow({
+  type, parentKey, points, status = "To Do",
+  start, due, originalEstimate, timeSpent,
+} = {}) {
+  return {
+    "Issue Type": type,
+    "Parent key": parentKey,
+    "Status": status,
+    "Custom field (Story Points)": points !== undefined ? String(points) : "",
+    "Custom field (Start date)": start ? localYmd(start) : "",
+    "Due date": due ? localYmd(due) : "",
+    "Original estimate": originalEstimate !== undefined ? String(originalEstimate) : "",
+    "Time Spent": timeSpent !== undefined ? String(timeSpent) : "",
+  };
 }
 
 test("getWeekNumber: ISO week", () => {
@@ -429,5 +452,164 @@ test("computePeriodForecast: sums across epics and skips initiative rows", () =>
     new Date(2026, 0, 1), new Date(2026, 1, 1)
   );
   assert.equal(total, 800);
+});
+
+test("computeStoryMetrics: Done counts fully regardless of dates", () => {
+  const rows = [storyRow({ type: "Story", parentKey: "E-1", points: 5, status: "Done" })];
+  const { dev } = computeStoryMetrics(rows, new Date(2026, 0, 1));
+  assert.deepEqual(dev.get("E-1"), { pct: 100, done: 5, total: 5, timeSpentSeconds: 0 });
+});
+
+test("computeStoryMetrics: To Do with no dates counts as 0%, still adds to the total", () => {
+  const rows = [
+    storyRow({ type: "Story", parentKey: "E-1", points: 5, status: "Done" }),
+    storyRow({ type: "Story", parentKey: "E-1", points: 5, status: "To Do" }),
+  ];
+  const { dev } = computeStoryMetrics(rows, new Date(2026, 0, 1));
+  assert.deepEqual(dev.get("E-1"), { pct: 50, done: 5, total: 10, timeSpentSeconds: 0 }); // 5 of 10 points done
+});
+
+test("computeStoryMetrics: In Progress with no time tracking is pro-rated by elapsed days", () => {
+  const rows = [storyRow({
+    type: "Story", parentKey: "E-1", points: 10, status: "In Progress",
+    start: new Date(2026, 0, 1), due: new Date(2026, 0, 11),
+  })];
+  const { dev } = computeStoryMetrics(rows, new Date(2026, 0, 6)); // 5 of 10 days elapsed
+  assert.equal(dev.get("E-1").pct, 50);
+});
+
+test("computeStoryMetrics: logged time is trusted when it's close to the date-based estimate", () => {
+  const rows = [storyRow({
+    type: "Story", parentKey: "E-1", points: 10, status: "In Progress",
+    start: new Date(2026, 0, 1), due: new Date(2026, 0, 11),
+    originalEstimate: 100, timeSpent: 55, // 55% vs. 50% date-based — within 30%
+  })];
+  const { dev } = computeStoryMetrics(rows, new Date(2026, 0, 6));
+  assert.equal(dev.get("E-1").pct, 55);
+});
+
+test("computeStoryMetrics: sums logged time across an epic's Story/Testing children", () => {
+  const rows = [
+    storyRow({ type: "Story", parentKey: "E-1", points: 3, status: "Done", timeSpent: 3600 }),
+    storyRow({ type: "Story", parentKey: "E-1", points: 2, status: "To Do", timeSpent: 1800 }),
+    storyRow({ type: "Testing", parentKey: "E-1", points: 1, status: "To Do" }), // no time logged
+  ];
+  const { dev, qa } = computeStoryMetrics(rows, new Date(2026, 0, 1));
+  assert.equal(dev.get("E-1").timeSpentSeconds, 5400);
+  assert.equal(qa.get("E-1").timeSpentSeconds, 0);
+});
+
+test("computeStoryMetrics: falls back to date-based when logged time deviates more than 30%", () => {
+  const rows = [storyRow({
+    type: "Story", parentKey: "E-1", points: 10, status: "In Progress",
+    start: new Date(2026, 0, 1), due: new Date(2026, 0, 11),
+    originalEstimate: 100, timeSpent: 10, // 10% vs. 50% date-based — way off, nobody's logging
+  })];
+  const { dev } = computeStoryMetrics(rows, new Date(2026, 0, 6));
+  assert.equal(dev.get("E-1").pct, 50);
+});
+
+test("computeStoryMetrics: Ceased issues are excluded entirely", () => {
+  const rows = [
+    storyRow({ type: "Story", parentKey: "E-1", points: 5, status: "Done" }),
+    storyRow({ type: "Story", parentKey: "E-1", points: 100, status: "Ceased" }),
+  ];
+  const { dev } = computeStoryMetrics(rows, new Date(2026, 0, 1));
+  assert.deepEqual(dev.get("E-1"), { pct: 100, done: 5, total: 5, timeSpentSeconds: 0 }); // the Ceased 100-pointer doesn't drag the total down
+});
+
+test("computeStoryMetrics: issues without Story Points don't count", () => {
+  const rows = [storyRow({ type: "Story", parentKey: "E-1", status: "To Do" })]; // no points
+  const { dev } = computeStoryMetrics(rows, new Date(2026, 0, 1));
+  assert.equal(dev.has("E-1"), false);
+});
+
+test("computeStoryMetrics: Story feeds dev, Testing feeds qa, kept separate per epic", () => {
+  const rows = [
+    storyRow({ type: "Story", parentKey: "E-1", points: 10, status: "Done" }),
+    storyRow({ type: "Testing", parentKey: "E-1", points: 10, status: "To Do" }),
+  ];
+  const { dev, qa } = computeStoryMetrics(rows, new Date(2026, 0, 1));
+  assert.equal(dev.get("E-1").pct, 100);
+  assert.equal(qa.get("E-1").pct, 0);
+});
+
+test("resolvePhaseRenderBounds: non-overlapping phases are left untouched", () => {
+  const phases = [
+    phase("Analysis", new Date(2026, 0, 1), new Date(2026, 0, 10)),
+    phase("Development", new Date(2026, 0, 10), new Date(2026, 0, 20)),
+  ];
+  const bounds = resolvePhaseRenderBounds(phases);
+  assert.equal(bounds[0].startDate.getTime(), phases[0].startDate.getTime());
+  assert.equal(bounds[0].endDate.getTime(), phases[0].endDate.getTime());
+  assert.equal(bounds[1].startDate.getTime(), phases[1].startDate.getTime());
+  assert.equal(bounds[1].endDate.getTime(), phases[1].endDate.getTime());
+});
+
+test("resolvePhaseRenderBounds: identical dates split exactly in half", () => {
+  const phases = [
+    phase("Development", new Date(2026, 7, 3), new Date(2026, 7, 29)), // Aug 3 -> Aug 29, 26 days
+    phase("QA / Test", new Date(2026, 7, 3), new Date(2026, 7, 29)),
+  ];
+  const bounds = resolvePhaseRenderBounds(phases);
+  const mid = new Date(2026, 7, 16); // midpoint of Aug 3 - Aug 29
+  assert.equal(bounds[0].startDate.getTime(), new Date(2026, 7, 3).getTime());
+  assert.equal(bounds[0].endDate.getTime(), mid.getTime());
+  assert.equal(bounds[1].startDate.getTime(), mid.getTime());
+  assert.equal(bounds[1].endDate.getTime(), new Date(2026, 7, 29).getTime());
+});
+
+test("resolvePhaseRenderBounds: partial overlap only splits the shared window", () => {
+  const phases = [
+    phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 21)), // Jan 1 -> Jan 21
+    phase("QA / Test", new Date(2026, 0, 11), new Date(2026, 0, 31)), // Jan 11 -> Jan 31, overlap Jan 11-21
+  ];
+  const bounds = resolvePhaseRenderBounds(phases);
+  const mid = new Date(2026, 0, 16); // midpoint of the Jan 11-21 overlap
+  assert.equal(bounds[0].startDate.getTime(), new Date(2026, 0, 1).getTime()); // Dev's own start, untouched
+  assert.equal(bounds[0].endDate.getTime(), mid.getTime());
+  assert.equal(bounds[1].startDate.getTime(), mid.getTime());
+  assert.equal(bounds[1].endDate.getTime(), new Date(2026, 0, 31).getTime()); // QA's own end, untouched
+});
+
+test("resolvePhaseRenderBounds: keeps the original phase object reference (real dates untouched)", () => {
+  const phases = [
+    phase("Development", new Date(2026, 7, 3), new Date(2026, 7, 29)),
+    phase("QA / Test", new Date(2026, 7, 3), new Date(2026, 7, 29)),
+  ];
+  const bounds = resolvePhaseRenderBounds(phases);
+  assert.equal(bounds[0].phase, phases[0]);
+  assert.equal(phases[0].endDate.getTime(), new Date(2026, 7, 29).getTime()); // real date unchanged
+});
+
+test("computeProjectedProgress: never regresses below today's real reported %", () => {
+  // Reported 80% today, but the schedule alone would only reach 24% by the target date.
+  const e = epic(1, [
+    phase("Development", new Date(2026, 6, 1), new Date(2026, 9, 1)),
+  ], "In Progress", {
+    "Custom field (Budget Hours DEV)": "100",
+    "Custom field (% of progress)": "80",
+  });
+  const today = new Date(2026, 6, 21);
+  const target = new Date(2026, 6, 31);
+  assert.equal(computeProjectedProgress(e, target, today), 80);
+});
+
+test("computeProjectedProgress: uses the schedule when it's ahead of today's reported %", () => {
+  // Reported 26% today, schedule already implies more progress by the target date.
+  const e = epic(1, [
+    phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 11)),
+  ], "In Progress", {
+    "Custom field (Budget Hours DEV)": "100",
+    "Custom field (% of progress)": "26",
+  });
+  const today = new Date(2026, 0, 1);
+  const target = new Date(2026, 0, 11); // fully elapsed by target -> schedule says 100%
+  assert.equal(computeProjectedProgress(e, target, today), 100);
+});
+
+test("computeProjectedProgress: null when neither a raw % nor a budget-based schedule exists", () => {
+  const e = epic(1, [phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 11))]);
+  assert.equal(computeProjectedProgress(e, new Date(2026, 0, 11)), null);
 });
 

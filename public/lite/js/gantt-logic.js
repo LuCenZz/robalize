@@ -50,6 +50,31 @@ export function getWeekNumber(d) {
   return Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
 
+/**
+ * Render bounds for a row's phase bars: when two consecutive phases (in
+ * array/workflow order) overlap, the shared window is split down the
+ * middle — the earlier phase's bar is clipped to end at the midpoint, the
+ * later phase's bar starts there — so both colors stay visible instead of
+ * the later phase's box painting fully over the earlier one. Only the
+ * returned {startDate, endDate} are adjusted; the underlying `phase`
+ * objects (and their real dates, used everywhere else — tooltips, %
+ * calcs) are untouched.
+ */
+export function resolvePhaseRenderBounds(phases) {
+  const bounds = phases.map((p) => ({ start: p.startDate, end: p.endDate }));
+  for (let i = 0; i < phases.length - 1; i++) {
+    const a = bounds[i];
+    const b = bounds[i + 1];
+    if (a.end > b.start) {
+      const overlapEnd = a.end < b.end ? a.end : b.end;
+      const mid = new Date((b.start.getTime() + overlapEnd.getTime()) / 2);
+      a.end = mid;
+      b.start = mid;
+    }
+  }
+  return phases.map((phase, i) => ({ phase, startDate: bounds[i].start, endDate: bounds[i].end }));
+}
+
 export function detectInconsistencies(tasks) {
   const result = new Map();
 
@@ -520,6 +545,118 @@ export function computePeriodForecast(rows, periodStart, periodEnd) {
     }
   }
   return total;
+}
+
+/**
+ * Projected completion % at a future checkpoint date: the epic's own
+ * displayed % (real reported progress, today) can already be ahead of
+ * what the schedule alone would predict for that same date — an epic
+ * doesn't regress just because we're asking about the future, so this is
+ * the larger of "where we are today" and "where the schedule says we'd
+ * be by targetDate". Returns null when neither figure is available.
+ */
+export function computeProjectedProgress(epic, targetDate, today = new Date()) {
+  const current = getDisplayProgress(epic, today);
+  const scheduled = computeWeightedProgress(epic, targetDate);
+  if (current === null && scheduled === null) return null;
+  return Math.max(current ?? 0, scheduled ?? 0);
+}
+
+// Real-progress forecast, computed from an epic's Story (Dev) and Testing
+// (QA) children instead of the up-front Budget schedule — story/testing
+// work is created after the budget is set and can diverge from it.
+const STORY_POINTS_FIELD = "Custom field (Story Points)";
+const STORY_DONE_STATUSES = new Set(["done", "ready to be released"]);
+const STORY_EXCLUDED_STATUSES = new Set(["ceased"]);
+// If logged time disagrees with the date-based estimate by more than this,
+// assume the team isn't logging time reliably and trust the dates instead.
+const STORY_TIME_DEVIATION_THRESHOLD = 0.3;
+
+/**
+ * A single Story/Testing issue's completion fraction (0–1):
+ * - Done / Ready to be Released → 1
+ * - No start+due date on the issue → 0 (nothing to pro-rate against)
+ * - Otherwise, pro-rated by elapsed days between start and due date; if
+ *   JIRA's own "Original estimate" is set, cross-check against logged
+ *   "Time Spent" and prefer that instead — unless the two disagree by more
+ *   than STORY_TIME_DEVIATION_THRESHOLD, in which case the date-based
+ *   figure wins (the team likely isn't logging time).
+ */
+function computeStoryIssueProgress(row, today) {
+  const status = (row["Status"] || "").trim().toLowerCase();
+  if (STORY_DONE_STATUSES.has(status)) return 1;
+
+  const start = row["Custom field (Start date)"] ? parseJiraDate(row["Custom field (Start date)"]) : null;
+  const due = row["Due date"] ? parseJiraDate(row["Due date"]) : null;
+  if (!start || !due) return 0;
+
+  const startDay = toDayValue(start);
+  const dueDay = toDayValue(due);
+  const todayDay = toDayValue(today);
+  const totalDays = dueDay - startDay;
+  const dateProgress = totalDays > 0
+    ? Math.min(1, Math.max(0, (todayDay - startDay) / totalDays))
+    : (todayDay >= startDay ? 1 : 0);
+
+  const originalEstimate = parseFloat(row["Original estimate"]);
+  const timeSpent = parseFloat(row["Time Spent"]);
+  if (!isNaN(originalEstimate) && originalEstimate > 0 && !isNaN(timeSpent)) {
+    const timeProgress = Math.min(1, Math.max(0, timeSpent / originalEstimate));
+    if (Math.abs(timeProgress - dateProgress) <= STORY_TIME_DEVIATION_THRESHOLD) return timeProgress;
+  }
+  return dateProgress;
+}
+
+/**
+ * Real Dev/QA completion, keyed by epic key, from Story Points weighted by
+ * each issue's own progress (see computeStoryIssueProgress) — actual
+ * reported status/dates, not a forecast. Each entry is
+ * { pct, done, total, timeSpentSeconds } so callers can show "X of Y
+ * points" as well as the %; total is also how many points actually exist
+ * under Story/Testing, which can be more (or less) than what the Budget
+ * tab assumed up front. timeSpentSeconds is JIRA's own logged time summed
+ * across the same issues (0 when nobody's logging).
+ * Only issues with a Story Points value count toward a phase's total — an
+ * un-pointed issue carries no signal either way. Ceased issues are
+ * excluded entirely (cancelled work, not remaining or done).
+ */
+export function computeStoryMetrics(rows, today = new Date()) {
+  const devPoints = new Map(); // epicKey -> { total, done, timeSpentSeconds }
+  const qaPoints = new Map();
+
+  for (const row of rows) {
+    const status = (row["Status"] || "").trim().toLowerCase();
+    if (STORY_EXCLUDED_STATUSES.has(status)) continue;
+
+    const parentKey = row["Parent key"];
+    if (!parentKey) continue;
+
+    const pointsRaw = row[STORY_POINTS_FIELD];
+    const points = pointsRaw && pointsRaw.trim() ? parseFloat(pointsRaw) : NaN;
+    if (isNaN(points) || points <= 0) continue;
+
+    const type = (row["Issue Type"] || "").trim();
+    const bucket = type === "Story" ? devPoints : type === "Testing" ? qaPoints : null;
+    if (!bucket) continue;
+
+    const progress = computeStoryIssueProgress(row, today);
+    const timeSpent = parseFloat(row["Time Spent"]);
+    const entry = bucket.get(parentKey) || { total: 0, done: 0, timeSpentSeconds: 0 };
+    entry.total += points;
+    entry.done += points * progress;
+    if (!isNaN(timeSpent) && timeSpent > 0) entry.timeSpentSeconds += timeSpent;
+    bucket.set(parentKey, entry);
+  }
+
+  const toMetricsMap = (points) => {
+    const map = new Map();
+    for (const [key, { total, done, timeSpentSeconds }] of points) {
+      map.set(key, { pct: total > 0 ? Math.round((done / total) * 100) : 0, done, total, timeSpentSeconds });
+    }
+    return map;
+  };
+
+  return { dev: toMetricsMap(devPoints), qa: toMetricsMap(qaPoints) };
 }
 
 /**

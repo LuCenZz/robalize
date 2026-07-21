@@ -6,7 +6,7 @@ import {
   buildTimelineHeaders, computeWeekLines, getCellText, applyGanttRowFilters,
   getDisplayProgress, computePhaseCumulativeWeights, computePhaseWeight,
   computePhaseWorkloadDays, computePhasePrice, computePhasePriceCumulative,
-  computePeriodForecast,
+  computePeriodForecast, resolvePhaseRenderBounds, computeProjectedProgress,
 } from "./gantt-logic.js";
 import { PHASE_CONFIG, parseJiraDate } from "./transform.js";
 
@@ -21,6 +21,13 @@ const PHASE_SHORT = {
   "Pilot": "Pilot",
 };
 
+// The Analysis box has no % tracking of its own — this is the only signal
+// that analysis is actually finished: the epic has moved past its earliest
+// statuses (still Backlog/In Definition means analysis hasn't wrapped, even
+// if the box's scheduled end date has already passed) and that end date is
+// behind us.
+const ANALYSIS_NOT_DONE_STATUSES = new Set(["backlog", "in definition"]);
+
 // Status pill colors [background, foreground] — roadmap-reference style
 const STATUS_COLORS = {
   "blocked": ["#FDE8E8", "#DC2626"],
@@ -34,7 +41,7 @@ const STATUS_COLORS = {
   "done": ["#E3F6EC", "#16A34A"],
 };
 
-function statusColors(status) {
+export function statusColors(status) {
   return STATUS_COLORS[status.trim().toLowerCase()] || ["#F1F0F5", "#6B7280"];
 }
 
@@ -74,7 +81,7 @@ const formatDate = (d) =>
   d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
 function formatMoney(val) {
-  return Math.round(val).toLocaleString("fr-FR");
+  return Math.round(val).toLocaleString("en-GB");
 }
 
 // Compact form for tight spaces (the grid's % column): 1046 -> "1k", 793 -> "793".
@@ -82,6 +89,20 @@ function formatMoneyCompact(val) {
   const abs = Math.abs(val);
   if (abs >= 1000) return `${(val / 1000).toFixed(1).replace(/\.0$/, "")}k`;
   return String(Math.round(val));
+}
+
+// Story points: whole numbers plain, fractional to one decimal.
+function formatPoints(val) {
+  return Number.isInteger(val) ? String(val) : val.toFixed(1);
+}
+
+// JIRA logs time in seconds; show hours (its native tracking unit) with
+// days alongside, using the same 8h/day convention as Step workload.
+function formatTimeSpent(seconds) {
+  const hours = seconds / 3600;
+  const days = hours / 8;
+  const h = Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+  return `${h}h (${days.toFixed(1)}d)`;
 }
 
 // The epic's total NRR — not per-phase data, so every phase box shows the
@@ -200,7 +221,7 @@ export function renderGantt(container, state, actions) {
             ${todayX >= 0 && todayX <= totalWidth ? `
               <div class="today-line" style="left:${todayX}px;height:${rowsHeight}px"><div class="today-dot"></div></div>` : ""}
             ${weekLines.map((x) => `<div class="week-line" style="left:${x}px;height:${rowsHeight}px"></div>`).join("")}
-            ${displayedRows.map((row, i) => timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, eddIssues, state.boxMode)).join("")}
+            ${displayedRows.map((row, i) => timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, eddIssues, state.boxMode, state.storyMetrics)).join("")}
           </div>
         </div>
       </div>
@@ -312,23 +333,99 @@ function rowMeta(row, i, inconsistencies, alerts, eddIssues) {
   };
 }
 
+// An initiative's own total/reached NRR is the sum of its children's —
+// its % is then derived from that sum (reached ÷ total), not a plain
+// average of the children's %s, so a big-budget epic naturally outweighs
+// a small one, and the % and the €X/€Y under it always agree.
+function computeInitiativeNrr(children) {
+  let total = 0;
+  let reached = 0;
+  let any = false;
+  for (const child of children) {
+    const childProgress = getDisplayProgress(child);
+    const cumPrices = computePhasePriceCumulative(child);
+    const childTotal = cumPrices ? cumPrices["Pilot"] : null;
+    if (childProgress === null || !childTotal) continue;
+    total += childTotal;
+    reached += childTotal * (childProgress / 100);
+    any = true;
+  }
+  return any && total > 0 ? { pct: Math.round((reached / total) * 100), reached, total } : null;
+}
+
+// Same sum-then-divide approach as computeInitiativeNrr, but projected
+// forward to targetDate via computeProjectedProgress (never regresses
+// below today's real progress) instead of using today's % as-is.
+function computeInitiativeProjection(children, targetDate) {
+  let total = 0;
+  let reached = 0;
+  let any = false;
+  for (const child of children) {
+    const pct = computeProjectedProgress(child, targetDate);
+    const cumPrices = computePhasePriceCumulative(child);
+    const childTotal = cumPrices ? cumPrices["Pilot"] : null;
+    if (pct === null || !childTotal) continue;
+    total += childTotal;
+    reached += childTotal * (pct / 100);
+    any = true;
+  }
+  return any && total > 0 ? { pct: Math.round((reached / total) * 100), reached, total } : null;
+}
+
+// One projection per month from the current month through whichever month
+// the initiative's last scheduled phase (across all children) ends in —
+// capped so a very long-running project doesn't produce a huge tooltip.
+const PROJECTION_MONTHS_CAP = 18;
+
+function computeInitiativeMonthlyProjections(children, allPhases) {
+  if (allPhases.length === 0) return [];
+  const now = new Date();
+  const maxEndTime = Math.max(...allPhases.map((p) => p.endDate.getTime()));
+  const horizon = new Date(new Date(maxEndTime).getFullYear(), new Date(maxEndTime).getMonth(), 1);
+
+  const months = [];
+  let cursor = new Date(now.getFullYear(), now.getMonth(), 1);
+  while (cursor <= horizon && months.length < PROJECTION_MONTHS_CAP) {
+    const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+    const projection = computeInitiativeProjection(children, monthEnd);
+    if (projection) {
+      months.push({
+        label: cursor.toLocaleDateString("en-GB", { month: "short", year: "numeric" }),
+        ...projection,
+      });
+    }
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+  return months;
+}
+
 function gridRowHtml(row, i, inconsistencies, alerts, eddIssues) {
   const { epic, isInitiative, isInconsistent, isAlerted, isEddIssue, isHighlighted, highlightColor } =
     rowMeta(row, i, inconsistencies, alerts, eddIssues);
   const product = epic.rawData["Custom field (Product)"] || "";
-  const displayProgress = isInitiative ? null : getDisplayProgress(epic);
+  const initiativeNrr = isInitiative ? computeInitiativeNrr(row.children || []) : null;
+  const displayProgress = isInitiative ? (initiativeNrr ? initiativeNrr.pct : null) : getDisplayProgress(epic);
   const progress = displayProgress !== null ? `${displayProgress}%` : "";
   // NRR reached / total expected at the current progress %, from the same
   // Budget Price total as the phase boxes' NRR mode (Pilot's cumulative
   // value = the sum of every step's own Budget Price).
   let nrrProgressHtml = "";
-  if (!isInitiative && displayProgress !== null) {
+  const hasProjection = isInitiative ? (row.children || []).length > 0 : epic.phases.length > 0;
+  if (isInitiative) {
+    if (initiativeNrr) {
+      nrrProgressHtml = `
+        <div class="grid-cell-progress-nrr" title="€${formatMoney(initiativeNrr.reached)} reached of €${formatMoney(initiativeNrr.total)} expected (sum of epics)">
+          €${formatMoneyCompact(initiativeNrr.reached)}/€${formatMoneyCompact(initiativeNrr.total)}
+        </div>
+      `;
+    }
+  } else if (displayProgress !== null) {
     const cumPrices = computePhasePriceCumulative(epic);
     const totalNrr = cumPrices ? cumPrices["Pilot"] : null;
     if (totalNrr) {
       const reached = totalNrr * (displayProgress / 100);
       nrrProgressHtml = `
-        <div class="grid-cell-progress-nrr" title="€${formatMoney(reached)} atteint sur €${formatMoney(totalNrr)} attendu">
+        <div class="grid-cell-progress-nrr" title="€${formatMoney(reached)} reached of €${formatMoney(totalNrr)} expected">
           €${formatMoneyCompact(reached)}/€${formatMoneyCompact(totalNrr)}
         </div>
       `;
@@ -358,7 +455,7 @@ function gridRowHtml(row, i, inconsistencies, alerts, eddIssues) {
           return `<span class="status-badge" style="background:${bg};color:${fg}">${esc(epic.status)}</span>`;
         })() : ""}
       </div>
-      <div class="grid-cell grid-cell-progress" data-colw="progress" style="width:${ui.colWidths.progress}px">
+      <div class="grid-cell grid-cell-progress" data-colw="progress" style="width:${ui.colWidths.progress}px" ${hasProjection ? `data-row-idx="${i}" data-has-projection="1"` : ""}>
         ${progress}
         ${nrrProgressHtml}
       </div>
@@ -366,7 +463,7 @@ function gridRowHtml(row, i, inconsistencies, alerts, eddIssues) {
   `;
 }
 
-function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, eddIssues, boxMode) {
+function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, eddIssues, boxMode, storyMetrics) {
   const { epic, isInitiative, isInconsistent } = rowMeta(row, i, inconsistencies, alerts, eddIssues);
   const info = isInconsistent ? inconsistencies.get(epic.id) : null;
   let bars = "";
@@ -414,11 +511,14 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, edd
     }
     const cumWeights = computePhaseCumulativeWeights(epic);
     const cumPrices = boxMode === "nrr" ? computePhasePriceCumulative(epic) : null;
-    bars += epic.phases.map((phase) => {
-      const left = dayOffset(phase.startDate);
-      const width = dayOffset(phase.endDate) - left + config.dayWidth;
+    bars += resolvePhaseRenderBounds(epic.phases).map(({ phase, startDate, endDate }) => {
+      const left = dayOffset(startDate);
+      const width = dayOffset(endDate) - left + config.dayWidth;
       if (width <= 0) return "";
       const isConflicting = info?.conflictingPhases.has(phase.phaseName);
+      const isAnalysisDone = phase.phaseName === "Analysis"
+        && !ANALYSIS_NOT_DONE_STATUSES.has((epic.status || "").trim().toLowerCase())
+        && phase.endDate < new Date();
       const fallback = PHASE_SHORT[phase.phaseName] || phase.phaseName;
       let label;
       if (boxMode === "effort") {
@@ -433,13 +533,33 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, edd
         const cum = cumWeights ? cumWeights[phase.phaseName] : null;
         label = cum !== null && cum !== undefined ? `${cum}%` : fallback;
       }
+
+      // Real Dev/QA progress from Story/Testing children (actual reported
+      // status/dates, not a forecast) — only meaningful next to the
+      // schedule-based % or NRR, and only for the two phases that
+      // actually have story/testing work under them.
+      let secondary = "";
+      if (boxMode === "progress" || boxMode === "nrr") {
+        const realStory = phase.phaseName === "Development" ? storyMetrics?.dev.get(epic.epicKey)
+          : phase.phaseName === "QA / Test" ? storyMetrics?.qa.get(epic.epicKey)
+          : undefined;
+        if (realStory !== undefined) {
+          if (boxMode === "nrr") {
+            const ownPrice = computePhasePrice(epic, phase.phaseName);
+            if (ownPrice !== null) secondary = `€${formatMoneyCompact(ownPrice * (realStory.pct / 100))}`;
+          } else {
+            secondary = `${realStory.pct}%`;
+          }
+        }
+      }
+
       // The label always sits above the box, centered on it — narrow
       // boxes (Pilot especially) never have room for text inside them.
       return `
-        <div class="phase-bar ${isConflicting ? "phase-bar-conflict" : ""}"
+        <div class="phase-bar ${isConflicting ? "phase-bar-conflict" : ""} ${isAnalysisDone ? "phase-bar-done" : ""}"
              data-phase-id="${esc(phase.id)}" data-row-idx="${i}"
              style="left:${left}px;top:${BAR_TOP}px;width:${width}px;height:${BAR_HEIGHT}px;background:${phase.color}"></div>
-        <span class="phase-bar-label-above" style="left:${left}px;top:${BAR_TOP - 15}px;color:${phase.color}">${esc(label)}</span>
+        <span class="phase-bar-label-above" style="left:${left}px;top:${BAR_TOP - (secondary ? 27 : 15)}px;color:${phase.color}">${esc(label)}${secondary ? `<span class="phase-bar-label-secondary">${esc(secondary)}</span>` : ""}</span>
       `;
     }).join("");
   }
@@ -465,11 +585,16 @@ function timelineRowHtml(row, i, dayOffset, config, inconsistencies, alerts, edd
   `;
 }
 
-function buildEpicCardHtml(epic, phase) {
+function buildEpicCardHtml(epic, phase, storyMetrics) {
   const stepWeight = computePhaseWeight(epic, phase.phaseName);
   const nrr = getEpicNrr(epic);
   const workloadDays = computePhaseWorkloadDays(epic, phase.phaseName);
   const phasePrice = computePhasePrice(epic, phase.phaseName);
+
+  const realStory = phase.phaseName === "Development" ? storyMetrics?.dev.get(epic.epicKey)
+    : phase.phaseName === "QA / Test" ? storyMetrics?.qa.get(epic.epicKey)
+    : undefined;
+  const realNrr = realStory !== undefined && phasePrice !== null ? phasePrice * (realStory.pct / 100) : null;
 
   // Only the hovered phase's dates are shown — not the full schedule.
   const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
@@ -486,6 +611,9 @@ function buildEpicCardHtml(epic, phase) {
     ${workloadDays !== null ? `<div class="epic-card-row"><span>Step workload</span><b>${workloadDays} ${workloadDays === "1" ? "day" : "days"}</b></div>` : ""}
     ${phasePrice !== null ? `<div class="epic-card-row"><span>Step budget</span><b class="epic-card-nrr">€${formatMoney(phasePrice)}</b></div>` : ""}
     ${stepWeight !== null ? `<div class="epic-card-row"><span>Step weight</span><span class="epic-card-progress-pill">${stepWeight}%</span></div>` : ""}
+    ${realStory !== undefined ? `<div class="epic-card-row"><span>Real progress (US)</span><b class="epic-card-secondary">${formatPoints(realStory.done)}/${formatPoints(realStory.total)} pts (${realStory.pct}%)</b></div>` : ""}
+    ${realNrr !== null ? `<div class="epic-card-row"><span>Real NRR (US)</span><b class="epic-card-secondary">€${formatMoney(realNrr)}</b></div>` : ""}
+    ${realStory?.timeSpentSeconds > 0 ? `<div class="epic-card-row"><span>Time spent (US)</span><b class="epic-card-secondary">${formatTimeSpent(realStory.timeSpentSeconds)}</b></div>` : ""}
     ${phaseRows ? `<div class="epic-card-divider"></div>${phaseRows}` : ""}
   `;
 }
@@ -665,6 +793,22 @@ function wireEvents(container, state, actions, ctx) {
     marker.addEventListener("mouseleave", hideTooltip);
   });
 
+  // %  cell → month-by-month projection tooltip (never regresses below
+  // the real reported % — see computeProjectedProgress). Initiative rows
+  // aggregate their children epics; a plain epic row is just itself.
+  container.querySelectorAll("[data-has-projection]").forEach((cell) => {
+    cell.addEventListener("mouseenter", () => {
+      const row = displayedRows[Number(cell.dataset.rowIdx)];
+      if (!row) return;
+      const forEpics = row.type === "initiative" ? (row.children || []) : [row.epic];
+      const months = computeInitiativeMonthlyProjections(forEpics, row.epic.phases);
+      if (months.length === 0) return;
+      const rect = cell.getBoundingClientRect();
+      showProjectionTooltip(rect.right + 8, rect.top + rect.height / 2, months);
+    });
+    cell.addEventListener("mouseleave", hideTooltip);
+  });
+
   // Whole-month / whole-quarter header cells → NRR forecast tooltip,
   // computed from exactly the rows currently shown in the Gantt below.
   container.querySelectorAll("[data-period-start]").forEach((cell) => {
@@ -686,7 +830,7 @@ function wireEvents(container, state, actions, ctx) {
       if (!row) return;
       const phase = row.epic.phases.find((p) => p.id === bar.dataset.phaseId);
       if (!phase) return;
-      showEpicCard(e.clientX, e.clientY, row.epic, phase);
+      showEpicCard(e.clientX, e.clientY, row.epic, phase, state.storyMetrics);
     });
     bar.addEventListener("mouseleave", hideEpicCard);
     bar.addEventListener("dblclick", () => {
@@ -818,6 +962,25 @@ function showTooltip(x, y, kind, details) {
   document.body.appendChild(tooltipEl);
 }
 
+function showProjectionTooltip(x, y, months) {
+  hideTooltip();
+  tooltipEl = document.createElement("div");
+  tooltipEl.className = "gantt-tooltip gantt-tooltip-projection";
+  tooltipEl.style.left = `${x}px`;
+  tooltipEl.style.top = `${y}px`;
+  const title = document.createElement("div");
+  title.className = "gantt-tooltip-title";
+  title.textContent = "NRR projection by month";
+  tooltipEl.appendChild(title);
+  for (const m of months) {
+    const line = document.createElement("div");
+    line.className = "gantt-tooltip-line";
+    line.textContent = `${m.label} : ${m.pct}% — €${formatMoney(m.reached)}`;
+    tooltipEl.appendChild(line);
+  }
+  document.body.appendChild(tooltipEl);
+}
+
 function hideTooltip() {
   tooltipEl?.remove();
   tooltipEl = null;
@@ -837,11 +1000,11 @@ function showMarkerTooltip(x, y, text, align = "above") {
 
 let epicCardEl = null;
 
-function showEpicCard(x, y, epic, phase) {
+function showEpicCard(x, y, epic, phase, storyMetrics) {
   hideEpicCard();
   epicCardEl = document.createElement("div");
   epicCardEl.className = "epic-card";
-  epicCardEl.innerHTML = buildEpicCardHtml(epic, phase);
+  epicCardEl.innerHTML = buildEpicCardHtml(epic, phase, storyMetrics);
   epicCardEl.style.left = `${x}px`;
   epicCardEl.style.top = `${y - 10}px`;
   document.body.appendChild(epicCardEl);

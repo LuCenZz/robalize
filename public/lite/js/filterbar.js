@@ -93,7 +93,7 @@ export function renderFilterBar(container, state, actions) {
             <span class="chip-text">${esc(label)}</span>
             <span class="chip-arrow ${openDropdown?.kind === "chip" && openDropdown.column === filter.column ? "chip-arrow-open" : ""}">▼</span>
           </button>
-          ${isFav ? "" : `<button class="chip-remove" data-column="${esc(filter.column)}" title="Supprimer le filtre ${esc(filter.column)}">×</button>`}
+          ${isFav ? "" : `<button class="chip-remove" data-column="${esc(filter.column)}" title="Remove filter ${esc(filter.column)}">×</button>`}
         </div>
         ${openDropdown?.kind === "chip" && openDropdown.column === filter.column ? chipDropdownHtml(filter, state) : ""}
       </div>
@@ -198,8 +198,8 @@ function projectRowHtml(state, projectValues) {
         <svg class="project-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <div class="project-search-box">
           ${selected.map((val) => `
-            <span class="project-tag">
-              ${esc(val)}
+            <span class="project-tag" title="${esc(val)}">
+              <span class="project-tag-text">${esc(val)}</span>
               <button class="project-tag-remove" data-value="${esc(val)}">×</button>
             </span>
           `).join("")}
@@ -212,7 +212,7 @@ function projectRowHtml(state, projectValues) {
           </div>
         ` : ""}
         ${projectSuggestOpen && projectQuery.trim() && suggestions.length === 0 ? `
-          <div class="project-suggestions"><div class="dropdown-empty">Aucun résultat</div></div>
+          <div class="project-suggestions"><div class="dropdown-empty">No results</div></div>
         ` : ""}
       </div>
     </div>
@@ -229,14 +229,14 @@ function chipDropdownHtml(filter, state) {
     <div class="dropdown dropdown-chip">
       <div class="dropdown-header">
         <span class="dropdown-title">${esc(filter.column)}</span>
-        <button class="star-btn star-toggle ${isFav ? "star-filled" : ""}" title="${isFav ? "Retirer des favoris" : "Ajouter aux favoris"}">${isFav ? "★" : "☆"}</button>
+        <button class="star-btn star-toggle ${isFav ? "star-filled" : ""}" title="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? "★" : "☆"}</button>
       </div>
       <div class="dropdown-search-wrap">
-        <input class="dropdown-search dropdown-search-chip" type="text" placeholder="Rechercher..." />
+        <input class="dropdown-search dropdown-search-chip" type="text" placeholder="Search..." />
       </div>
       <div class="dropdown-actions">
-        <button class="dropdown-select-all">Tout sélectionner</button>
-        <button class="dropdown-clear">Effacer</button>
+        <button class="dropdown-select-all">Select all</button>
+        <button class="dropdown-clear">Clear</button>
       </div>
       <div class="dropdown-options">
         ${filtered.map((val) => `
@@ -245,7 +245,7 @@ function chipDropdownHtml(filter, state) {
             <span>${esc(val)}</span>
           </label>
         `).join("")}
-        ${filtered.length === 0 ? '<div class="dropdown-empty">Aucun résultat</div>' : ""}
+        ${filtered.length === 0 ? '<div class="dropdown-empty">No results</div>' : ""}
       </div>
     </div>
   `;

@@ -9,6 +9,10 @@ export function renderTopBar(container, state, actions) {
     </div>
     <div class="topbar-actions">
       ${count > 0 ? `
+        <div class="view-mode-group">
+          <button id="topbar-view-gantt" class="view-mode-btn ${state.viewMode !== "forecast" ? "view-mode-btn-active" : ""}">Planning</button>
+          <button id="topbar-view-forecast" class="view-mode-btn ${state.viewMode === "forecast" ? "view-mode-btn-active" : ""}">Forecast</button>
+        </div>
         <div class="search-wrap">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input id="topbar-search" type="text" placeholder="Search projects..." />
@@ -41,6 +45,8 @@ export function renderTopBar(container, state, actions) {
     container.querySelector("#topbar-search-clear")
       .addEventListener("click", () => actions.setSearch(""));
   }
+  container.querySelector("#topbar-view-gantt")?.addEventListener("click", () => actions.setViewMode("gantt"));
+  container.querySelector("#topbar-view-forecast")?.addEventListener("click", () => actions.setViewMode("forecast"));
   container.querySelector("#topbar-ai")?.addEventListener("click", actions.openAi);
   container.querySelector("#topbar-jira").addEventListener("click", () => {
     actions.openConnector();

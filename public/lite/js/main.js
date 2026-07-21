@@ -1,10 +1,12 @@
 import { transformToEpicTasks, buildDisplayRows, extractColumns } from "./transform.js";
 import { applyFilters, computeFilteredKeys, computeDisplayRows } from "./filters.js";
 import { loadJiraConfig, fetchJiraData, resolveJiraConfig } from "./jira.js";
+import { computeStoryMetrics } from "./gantt-logic.js";
 import { loadFilters, saveFilters, loadSearchTerm, saveSearchTerm } from "./prefs.js";
 import { renderTopBar } from "./topbar.js";
 import { renderFilterBar } from "./filterbar.js";
 import { renderGantt } from "./gantt.js";
+import { renderForecastTable } from "./forecast.js";
 import { openConnector } from "./connector.js";
 import { toggleAiPanel } from "./ai.js";
 
@@ -21,6 +23,18 @@ export const state = {
   // What the phase-box label above each bar shows: cumulative weight %,
   // the phase's own budgeted workload in days, or the epic's NRR amount.
   boxMode: "progress",
+  // "gantt" (the planning/timeline view) or "forecast" (the monthly
+  // % completion / NRR-to-recognize table).
+  viewMode: "gantt",
+  // "YYYY-M" key of the month bar clicked in the Forecast Detail chart, or
+  // null — filters that table's rows to projects contributing to that
+  // month's forecast. Chart/cards/Total row stay unfiltered (the
+  // portfolio aggregate being drilled into).
+  forecastMonthFilter: null,
+  // Real Dev/QA completion %, keyed by epic key — from Story/Testing
+  // Story Points, fetched independently of the main epic data (see
+  // refreshStoryMetrics below).
+  storyMetrics: { dev: new Map(), qa: new Map() },
   derived: {
     allEpicTasks: [], allDisplayRows: [], filteredEpicTasks: [],
     filteredKeys: new Set(), hasActiveFilters: false, displayRows: [],
@@ -46,7 +60,11 @@ export function renderAll() {
   const gantt = document.getElementById("gantt");
   gantt.classList.toggle("hidden", state.rawData.length === 0);
   if (state.rawData.length > 0) {
-    renderGantt(gantt, state, actions);
+    if (state.viewMode === "forecast") {
+      renderForecastTable(gantt, state, actions);
+    } else {
+      renderGantt(gantt, state, actions);
+    }
   }
   renderRefreshOverlay();
 }
@@ -99,6 +117,38 @@ export function setupAutoRefresh() {
   }
 }
 
+// Independent background fetch (Story/Testing issues) powering the real
+// Dev/QA forecast shown next to the schedule-based one. Scoped to exactly
+// the epics just loaded (parent in (...)) rather than the whole project —
+// the project has 8000+ Story/Testing issues total, way past any sane
+// row cap, but each epic only has a handful of children. Best-effort:
+// failures are silent so they never disrupt the main Gantt or show a
+// false error banner.
+//
+// Fetched in batches of STORY_BATCH_SIZE epic keys per JQL: with 300+
+// epics loaded, a single "parent in (...)" clause plus JIRA's own
+// nextPageToken (which re-encodes the whole JQL again on later pages)
+// can push the request URL past JIRA's edge length limit (414). Small
+// batches keep every request comfortably short.
+const STORY_BATCH_SIZE = 40;
+
+async function refreshStoryMetrics(epicRows) {
+  const keys = [...new Set(epicRows.map((r) => r["Issue key"]).filter(Boolean))];
+  if (keys.length === 0) return;
+  try {
+    const batches = [];
+    for (let i = 0; i < keys.length; i += STORY_BATCH_SIZE) {
+      batches.push(keys.slice(i, i + STORY_BATCH_SIZE));
+    }
+    const results = await Promise.all(batches.map((batch) => {
+      const jql = `project = ACTO AND type in (Story, Testing) AND parent in (${batch.join(",")})`;
+      return fetchJiraData({ email: "", apiToken: "", jql, maxRows: 5000 });
+    }));
+    state.storyMetrics = computeStoryMetrics(results.flat());
+    renderAll();
+  } catch { /* best-effort secondary metric */ }
+}
+
 // The Gantt only ever shows Epics/Initiatives — filtered here regardless of
 // what the configured JQL actually returns (its type filter is user-editable
 // in the connector, and a broadened query — e.g. one that also fetches
@@ -145,6 +195,16 @@ export const actions = {
     renderAll();
   },
 
+  setViewMode(mode) {
+    state.viewMode = mode;
+    renderAll();
+  },
+
+  setForecastMonthFilter(monthKey) {
+    state.forecastMonthFilter = monthKey;
+    renderAll();
+  },
+
   async refreshFromJira(background = false) {
     // No connection step: saved config if any, otherwise the server-managed
     // default JQL/credentials.
@@ -174,6 +234,7 @@ export const actions = {
         if (background || !gotFirstBatch) actions.setData(rows, { silent: true });
         clearError();
         setupAutoRefresh();
+        refreshStoryMetrics(rows);
       }
     } catch (err) {
       showError(err instanceof Error ? err.message : "JIRA fetch failed");
