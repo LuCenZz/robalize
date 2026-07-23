@@ -7,7 +7,7 @@ import {
   getDisplayProgress, computePhaseCumulativeWeights, computePhaseWeight,
   computePhaseWorkloadDays, computePhasePrice, computePhasePriceCumulative,
   computePeriodForecast, resolvePhaseRenderBounds, computeProjectedProgress,
-  computePhaseThisMonth,
+  computePhaseMonthlyForecast, isPhaseForecastUnreliable,
 } from "./gantt-logic.js";
 import { PHASE_CONFIG, parseJiraDate } from "./transform.js";
 
@@ -95,6 +95,10 @@ function formatMoneyCompact(val) {
 // Story points: whole numbers plain, fractional to one decimal.
 function formatPoints(val) {
   return Number.isInteger(val) ? String(val) : val.toFixed(1);
+}
+
+function monthLabel(d) {
+  return d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
 }
 
 // JIRA logs time in seconds; show hours (its native tracking unit) with
@@ -629,8 +633,8 @@ function buildEpicCardHtml(epic, phase, storyMetrics) {
   const realStory = phase.phaseName === "Development" ? storyMetrics?.dev.get(epic.epicKey)
     : phase.phaseName === "QA / Test" ? storyMetrics?.qa.get(epic.epicKey)
     : undefined;
-  const realNrr = realStory !== undefined && phasePrice !== null ? phasePrice * (realStory.pct / 100) : null;
-  const thisMonth = computePhaseThisMonth(epic, phase, storyMetrics);
+  const monthlyForecast = computePhaseMonthlyForecast(epic, phase, storyMetrics);
+  const forecastUnreliable = isPhaseForecastUnreliable(epic, phase);
 
   // Only the hovered phase's dates are shown — not the full schedule.
   const short = PHASE_SHORT[phase.phaseName] || phase.phaseName;
@@ -643,17 +647,27 @@ function buildEpicCardHtml(epic, phase, storyMetrics) {
       <a class="epic-card-code" href="https://imawebgroup.atlassian.net/browse/${encodeURIComponent(epic.epicKey)}" target="_blank" rel="noopener noreferrer">${esc(epic.epicKey)}</a>
     </div>
     ${epic.status ? `<div class="epic-card-row"><span>Status</span><b>${esc(epic.status)}</b></div>` : ""}
-    ${nrr !== null ? `<div class="epic-card-row"><span>NRR</span><b class="epic-card-nrr">€${nrr}</b></div>` : ""}
-    ${workloadDays !== null ? `<div class="epic-card-row"><span>Step workload</span><b>${workloadDays} ${workloadDays === "1" ? "day" : "days"}</b></div>` : ""}
-    ${phasePrice !== null ? `<div class="epic-card-row"><span>Step budget</span><b class="epic-card-nrr">€${formatMoney(phasePrice)}</b></div>` : ""}
-    ${stepWeight !== null ? `<div class="epic-card-row"><span>Step weight</span><span class="epic-card-progress-pill">${stepWeight}%</span></div>` : ""}
-    ${realStory !== undefined ? `<div class="epic-card-row"><span>Real progress (US)</span><b class="epic-card-secondary">${formatPoints(realStory.done)}/${formatPoints(realStory.total)} pts (${realStory.pct}%)</b></div>` : ""}
-    ${realNrr !== null ? `<div class="epic-card-row"><span>Real NRR (US)</span><b class="epic-card-secondary">€${formatMoney(realNrr)}</b></div>` : ""}
-    ${realStory?.timeSpentSeconds > 0 ? `<div class="epic-card-row"><span>Time spent (US)</span><b class="epic-card-secondary">${formatTimeSpent(realStory.timeSpentSeconds)}</b></div>` : ""}
-    ${thisMonth ? `<div class="epic-card-divider"></div>` : ""}
-    ${thisMonth?.days !== null && thisMonth ? `<div class="epic-card-row"><span>Planned this month</span><b>${thisMonth.days}d (${thisMonth.pct}%)</b></div>` : ""}
-    ${thisMonth && thisMonth.days === null ? `<div class="epic-card-row"><span>Planned this month</span><b>${thisMonth.pct}%</b></div>` : ""}
-    ${thisMonth ? `<div class="epic-card-row"><span>NRR this month</span><b class="epic-card-nrr">€${formatMoney(thisMonth.nrr)}</b></div>` : ""}
+    ${nrr !== null ? `<div class="epic-card-row"><span>Epic NRR</span><b class="epic-card-nrr">€${nrr}</b></div>` : ""}
+
+    <div class="epic-card-section">Sold</div>
+    ${workloadDays !== null ? `<div class="epic-card-row"><span>Workload</span><b>${workloadDays} ${workloadDays === "1" ? "day" : "days"}</b></div>` : ""}
+    ${phasePrice !== null ? `<div class="epic-card-row"><span>NRR</span><b class="epic-card-nrr">€${formatMoney(phasePrice)}</b></div>` : ""}
+    ${stepWeight !== null ? `<div class="epic-card-row"><span>Weight</span><span class="epic-card-progress-pill">${stepWeight}%</span></div>` : ""}
+
+    ${realStory !== undefined ? `
+    <div class="epic-card-section">Real effort</div>
+    <div class="epic-card-row"><span>Story points</span><b class="epic-card-secondary">${formatPoints(realStory.done)}/${formatPoints(realStory.total)} pts (${realStory.pct}%)</b></div>
+    ${realStory.timeSpentSeconds > 0 ? `<div class="epic-card-row"><span>Time spent</span><b class="epic-card-secondary">${formatTimeSpent(realStory.timeSpentSeconds)}</b></div>` : ""}
+    ` : ""}
+
+    ${forecastUnreliable ? `
+    <div class="epic-card-section epic-card-section-warn">⚠ Forecast unreliable</div>
+    <div class="epic-card-note">Status is already "${esc(epic.status)}" but this phase hasn't closed (ends ${formatDate(phase.endDate)}) — the % of the Sold NRR above still to recognize can't be trusted automatically. Check manually.</div>
+    ` : monthlyForecast.length > 0 ? `
+    <div class="epic-card-section">Forecast NRR</div>
+    ${monthlyForecast.map((m) => `<div class="epic-card-row"><span>${esc(monthLabel(m.monthStart))}</span><b>${m.days !== null ? `${m.days}d (${m.pct}%)` : `${m.pct}%`} · <span class="epic-card-nrr">€${formatMoney(m.nrr)}</span></b></div>`).join("")}
+    ` : ""}
+
     ${phaseRows ? `<div class="epic-card-divider"></div>${phaseRows}` : ""}
   `;
 }

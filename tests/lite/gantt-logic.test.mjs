@@ -7,7 +7,7 @@ import {
   computePhaseCumulativeWeights, computePhaseWeight, computePhaseWorkloadDays,
   computePhasePrice, computePhasePriceCumulative, computePeriodForecast,
   computeStoryMetrics, resolvePhaseRenderBounds, computeProjectedProgress,
-  computePhaseThisMonth,
+  computePhaseThisMonth, isPhaseForecastUnreliable,
   ZOOM_CONFIG, TIMELINE_MARGIN,
 } from "../../public/lite/js/gantt-logic.js";
 
@@ -70,6 +70,60 @@ test("detectAlerts: analysis ended but status still Backlog", () => {
   assert.ok(!result.has(2));
 });
 
+test("detectAlerts: status already past Dev/QA but the phase's own dates haven't closed", () => {
+  const today = new Date(2026, 6, 23);
+  const stale = epic(1, [phase("Development", new Date(2026, 6, 5), new Date(2026, 6, 30))], "In Pilot");
+  const closed = epic(2, [phase("Development", new Date(2026, 5, 1), new Date(2026, 5, 20))], "In Pilot");
+  const notPastDevQa = epic(3, [phase("Development", new Date(2026, 6, 5), new Date(2026, 6, 30))], "In Progress");
+  const result = detectAlerts([stale, closed, notPastDevQa], today);
+  assert.ok(result.has(1));
+  assert.match(result.get(1).details.join(" "), /NRR forecast excluded/);
+  assert.ok(!result.has(2));
+  assert.ok(!result.has(3));
+});
+
+test("isPhaseForecastUnreliable: true when status is past Dev/QA and the phase hasn't closed yet", () => {
+  const today = new Date(2026, 6, 23);
+  const e = epic(1, [phase("Development", new Date(2026, 6, 5), new Date(2026, 6, 30))], "In Pilot");
+  assert.equal(isPhaseForecastUnreliable(e, e.phases[0], today), true);
+});
+
+test("isPhaseForecastUnreliable: false once the phase has actually closed (end date before today)", () => {
+  const today = new Date(2026, 6, 23);
+  const e = epic(1, [phase("Development", new Date(2026, 5, 1), new Date(2026, 5, 20))], "In Pilot");
+  assert.equal(isPhaseForecastUnreliable(e, e.phases[0], today), false);
+});
+
+test("isPhaseForecastUnreliable: false for statuses not definitively past Dev/QA (e.g. Pending Internal UAT)", () => {
+  const today = new Date(2026, 6, 23);
+  const e = epic(1, [phase("QA / Test", new Date(2026, 6, 5), new Date(2026, 6, 30))], "Pending Internal UAT");
+  assert.equal(isPhaseForecastUnreliable(e, e.phases[0], today), false);
+});
+
+test("isPhaseForecastUnreliable: false for phases other than Development/QA (e.g. Pilot itself)", () => {
+  const today = new Date(2026, 6, 23);
+  const e = epic(1, [phase("Pilot", new Date(2026, 6, 5), new Date(2026, 6, 30))], "In Pilot");
+  assert.equal(isPhaseForecastUnreliable(e, e.phases[0], today), false);
+});
+
+test("isPhaseForecastUnreliable: status matching is case/whitespace-insensitive", () => {
+  const today = new Date(2026, 6, 23);
+  const e = epic(1, [phase("Development", new Date(2026, 6, 5), new Date(2026, 6, 30))], "  DONE  ");
+  assert.equal(isPhaseForecastUnreliable(e, e.phases[0], today), true);
+});
+
+test("computePeriodForecast: a phase flagged as forecast-unreliable contributes 0, even with a real % that would otherwise recognize it in full", () => {
+  const today = new Date(2026, 6, 23);
+  const e = epic(1, [phase("Development", new Date(2026, 6, 5), new Date(2026, 6, 30))], "In Pilot", {
+    "Custom field (Budget Price DEV)": "10589.8",
+  });
+  const storyMetrics = { dev: new Map([["E-1", { pct: 100, done: 2, total: 2, timeSpentSeconds: 80280 }]]), qa: new Map() };
+  const total = computePeriodForecast(
+    [{ type: "epic", epic: e }], new Date(2026, 6, 1), new Date(2026, 7, 1), storyMetrics, today
+  );
+  assert.equal(total, 0);
+});
+
 test("detectEddIssues: EDD before Customer UAT start is flagged", () => {
   const e = epic(1, [phase("Customer UAT", new Date(2026, 5, 1), new Date(2026, 5, 15))], "In Progress", {
     "Custom field (Estimated Delivery Date)": "01 May 2026",
@@ -79,14 +133,20 @@ test("detectEddIssues: EDD before Customer UAT start is flagged", () => {
   assert.match(result.get(1).details[0], /Estimated delivery/);
 });
 
-test("detectEddIssues: EDD on or after Customer UAT start is not flagged", () => {
-  const onStart = epic(1, [phase("Customer UAT", new Date(2026, 5, 1), new Date(2026, 5, 15))], "In Progress", {
-    "Custom field (Estimated Delivery Date)": "01 Jun 2026",
-  });
+test("detectEddIssues: EDD after Customer UAT start is also flagged", () => {
   const after = epic(2, [phase("Customer UAT", new Date(2026, 5, 1), new Date(2026, 5, 15))], "In Progress", {
     "Custom field (Estimated Delivery Date)": "20 Jun 2026",
   });
-  const result = detectEddIssues([onStart, after]);
+  const result = detectEddIssues([after]);
+  assert.ok(result.has(2));
+  assert.match(result.get(2).details[0], /does not match/);
+});
+
+test("detectEddIssues: EDD exactly matching Customer UAT start is not flagged", () => {
+  const onStart = epic(1, [phase("Customer UAT", new Date(2026, 5, 1), new Date(2026, 5, 15))], "In Progress", {
+    "Custom field (Estimated Delivery Date)": "01 Jun 2026",
+  });
+  const result = detectEddIssues([onStart]);
   assert.equal(result.size, 0);
 });
 
@@ -468,22 +528,31 @@ test("computePeriodForecast: Development with real progress only forecasts the u
   assert.equal(total, 500);
 });
 
-test("computePeriodForecast: Development real progress remainder is spread from today, not the original phase start", () => {
+test("computePeriodForecast: already-recognized progress and forecast remainder partition cleanly across sub-periods, no double-counting", () => {
   const e = epic(1, [phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 20))], "In Progress", {
     "Custom field (Budget Price DEV)": "1000",
   });
   const storyMetrics = { dev: new Map([["E-1", { pct: 50, done: 0, total: 0, timeSpentSeconds: 0 }]]), qa: new Map() };
-  // Remaining 500 spans today (Jan 15) through Jan 20 (6 days) — none of
-  // it should land earlier in the month, even though the phase itself
-  // started Jan 1.
+  // The phase started Jan 1 and today is Jan 15: all 14 elapsed days (and
+  // so all of the already-recognized 500€) fall in [Jan 1, Jan 15) —
+  // that's the entire elapsed window, so it's attributed there in full.
   const firstHalf = computePeriodForecast(
     [{ type: "epic", epic: e }], new Date(2026, 0, 1), new Date(2026, 0, 15), storyMetrics, new Date(2026, 0, 15)
   );
+  // [Jan 15, Feb 1) doesn't overlap the elapsed window at all (it starts
+  // exactly where "today" is), so it gets none of the recognized 500€ —
+  // only the unrecognized remainder forecast for its own days (500€).
+  const secondHalf = computePeriodForecast(
+    [{ type: "epic", epic: e }], new Date(2026, 0, 15), new Date(2026, 1, 1), storyMetrics, new Date(2026, 0, 15)
+  );
+  // The whole month sums the two halves exactly — the full 1000€ price,
+  // with nothing double-counted or dropped.
   const total = computePeriodForecast(
     [{ type: "epic", epic: e }], new Date(2026, 0, 1), new Date(2026, 1, 1), storyMetrics, new Date(2026, 0, 15)
   );
-  assert.equal(firstHalf, 0);
-  assert.equal(total, 500);
+  assert.equal(firstHalf, 500);
+  assert.equal(secondHalf, 500);
+  assert.equal(total, 1000);
 });
 
 test("computePeriodForecast: overdue Development (real % < 100 past its end date) is outstanding as of today", () => {
@@ -498,8 +567,17 @@ test("computePeriodForecast: overdue Development (real % < 100 past its end date
   const januaryForecast = computePeriodForecast(
     [{ type: "epic", epic: e }], new Date(2026, 0, 1), new Date(2026, 1, 1), storyMetrics, today
   );
-  assert.equal(decemberForecast, 0); // nothing left in the month it was scheduled for
-  assert.equal(januaryForecast, 400); // the unrecognized 40% (1000 * 0.4) lands in today's month instead
+  // December still gets its share of the already-recognized 60% (600€),
+  // prorated by its 31 elapsed days out of the 40 elapsed since the phase
+  // started Dec 1 (600 * 31/40 = 465€) — the forecast remainder itself
+  // starts only at today, so none of that lands in December.
+  assert.equal(decemberForecast, 465);
+  // January contains today: the unrecognized 40% (400€) is fully
+  // outstanding as of today (the phase is overdue), plus a slice of the
+  // already-recognized 60% (135€ — the 9 elapsed days of January, Jan 1-10,
+  // as a fraction of the 40 days elapsed since the phase started Dec 1)
+  // is attributed here too under the constant-pace assumption.
+  assert.equal(januaryForecast, 535);
 });
 
 test("computePeriodForecast: QA / Test gets the same real-progress treatment as Development", () => {
@@ -546,17 +624,37 @@ test("computePhaseThisMonth: days/pct/NRR all derive from the same ratio", () =>
   assert.equal(result.days, 16);
 });
 
-test("computePhaseThisMonth: with real progress, only the unrecognized remainder counts", () => {
+test("computePhaseThisMonth: phase entirely within the month counts both already-recognized and forecast remainder", () => {
   const e = epic(1, [phase("Development", new Date(2026, 0, 1), new Date(2026, 0, 31))], "In Progress", {
     "Custom field (Budget Price DEV)": "1000",
     "Custom field (Budget Hours DEV)": "80", // 10 days
   });
   const storyMetrics = { dev: new Map([["E-1", { pct: 40, done: 0, total: 0, timeSpentSeconds: 0 }]]), qa: new Map() };
-  // Remaining 60% (600€, 6 days) spread from "today" (Jan 15) to Jan 31.
+  // Phase started this month, so all of the 40% (400€) already recognized
+  // is attributed to this month, plus the full 60% (600€) unrecognized
+  // remainder forecast for the rest of the month → 1000€ (100%) total.
   const result = computePhaseThisMonth(e, e.phases[0], storyMetrics, new Date(2026, 0, 15));
-  assert.equal(result.nrr, 600);
-  assert.equal(result.pct, 60);
-  assert.equal(result.days, 6);
+  assert.equal(result.nrr, 1000);
+  assert.equal(result.pct, 100);
+  assert.equal(result.days, 10);
+});
+
+test("computePhaseThisMonth: real progress split between already-recognized-this-month and forecast remainder", () => {
+  // Phase started before this month (Dec 17) and runs through Jan 31.
+  // 40% (400€) already recognized; of the 30 days elapsed since phase
+  // start, only the 15 that fall in January count toward "this month"
+  // (half), so half of the already-recognized amount (200€) is attributed
+  // to January, plus the full 600€ unrecognized remainder (forecast over
+  // the remaining Jan 16-31 days, entirely within January) = 800€ total.
+  const e = epic(1, [phase("Development", new Date(2025, 11, 17), new Date(2026, 0, 31))], "In Progress", {
+    "Custom field (Budget Price DEV)": "1000",
+    "Custom field (Budget Hours DEV)": "80", // 10 days
+  });
+  const storyMetrics = { dev: new Map([["E-1", { pct: 40, done: 0, total: 0, timeSpentSeconds: 0 }]]), qa: new Map() };
+  const result = computePhaseThisMonth(e, e.phases[0], storyMetrics, new Date(2026, 0, 16));
+  assert.equal(result.nrr, 800);
+  assert.equal(result.pct, 80);
+  assert.equal(result.days, 8);
 });
 
 test("computePhaseThisMonth: null when the phase doesn't reach into the current month", () => {

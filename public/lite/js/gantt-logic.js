@@ -39,6 +39,11 @@ export const HEADER_ROW_HEIGHT = 24;
 // and must start after the previous one ends.
 const PHASE_ORDER = ["Analysis", "Development", "QA / Test", "Customer UAT", "Pilot"];
 
+// Statuses that mean an epic has definitively moved past both Development
+// and QA / Test (into Pilot, or fully closed). "Pending Customer/Internal
+// UAT" are adjacent-to-QA statuses, not clearly past it, so excluded.
+const PAST_DEV_QA_STATUSES = new Set(["in pilot", "done", "ceased"]);
+
 export function toDayValue(d) {
   return Math.floor(d.getTime() / 86400000);
 }
@@ -157,6 +162,16 @@ export function detectAlerts(tasks, today = new Date()) {
       details.push(`Pilot started ${pilot.startDate.toLocaleDateString("en-GB")} but status is still "${status}"`);
     }
 
+    // The reverse mismatch: status already says we're past Dev/QA, but the
+    // phase's own dates haven't closed out — see isPhaseForecastUnreliable.
+    for (const phase of epic.phases) {
+      if (isPhaseForecastUnreliable(epic, phase, today)) {
+        details.push(
+          `${phase.phaseName} runs through ${phase.endDate.toLocaleDateString("en-GB")} but status is already "${status}" — NRR forecast excluded, check manually`
+        );
+      }
+    }
+
     if (details.length > 0) {
       result.set(epic.id, { epicId: epic.id, details });
     }
@@ -166,9 +181,27 @@ export function detectAlerts(tasks, today = new Date()) {
 }
 
 /**
- * Flags epics whose Estimated Delivery Date falls before their Customer
- * UAT phase even starts — a scheduling inconsistency (delivery can't
- * reasonably precede the UAT that validates it). Epics with no EDD or no
+ * True when a Development/QA phase's own dates can't be trusted for NRR
+ * forecasting: the epic's status already says work moved past both
+ * Development and QA (In Pilot, Done, Ceased), yet this phase hasn't
+ * "closed out" as of today (its end date is still today or later) — a
+ * sign the phase's dates are stale (never updated) rather than a real,
+ * ongoing rebuild of already-finished work. Whatever story-point real %
+ * exists for it can't be trusted to compute NRR in that case (see
+ * computePeriodForecast, which excludes these phases entirely).
+ */
+export function isPhaseForecastUnreliable(epic, phase, today = new Date()) {
+  if (phase.phaseName !== "Development" && phase.phaseName !== "QA / Test") return false;
+  const status = (epic.status || "").trim().toLowerCase();
+  if (!PAST_DEV_QA_STATUSES.has(status)) return false;
+  return toDayValue(phase.endDate) >= toDayValue(today);
+}
+
+/**
+ * Flags epics whose Estimated Delivery Date doesn't exactly match their
+ * Customer UAT phase's start date — the two are supposed to be the same
+ * date, so any difference (EDD earlier OR later than UAT start) is a
+ * scheduling inconsistency worth surfacing. Epics with no EDD or no
  * scheduled UAT phase are skipped (nothing to compare).
  */
 export function detectEddIssues(tasks) {
@@ -182,10 +215,10 @@ export function detectEddIssues(tasks) {
     const uat = epic.phases.find((p) => p.phaseName === "Customer UAT");
     if (!uat) continue;
 
-    if (toDayValue(edd) < toDayValue(uat.startDate)) {
+    if (toDayValue(edd) !== toDayValue(uat.startDate)) {
       result.set(epic.id, {
         epicId: epic.id,
-        details: [`Estimated delivery ${edd.toLocaleDateString("en-GB")} is before Customer UAT starts ${uat.startDate.toLocaleDateString("en-GB")}`],
+        details: [`Estimated delivery ${edd.toLocaleDateString("en-GB")} does not match Customer UAT start ${uat.startDate.toLocaleDateString("en-GB")}`],
       });
     }
   }
@@ -529,14 +562,30 @@ export function computePhasePriceCumulative(epic) {
  * Development and QA / Test are the two phases with a real, reported
  * completion % (from Story/Testing Story Points — see
  * computeStoryMetrics). When storyMetrics is supplied, those two phases
- * stop pro-rating their *full* price across their *full* scheduled span —
- * that would keep forecasting the whole thing as if nothing had actually
- * been recognized yet. Instead only the still-unrecognized remainder
- * (price × (1 − real%)) is spread across the remaining days (today through
- * the phase's end — or, if the phase is already overdue against that real
- * %, treated as fully outstanding right now). Other phases (Analysis,
- * Customer UAT, Pilot) have no such real-progress signal and keep the
- * plain date pro-ration.
+ * stop pro-rating their *full* price across their *full* scheduled span.
+ * Instead, for whichever period contains "today" (the current month or
+ * quarter — past periods and future periods are untouched), the
+ * contribution is the sum of:
+ *   (a) real, already-recognized progress that — assuming a constant pace
+ *       since the phase started — falls within that period (so if the
+ *       phase itself started this period, all of the progress made so far
+ *       counts), and
+ *   (b) the still-unrecognized remainder (price × (1 − real%)), spread
+ *       across the remaining days (today through the phase's end — or,
+ *       if the phase is already overdue against that real %, treated as
+ *       fully outstanding right now).
+ * A period entirely before today only ever sees (b)'s forecast (which is
+ * always 0 there, since it starts at today); a period entirely after
+ * today only ever sees (b) too (nothing has been "recognized" there yet).
+ * Other phases (Analysis, Customer UAT, Pilot) have no such real-progress
+ * signal and keep the plain date pro-ration.
+ *
+ * Development/QA phases flagged by isPhaseForecastUnreliable (status
+ * already past both Dev and QA, but this phase's own dates haven't closed
+ * out) are excluded entirely — contribute 0, rather than let a stale date
+ * range attribute a large, unreliable amount to the wrong period. Those
+ * phases' NRR has to be checked manually (see the epic-card tooltip and
+ * detectAlerts, which surface a warning for them instead).
  */
 export function computePeriodForecast(rows, periodStart, periodEnd, storyMetrics = null, today = new Date()) {
   const periodStartDay = toDayValue(periodStart);
@@ -549,26 +598,48 @@ export function computePeriodForecast(rows, periodStart, periodEnd, storyMetrics
     for (const phase of epic.phases) {
       const price = computePhasePrice(epic, phase.phaseName);
       if (price === null) continue;
+      if (isPhaseForecastUnreliable(epic, phase, today)) continue;
 
       const realPct = phase.phaseName === "Development" ? storyMetrics?.dev.get(epic.epicKey)?.pct
         : phase.phaseName === "QA / Test" ? storyMetrics?.qa.get(epic.epicKey)?.pct
         : undefined;
 
-      let effectivePrice = price;
-      let phaseStartDay = toDayValue(phase.startDate);
-      let phaseEndDay = toDayValue(phase.endDate) + 1; // exclusive
-
-      if (realPct !== undefined) {
-        effectivePrice = price * (1 - realPct / 100);
-        if (effectivePrice <= 0) continue;
-        phaseStartDay = Math.max(phaseStartDay, todayDay);
-        if (phaseEndDay <= phaseStartDay) phaseEndDay = phaseStartDay + 1; // overdue: outstanding as of today
+      if (realPct === undefined) {
+        const phaseStartDay = toDayValue(phase.startDate);
+        const phaseEndDay = toDayValue(phase.endDate) + 1; // exclusive
+        const overlap = Math.min(phaseEndDay, periodEndDay) - Math.max(phaseStartDay, periodStartDay);
+        if (overlap <= 0) continue;
+        const totalDays = phaseEndDay - phaseStartDay;
+        total += price * (overlap / totalDays);
+        continue;
       }
 
-      const overlap = Math.min(phaseEndDay, periodEndDay) - Math.max(phaseStartDay, periodStartDay);
+      const phaseStartDay = toDayValue(phase.startDate);
+
+      // (a) Already-recognized progress attributable to this period,
+      // assuming a constant pace since the phase started. Only non-zero
+      // when the period overlaps the [phaseStart, today) window.
+      const elapsedSincePhaseStart = todayDay - phaseStartDay;
+      if (elapsedSincePhaseStart > 0) {
+        const recognizedEndDay = Math.min(todayDay, periodEndDay);
+        const recognizedStartDay = Math.max(phaseStartDay, periodStartDay);
+        const recognizedOverlap = recognizedEndDay - recognizedStartDay;
+        if (recognizedOverlap > 0) {
+          total += price * (realPct / 100) * (recognizedOverlap / elapsedSincePhaseStart);
+        }
+      }
+
+      // (b) The still-unrecognized remainder, forecast across the
+      // remaining days (today through the phase's end).
+      const remainder = price * (1 - realPct / 100);
+      if (remainder <= 0) continue;
+      let remainderStartDay = Math.max(phaseStartDay, todayDay);
+      let phaseEndDay = toDayValue(phase.endDate) + 1; // exclusive
+      if (phaseEndDay <= remainderStartDay) phaseEndDay = remainderStartDay + 1; // overdue: outstanding as of today
+      const overlap = Math.min(phaseEndDay, periodEndDay) - Math.max(remainderStartDay, periodStartDay);
       if (overlap <= 0) continue;
-      const totalDays = phaseEndDay - phaseStartDay;
-      total += effectivePrice * (overlap / totalDays);
+      const totalDays = phaseEndDay - remainderStartDay;
+      total += remainder * (overlap / totalDays);
     }
   }
   return total;
@@ -578,15 +649,12 @@ export function computePeriodForecast(rows, periodStart, periodEnd, storyMetrics
  * "This month" breakdown for a single phase, for the epic-card tooltip:
  * how many of its budgeted workload days fall in the current month, what
  * fraction of the phase's own budget that represents, and the € it's
- * worth — all three sharing one ratio so they can never disagree.
- *
- * That ratio is computePeriodForecast's own this-month/this-phase € figure
- * divided by the phase's full budgeted price — for Development/QA (where
- * computePeriodForecast already prorates only the real, unrecognized
- * remainder across the remaining days) this naturally comes out smaller
- * than the plain calendar-overlap fraction would, exactly like the
- * Forecast Detail table. Returns null when there's nothing to show (no
- * price/workload data, or the phase doesn't reach into this month at all).
+ * worth — all three sharing one ratio so they can never disagree. Just a
+ * single-phase, current-month call to computePeriodForecast (which already
+ * blends already-recognized progress with the forecast remainder for
+ * whichever period contains "today" — see its own doc comment). Returns
+ * null when there's nothing to show (no price/workload data, or the phase
+ * doesn't reach into this month at all).
  */
 export function computePhaseThisMonth(epic, phase, storyMetrics, today = new Date()) {
   const price = computePhasePrice(epic, phase.phaseName);
@@ -607,6 +675,43 @@ export function computePhaseThisMonth(epic, phase, storyMetrics, today = new Dat
     pct: Math.round(ratio * 100),
     days: workloadDays !== null ? Math.round(workloadDays * ratio * 10) / 10 : null,
   };
+}
+
+/**
+ * Month-by-month NRR forecast for a single phase, for the epic-card
+ * tooltip: one entry per calendar month from the current month through
+ * the phase's end date (capped at 24 months as a safety bound), each a
+ * single-phase call to computePeriodForecast. Months where the phase
+ * contributes nothing (0 or negative) are omitted. Returns [] when the
+ * phase has no budgeted price.
+ */
+export function computePhaseMonthlyForecast(epic, phase, storyMetrics, today = new Date()) {
+  const price = computePhasePrice(epic, phase.phaseName);
+  if (price === null || price === 0) return [];
+
+  const workloadDaysRaw = computePhaseWorkloadDays(epic, phase.phaseName);
+  const workloadDays = workloadDaysRaw !== null ? parseFloat(workloadDaysRaw) : null;
+  const phaseEndDay = toDayValue(phase.endDate);
+
+  const months = [];
+  let cursor = new Date(today.getFullYear(), today.getMonth(), 1);
+  for (let i = 0; i < 24 && toDayValue(cursor) <= phaseEndDay; i++) {
+    const monthEndExclusive = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    const nrr = computePeriodForecast(
+      [{ type: "epic", epic: { ...epic, phases: [phase] } }], cursor, monthEndExclusive, storyMetrics, today
+    );
+    if (nrr > 0) {
+      const ratio = nrr / price;
+      months.push({
+        monthStart: new Date(cursor),
+        nrr,
+        pct: Math.round(ratio * 100),
+        days: workloadDays !== null ? Math.round(workloadDays * ratio * 10) / 10 : null,
+      });
+    }
+    cursor = monthEndExclusive;
+  }
+  return months;
 }
 
 /**

@@ -7,6 +7,7 @@
 // calculation model, just a different presentation of the same numbers.
 import {
   computeProjectedProgress, computePeriodForecast, computePhasePriceCumulative, getDisplayProgress,
+  isPhaseForecastUnreliable,
 } from "./gantt-logic.js";
 import { statusColors } from "./gantt.js";
 import { PRODUCT_COLUMN } from "./filterbar.js";
@@ -274,10 +275,13 @@ function summaryCardsHtml(rowsData) {
   const asOf = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
   const cards = [
-    { label: "Projects", value: String(rowsData.length) },
-    { label: "Order Value", value: totalOrderValue > 0 ? formatK(totalOrderValue) : "—" },
-    { label: "Remaining Backlog", value: totalOrderValue > 0 ? formatK(totalRemaining) : "—" },
-    { label: "Overall Completion", value: overallPct !== null ? overallPct + "%" : "—" },
+    { label: "Projects", value: String(rowsData.length), accent: "violet" },
+    { label: "Order Value", value: totalOrderValue > 0 ? formatK(totalOrderValue) : "—", accent: "violet" },
+    { label: "Remaining Backlog", value: totalOrderValue > 0 ? formatK(totalRemaining) : "—", accent: "amber" },
+    {
+      label: "Overall Completion", value: overallPct !== null ? overallPct + "%" : "—",
+      accent: overallPct === null ? "violet" : overallPct >= 80 ? "green" : overallPct >= 30 ? "amber" : "red",
+    },
   ];
 
   return `
@@ -285,7 +289,7 @@ function summaryCardsHtml(rowsData) {
       <div class="forecast-summary-asof">Snapshot as of ${asOf} — figures below are today's actuals, not a projection</div>
       <div class="forecast-summary">
         ${cards.map((c) => `
-          <div class="forecast-summary-card">
+          <div class="forecast-summary-card forecast-summary-card-${c.accent}">
             <div class="forecast-summary-value">${c.value}</div>
             <div class="forecast-summary-label">${esc(c.label)}</div>
           </div>
@@ -669,13 +673,15 @@ function forecastRowHtml({ row, total, reached, remaining, pctCells, nrrCells })
   // row still belongs to some initiative (its raw "Parent summary") even
   // though it's shown on its own — filter+focus should work the same way.
   const projectName = row.type === "initiative" ? row.initiativeName : (row.epic.rawData["Parent summary"] || "");
+  const unreliable = epicsForRow(row).some((e) => e.phases.some((p) => isPhaseForecastUnreliable(e, p)));
+  const unreliableHint = "Forecast excluded for one or more epics here — status is already past Development/QA but the phase dates haven't closed. Check NRR manually.";
   return `
     <tr data-row-key="${esc(rk)}" ${projectName ? `data-project-name="${esc(projectName)}"` : ""}>
       <td class="forecast-td-sticky" title="${dblclickHint}"><span class="forecast-status-dot" style="background:${fg}" title="${esc(epic.status || "")}"></span></td>
       <td class="forecast-td-sticky" title="${dblclickHint}">
         <a href="https://imawebgroup.atlassian.net/browse/${encodeURIComponent(epic.epicKey)}" target="_blank" rel="noopener noreferrer">${esc(epic.epicKey)}</a>
       </td>
-      <td class="forecast-td-sticky forecast-td-name" title="${esc(epic.epicName)}">${esc(epic.epicName)}</td>
+      <td class="forecast-td-sticky forecast-td-name" title="${esc(epic.epicName)}">${unreliable ? `<span class="forecast-unreliable-flag" title="${unreliableHint}">⚠</span> ` : ""}${esc(epic.epicName)}</td>
       <td class="forecast-td-sticky" title="${dblclickHint}">${esc(brand)}</td>
       <td class="forecast-td-sticky" title="${dblclickHint}">${esc(product)}</td>
       <td class="forecast-td-sticky" title="${dblclickHint}">${esc(pmo)}</td>

@@ -613,6 +613,16 @@ button, input, textarea, select { font-family: var(--font); }
   padding: 3px 9px; border-radius: 5px;
 }
 .epic-card-divider { height: 1px; background: rgba(255,255,255,0.1); margin: 9px 0 9px; }
+.epic-card-section {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--primary-light); margin: 12px 0 7px; padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+.epic-card-section-warn { color: #F0B429; }
+.epic-card-note {
+  font-size: 12px; font-style: italic; color: #C9A876; line-height: 1.5;
+  margin: 2px 0 4px;
+}
 .epic-card-phase {
   display: flex; justify-content: space-between; align-items: baseline;
   gap: 16px; font-size: 13px; margin-bottom: 6px;
@@ -707,13 +717,23 @@ button, input, textarea, select { font-family: var(--font); }
 .ai-input-row button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ===== Forecast Detail table ===== */
-.forecast-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: white; }
+/* Floats as a card on the app's own lavender backdrop (body's --background,
+   already showing through #gantt) instead of sitting flush edge-to-edge —
+   the margin/radius/shadow are purely decorative and don't touch any of
+   the sticky/colgroup/table-layout mechanics below. */
+.forecast-wrap {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden; background: white;
+  margin: 14px; border-radius: 14px; box-shadow: var(--shadow-md); border: 1px solid var(--border-row);
+}
 .forecast-header {
-  padding: 10px 20px; display: flex; align-items: center; gap: 12px;
+  padding: 14px 22px; display: flex; align-items: center; gap: 12px;
   border-bottom: 1px solid var(--hairline); flex-shrink: 0;
 }
-.forecast-title { font-weight: 700; font-size: 14px; color: var(--text-dark); }
-.forecast-count { font-size: 12px; color: var(--text-muted); }
+.forecast-title { font-weight: 700; font-size: 15px; color: var(--text-dark); letter-spacing: -0.1px; }
+.forecast-count {
+  font-size: 11px; color: var(--text-secondary); font-weight: 600; background: var(--filterbar-bg);
+  padding: 3px 10px; border-radius: 20px;
+}
 .forecast-scroll-btns { display: flex; gap: 6px; margin-left: auto; }
 .forecast-scroll-btn {
   width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border-light);
@@ -787,27 +807,41 @@ button, input, textarea, select { font-family: var(--font); }
 .forecast-table th:nth-child(6), .forecast-table td:nth-child(6) { left: 634px; width: 140px; }
 .forecast-table th:nth-child(7), .forecast-table td:nth-child(7) { left: 774px; width: 120px; }
 .forecast-table th:nth-child(8), .forecast-table td:nth-child(8) { left: 894px; width: 150px; box-shadow: 2px 0 4px rgba(0,0,0,0.06); }
-.forecast-table tbody tr:hover td.forecast-td-sticky { background: #FBFAFF; }
+/* Subtle zebra for scannability on long lists — the sticky columns need
+   their own copy of the tint since they carry an explicit opaque
+   background (so scrolled content can't show through them). */
+.forecast-table tbody tr:nth-child(even) td { background: #FBFAFE; }
+.forecast-table tbody tr:nth-child(even) td.forecast-td-sticky { background: #FBFAFE; }
+.forecast-table tbody tr:nth-child(even) td.forecast-td-current { background: #EDEBF5; }
+.forecast-table tbody tr:hover td { background: #F4F1FC; }
+.forecast-table tbody tr:hover td.forecast-td-sticky { background: #F4F1FC; }
 .forecast-table tbody tr[data-row-key] { cursor: pointer; }
-.forecast-status-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.forecast-status-dot {
+  width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+}
+.forecast-unreliable-flag { color: #D9822B; cursor: help; }
 .forecast-td-pct { font-weight: 600; }
 .forecast-td-nrr { color: var(--text-secondary); }
 .forecast-td-pct[data-month-i], .forecast-td-nrr[data-month-i] { cursor: help; }
 .forecast-empty { padding: 60px 20px; text-align: center; color: var(--text-muted); }
 
-.forecast-summary-wrap { flex-shrink: 0; border-bottom: 1px solid var(--hairline); }
-.forecast-summary-asof {
-  padding: 6px 20px; font-size: 11px; color: var(--text-muted); background: var(--filterbar-bg);
-  border-bottom: 1px solid var(--hairline);
+.forecast-summary-wrap { flex-shrink: 0; padding: 14px 22px; border-bottom: 1px solid var(--hairline); background: var(--filterbar-bg); }
+.forecast-summary-asof { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
+.forecast-summary { display: flex; gap: 10px; }
+.forecast-summary-card {
+  flex: 1; background: white; padding: 12px 16px; border-radius: 10px;
+  border: 1px solid var(--border-row); border-left: 3px solid var(--primary);
+  box-shadow: var(--shadow-sm);
 }
-.forecast-summary {
-  display: flex; gap: 1px; background: var(--hairline);
-}
-.forecast-summary-card { flex: 1; background: white; padding: 12px 20px; }
-.forecast-summary-value { font-size: 20px; font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; }
-.forecast-summary-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
+.forecast-summary-card-violet { border-left-color: var(--primary); }
+.forecast-summary-card-amber  { border-left-color: #D9822B; }
+.forecast-summary-card-green  { border-left-color: #1B9E5A; }
+.forecast-summary-card-red    { border-left-color: #D6483F; }
+.forecast-summary-value { font-size: 21px; font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; letter-spacing: -0.2px; }
+.forecast-summary-label { font-size: 10.5px; color: var(--text-muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
 
-.forecast-chart-wrap { padding: 14px 20px; border-bottom: 1px solid var(--hairline); flex-shrink: 0; }
+.forecast-chart-wrap { padding: 16px 22px; border-bottom: 1px solid var(--hairline); flex-shrink: 0; }
 .forecast-chart-title {
   font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 8px;
   display: flex; align-items: center; gap: 16px;

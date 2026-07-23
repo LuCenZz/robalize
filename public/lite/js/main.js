@@ -143,18 +143,66 @@ const STORY_BATCH_SIZE = 40;
 async function refreshStoryMetrics(epicRows) {
   const keys = [...new Set(epicRows.map((r) => r["Issue key"]).filter(Boolean))];
   if (keys.length === 0) return;
+  const batches = [];
+  for (let i = 0; i < keys.length; i += STORY_BATCH_SIZE) {
+    batches.push(keys.slice(i, i + STORY_BATCH_SIZE));
+  }
+  // allSettled, not all: with 300+ epics this is 8+ parallel requests, and
+  // Promise.all's all-or-nothing failure meant one flaky batch discarded
+  // every OTHER batch's already-fetched rows too — silently blanking real
+  // Dev/QA % for the entire portfolio, not just the epics in the batch
+  // that actually failed. Logged (not swallowed) so a partial failure is
+  // at least visible in the console instead of just quietly under-forecasting.
+  const settled = await Promise.allSettled(batches.map((batch) => {
+    const jql = `project = ACTO AND type in (Story, Testing) AND parent in (${batch.join(",")})`;
+    return fetchJiraData({ email: "", apiToken: "", jql, maxRows: 5000 });
+  }));
+  const rows = [];
+  let failed = 0;
+  for (const result of settled) {
+    if (result.status === "fulfilled") rows.push(...result.value);
+    else failed++;
+  }
+  if (failed > 0) {
+    console.warn(`Story/Testing metrics: ${failed}/${batches.length} batch(es) failed — real Dev/QA % will be incomplete for the epics in those batches.`, settled.filter((r) => r.status === "rejected").map((r) => r.reason));
+  }
+  state.storyMetrics = computeStoryMetrics(rows);
+  renderAll();
+}
+
+// The main JQL excludes status Ceased/Done so finished projects don't
+// clutter the Gantt on their own — but that also silently drops a Done/
+// Ceased epic that's a CHILD of an initiative still otherwise in
+// progress, which then gets its % and NRR computed from only its
+// unfinished siblings (too low — see the Forecast/initiative-aggregate
+// discussion). This fetches exactly what's missing (children of the
+// initiatives we already loaded, whose own status was excluded) and
+// merges them in, so those initiatives' rollups — and the Gantt row for
+// that finished child — are complete. Best-effort: a failure here just
+// means those initiatives look the same as before, not a broken app.
+async function refreshDoneChildren(epicRows) {
+  const initiativeKeys = [...new Set(epicRows.map((r) => r["Parent key"]).filter(Boolean))];
+  if (initiativeKeys.length === 0) return;
   try {
     const batches = [];
-    for (let i = 0; i < keys.length; i += STORY_BATCH_SIZE) {
-      batches.push(keys.slice(i, i + STORY_BATCH_SIZE));
+    for (let i = 0; i < initiativeKeys.length; i += STORY_BATCH_SIZE) {
+      batches.push(initiativeKeys.slice(i, i + STORY_BATCH_SIZE));
     }
     const results = await Promise.all(batches.map((batch) => {
-      const jql = `project = ACTO AND type in (Story, Testing) AND parent in (${batch.join(",")})`;
+      const jql = `project = ACTO AND type in (Epic, Initiative) AND parent in (${batch.join(",")}) AND status in (Ceased, Done)`;
       return fetchJiraData({ email: "", apiToken: "", jql, maxRows: 5000 });
     }));
-    state.storyMetrics = computeStoryMetrics(results.flat());
+    const newRows = keepEpicRows(results.flat());
+    if (newRows.length === 0) return;
+    const existingKeys = new Set(state.rawData.map((r) => r["Issue key"]));
+    const toAdd = newRows.filter((r) => !existingKeys.has(r["Issue key"]));
+    if (toAdd.length === 0) return;
+    state.rawData = [...state.rawData, ...toAdd];
+    state.columns = extractColumns(state.rawData);
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(state.rawData)); } catch { /* quota */ }
+    deriveData();
     renderAll();
-  } catch { /* best-effort secondary metric */ }
+  } catch { /* best-effort completeness fetch */ }
 }
 
 // The Gantt only ever shows Epics/Initiatives — filtered here regardless of
@@ -268,6 +316,7 @@ export const actions = {
         clearError();
         setupAutoRefresh();
         refreshStoryMetrics(rows);
+        refreshDoneChildren(rows);
       }
     } catch (err) {
       showError(err instanceof Error ? err.message : "JIRA fetch failed");
