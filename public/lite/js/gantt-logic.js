@@ -586,6 +586,24 @@ export function computePhasePriceCumulative(epic) {
  * range attribute a large, unreliable amount to the wrong period. Those
  * phases' NRR has to be checked manually (see the epic-card tooltip and
  * detectAlerts, which surface a warning for them instead).
+ *
+ * Analysis/Customer UAT/Pilot have no real-progress signal of their own at
+ * all (no linked Story/Testing children), so their plain date pro-ration
+ * can't tell whether the epic's overall progress has already moved past
+ * what a phase's calendar dates alone would suggest — e.g. a 4-day Pilot
+ * phase carrying 70% of the epic's price would otherwise forecast that
+ * whole 70% for whichever month it falls in, even when a PM has manually
+ * reported the epic as mostly done already, with much less than 70% of
+ * its budget actually left. When the epic has a manually-entered "% of
+ * progress" (getRawProgressPct — a PM's own figure, an independent signal
+ * worth trusting on its own, unlike the schedule-derived fallback
+ * computeWeightedProgress falls back to otherwise), each epic's total
+ * contribution for this call is capped at its remaining backlog (Order
+ * Value × (1 − that %)) — a forecast can never exceed what's actually left
+ * to recognize. Epics with no manual % (using the schedule-derived
+ * fallback instead) aren't capped this way, since that fallback is itself
+ * just another schedule heuristic, no more authoritative than the
+ * pro-ration above it.
  */
 export function computePeriodForecast(rows, periodStart, periodEnd, storyMetrics = null, today = new Date()) {
   const periodStartDay = toDayValue(periodStart);
@@ -595,6 +613,7 @@ export function computePeriodForecast(rows, periodStart, periodEnd, storyMetrics
   for (const row of rows) {
     if (row.type === "initiative") continue;
     const epic = row.epic;
+    let epicTotal = 0;
     for (const phase of epic.phases) {
       const price = computePhasePrice(epic, phase.phaseName);
       if (price === null) continue;
@@ -610,7 +629,7 @@ export function computePeriodForecast(rows, periodStart, periodEnd, storyMetrics
         const overlap = Math.min(phaseEndDay, periodEndDay) - Math.max(phaseStartDay, periodStartDay);
         if (overlap <= 0) continue;
         const totalDays = phaseEndDay - phaseStartDay;
-        total += price * (overlap / totalDays);
+        epicTotal += price * (overlap / totalDays);
         continue;
       }
 
@@ -625,7 +644,7 @@ export function computePeriodForecast(rows, periodStart, periodEnd, storyMetrics
         const recognizedStartDay = Math.max(phaseStartDay, periodStartDay);
         const recognizedOverlap = recognizedEndDay - recognizedStartDay;
         if (recognizedOverlap > 0) {
-          total += price * (realPct / 100) * (recognizedOverlap / elapsedSincePhaseStart);
+          epicTotal += price * (realPct / 100) * (recognizedOverlap / elapsedSincePhaseStart);
         }
       }
 
@@ -639,8 +658,21 @@ export function computePeriodForecast(rows, periodStart, periodEnd, storyMetrics
       const overlap = Math.min(phaseEndDay, periodEndDay) - Math.max(remainderStartDay, periodStartDay);
       if (overlap <= 0) continue;
       const totalDays = phaseEndDay - remainderStartDay;
-      total += remainder * (overlap / totalDays);
+      epicTotal += remainder * (overlap / totalDays);
     }
+
+    if (epicTotal > 0) {
+      const rawPct = getRawProgressPct(epic);
+      if (rawPct !== null) {
+        const cumPrices = computePhasePriceCumulative(epic);
+        const orderValue = cumPrices ? cumPrices["Pilot"] : null;
+        if (orderValue !== null) {
+          const remainingBacklog = Math.max(0, orderValue * (1 - rawPct / 100));
+          epicTotal = Math.min(epicTotal, remainingBacklog);
+        }
+      }
+    }
+    total += epicTotal;
   }
   return total;
 }
@@ -839,13 +871,22 @@ export function computeStoryMetrics(rows, today = new Date()) {
  * progress is 60%. Fall back to the weighted estimate only when the epic
  * has no raw progress value at all.
  */
-export function getDisplayProgress(epic, today = new Date()) {
+// The raw, manually-entered progress % (a PM's own reported figure), when
+// present — distinct from the schedule-derived fallback below, since it's
+// an independent signal worth trusting on its own (e.g. to cap a forecast
+// against it), not just another heuristic layered on top of one.
+function getRawProgressPct(epic) {
   const raw = epic.rawData["Custom field (% of progress)"];
   if (raw && raw.trim()) {
     const val = Math.round(parseFloat(raw));
     if (!isNaN(val)) return val;
   }
-  return computeWeightedProgress(epic, today);
+  return null;
+}
+
+export function getDisplayProgress(epic, today = new Date()) {
+  const raw = getRawProgressPct(epic);
+  return raw !== null ? raw : computeWeightedProgress(epic, today);
 }
 
 export function getCellText(epic, col, isInitiative) {

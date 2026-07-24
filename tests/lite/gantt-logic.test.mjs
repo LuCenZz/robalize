@@ -610,6 +610,31 @@ test("computePeriodForecast: without storyMetrics, Development still uses the pl
   assert.equal(total, 1000);
 });
 
+test("computePeriodForecast: a Pilot phase (no real-progress signal) is capped at the epic's own remaining backlog when a manual % of progress is set", () => {
+  // A short Pilot phase carrying the epic's whole 1000€ price, entirely
+  // inside the queried month — plain calendar pro-ration alone would
+  // forecast the full 1000€, but the epic is manually reported 70% done,
+  // leaving only 300€ actually left to recognize.
+  const e = epic(1, [phase("Pilot", new Date(2026, 6, 20), new Date(2026, 6, 24))], "In Pilot", {
+    "Custom field (Budget Price Pilot)": "1000",
+    "Custom field (% of progress)": "70",
+  });
+  const total = computePeriodForecast(
+    [{ type: "epic", epic: e }], new Date(2026, 6, 1), new Date(2026, 7, 1)
+  );
+  assert.ok(Math.abs(total - 300) < 1e-6, `expected ~300, got ${total}`);
+});
+
+test("computePeriodForecast: no cap applied when the epic has no manual % of progress (schedule-derived fallback isn't authoritative enough to clamp against)", () => {
+  const e = epic(1, [phase("Pilot", new Date(2026, 6, 20), new Date(2026, 6, 24))], "In Pilot", {
+    "Custom field (Budget Price Pilot)": "1000",
+  });
+  const total = computePeriodForecast(
+    [{ type: "epic", epic: e }], new Date(2026, 6, 1), new Date(2026, 7, 1)
+  );
+  assert.equal(total, 1000);
+});
+
 test("computePhaseThisMonth: days/pct/NRR all derive from the same ratio", () => {
   // 800€, 16 budgeted workload-days, phase spans the whole month (Jan
   // 1-31), no real progress data → plain calendar pro-ration for however
