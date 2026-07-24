@@ -21,6 +21,10 @@ const MONTHS_CAP = 18;
 const STICKY_COL_WIDTHS = [44, 110, 280, 110, 90, 140, 120, 150];
 const STICKY_TOTAL_WIDTH = STICKY_COL_WIDTHS.reduce((a, b) => a + b, 0);
 const MONTH_COL_WIDTH = 76;
+// Implicit row height from .forecast-table's cell padding/border (no
+// explicit height rule) — 12px font-size + 8px top/bottom padding + 1px
+// border-bottom, see style.css .forecast-table th/td.
+const ROW_HEIGHT = 33;
 
 function esc(v) {
   return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -468,6 +472,7 @@ export function renderForecastTable(container, state, actions) {
   const sort = state.forecastSort;
   const visibleRowsData = sortRowsData(filteredRowsData, sort);
 
+  const collapsed = state.forecastDetailCollapsed;
   container.innerHTML = `
     <div class="forecast-wrap">
       <div class="forecast-header">
@@ -475,13 +480,16 @@ export function renderForecastTable(container, state, actions) {
         <span class="forecast-count">${rows.length} ${productFilterActive ? "epics" : "projects"}</span>
         ${rows.length > 0 ? `
           <div class="forecast-scroll-btns">
+            <button id="forecast-collapse-toggle" class="forecast-scroll-btn" title="${collapsed ? "Show summary & chart" : "Hide summary & chart"}" aria-label="${collapsed ? "Show summary & chart" : "Hide summary & chart"}">${collapsed ? "▾" : "▴"}</button>
+            <button id="forecast-scroll-up" class="forecast-scroll-btn" aria-label="Scroll rows up">↑</button>
+            <button id="forecast-scroll-down" class="forecast-scroll-btn" aria-label="Scroll rows down">↓</button>
             <button id="forecast-scroll-left" class="forecast-scroll-btn" aria-label="Scroll table left">‹</button>
             <button id="forecast-scroll-right" class="forecast-scroll-btn" aria-label="Scroll table right">›</button>
           </div>
         ` : ""}
       </div>
-      ${rows.length > 0 ? summaryCardsHtml(rowsData) : ""}
-      ${rows.length > 0 ? forecastChartHtml(pctMonths, nrrMonths, pctTotals, nrrTotals, activeMonthKey) : ""}
+      ${rows.length > 0 && !collapsed ? summaryCardsHtml(rowsData) : ""}
+      ${rows.length > 0 && !collapsed ? forecastChartHtml(pctMonths, nrrMonths, pctTotals, nrrTotals, activeMonthKey) : ""}
       ${activeMonthIndex >= 0 ? `
         <div class="forecast-filter-banner">
           Showing <strong>${visibleRowsData.length}</strong> project${visibleRowsData.length === 1 ? "" : "s"} contributing to the <strong>${esc(monthLabel(nrrMonths[activeMonthIndex]))}</strong> forecast
@@ -575,6 +583,21 @@ export function renderForecastTable(container, state, actions) {
   }
   container.querySelector("#forecast-scroll-left")?.addEventListener("click", () => scrollByColumns(-1));
   container.querySelector("#forecast-scroll-right")?.addEventListener("click", () => scrollByColumns(1));
+
+  // Vertical counterpart to scrollByColumns — jumps a fixed number of rows
+  // (~5) at a time, so clicking repeatedly steps down the project list
+  // instead of relying on the mouse wheel or the scrollbar.
+  function scrollByRows(direction) {
+    if (!tableScroll) return;
+    const target = tableScroll.scrollTop + direction * ROW_HEIGHT * 5;
+    const maxScroll = tableScroll.scrollHeight - tableScroll.clientHeight;
+    const snapped = Math.max(0, Math.min(maxScroll, target));
+    tableScroll.scrollTo({ top: snapped, behavior: "smooth" });
+  }
+  container.querySelector("#forecast-scroll-up")?.addEventListener("click", () => scrollByRows(-1));
+  container.querySelector("#forecast-scroll-down")?.addEventListener("click", () => scrollByRows(1));
+
+  container.querySelector("#forecast-collapse-toggle")?.addEventListener("click", () => actions.setForecastDetailCollapsed(!collapsed));
 
   container.querySelectorAll("[data-sort-col]").forEach((th) => {
     th.addEventListener("click", () => actions.setForecastSort(th.dataset.sortCol));

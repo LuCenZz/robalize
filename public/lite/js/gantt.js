@@ -198,7 +198,7 @@ export function renderGantt(container, state, actions) {
       </div>`}
       <div class="collapse-toggle" title="${ui.gridCollapsed ? "Show columns" : "Hide columns"}">${ui.gridCollapsed ? "▶" : "◀"}</div>
       <div class="timeline-header">
-        <div style="width:${totalWidth + TIMELINE_MARGIN * 2}px;position:relative">
+        <div class="timeline-header-inner" style="width:${totalWidth + TIMELINE_MARGIN * 2}px;position:relative">
           <div class="tl-header-row">
             ${yearHeaders.map((h) => `<div class="tl-cell tl-cell-year" style="left:${h.left}px;width:${h.width}px">${h.label}</div>`).join("")}
           </div>
@@ -222,6 +222,7 @@ export function renderGantt(container, state, actions) {
           <div class="gantt-grid" style="width:${gridTotalWidth}px">
             ${displayedRows.map((row, i) => gridRowHtml(row, i, inconsistencies, alerts, eddIssues)).join("")}
           </div>`}
+          <div class="timeline-gutter" style="height:${rowsHeight}px"></div>
           <div class="gantt-timeline" style="width:${totalWidth + TIMELINE_MARGIN * 2}px">
             ${todayX >= 0 && todayX <= totalWidth ? `
               <div class="today-line" style="left:${todayX}px;height:${rowsHeight}px"><div class="today-dot"></div></div>` : ""}
@@ -935,9 +936,18 @@ function wireEvents(container, state, actions, ctx) {
   });
 }
 
+// A plain `header.scrollLeft = body.scrollLeft` assumes both elements have
+// the exact same scrollable range (scrollWidth - clientWidth), which isn't
+// guaranteed: .gantt-body can grow a native vertical scrollbar (eating into
+// its clientWidth) while .timeline-header, which never scrolls vertically,
+// never does — so the two ranges silently drift apart and the browser
+// clamps each element's scrollLeft differently, desyncing the header from
+// the bars the further right you scroll. Translating the header's inner
+// content by the exact same pixel amount sidesteps that entirely — no
+// independent scrollable range to keep in agreement.
 function syncHeaderScroll(container, body) {
-  const header = container.querySelector(".timeline-header");
-  if (header) header.scrollLeft = body.scrollLeft;
+  const inner = container.querySelector(".timeline-header-inner");
+  if (inner) inner.style.transform = `translateX(${-body.scrollLeft}px)`;
 }
 
 // Initiative labels stay centered in the visible part of their bar.

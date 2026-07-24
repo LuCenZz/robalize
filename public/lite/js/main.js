@@ -39,6 +39,9 @@ export const state = {
   // column name ("name"/"orderValue"/"remaining") or "pct:<i>"/"nrr:<i>"
   // for a specific month column; null col means unsorted (original order).
   forecastSort: { col: null, dir: null },
+  // When true, the Forecast Detail page hides the summary cards + monthly
+  // chart so the project table below can use the freed vertical space.
+  forecastDetailCollapsed: false,
   // Real Dev/QA completion %, keyed by epic key — from Story/Testing
   // Story Points, fetched independently of the main epic data (see
   // refreshStoryMetrics below).
@@ -279,6 +282,11 @@ export const actions = {
     if (cur.col !== col) state.forecastSort = { col, dir: "asc" };
     else if (cur.dir === "asc") state.forecastSort = { col, dir: "desc" };
     else state.forecastSort = { col: null, dir: null };
+    renderAll();
+  },
+
+  setForecastDetailCollapsed(collapsed) {
+    state.forecastDetailCollapsed = collapsed;
     renderAll();
   },
 

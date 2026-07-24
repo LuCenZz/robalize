@@ -435,6 +435,12 @@ button, input, textarea, select { font-family: var(--font); }
   font-size: 9px; z-index: 30; user-select: none; align-self: stretch;
 }
 .collapse-toggle:hover { background: #F5F4F9; color: var(--text-secondary); }
+/* Mirrors .collapse-toggle's 15px so .gantt-canvas has the exact same
+   grid+gutter width as .gantt-header-row before the timeline starts —
+   without it, syncing header.scrollLeft = body.scrollLeft still left the
+   timeline header 15px narrower than the body's timeline, drifting the
+   month/day labels out of alignment with the bars underneath them. */
+.timeline-gutter { width: 15px; flex-shrink: 0; border-left: 1px solid var(--hairline); }
 .timeline-header { flex: 1; overflow: hidden; }
 .tl-header-row { height: 24px; position: relative; }
 .tl-header-row-last { border-bottom: none; }
