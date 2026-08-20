@@ -2,11 +2,15 @@ import { transformToEpicTasks, buildDisplayRows, extractColumns } from "./transf
 import { applyFilters, computeFilteredKeys, computeDisplayRows } from "./filters.js";
 import { loadJiraConfig, fetchJiraData, resolveJiraConfig } from "./jira.js";
 import { computeStoryMetrics } from "./gantt-logic.js";
-import { loadFilters, saveFilters, loadSearchTerm, saveSearchTerm } from "./prefs.js";
+import {
+  loadFilters, saveFilters, loadSearchTerm, saveSearchTerm,
+  loadPriorityColumns, savePriorityColumns, loadPriorityOrder, savePriorityOrder,
+} from "./prefs.js";
 import { renderTopBar } from "./topbar.js";
 import { renderFilterBar, PROJECT_COLUMN } from "./filterbar.js";
 import { renderGantt } from "./gantt.js";
 import { renderForecastTable } from "./forecast.js";
+import { renderPriorityTable } from "./priority.js";
 import { openConnector } from "./connector.js";
 import { toggleAiPanel } from "./ai.js";
 
@@ -23,9 +27,26 @@ export const state = {
   // What the phase-box label above each bar shows: cumulative weight %,
   // the phase's own budgeted workload in days, or the epic's NRR amount.
   boxMode: "progress",
-  // "gantt" (the planning/timeline view) or "forecast" (the monthly
-  // % completion / NRR-to-recognize table).
+  // "gantt" (the planning/timeline view), "forecast" (the monthly
+  // % completion / NRR-to-recognize table), or "priority" (the flat,
+  // manually-ordered initiative list).
   viewMode: "gantt",
+  // Which raw JIRA columns the Priority table shows, and in what order —
+  // user-configurable, persisted (see prefs.js).
+  priorityColumns: [],
+  // Manual drag order for the Priority table: an array of row keys
+  // (initiativeKey, or a standalone epic's own key). Persisted; rows not
+  // listed here (new ones synced from JIRA) sort to the end — see
+  // applyPriorityOrder in priority-logic.js.
+  priorityOrder: [],
+  // Per-column value filters for the Priority table ("Status" -> ["Done"]),
+  // AND'd together — independent of, and layered on top of, the global
+  // FilterBar/search above. Not persisted: resets on reload like forecastSort.
+  priorityColumnFilters: {},
+  // Sort column/direction for the Priority table — same tri-state cycle as
+  // forecastSort (asc -> desc -> unsorted). While sorted, the table shows
+  // sort order instead of the manual priorityOrder (see priority.js).
+  prioritySort: { col: null, dir: null },
   // "YYYY-M" key of the month bar clicked in the Forecast Detail chart, or
   // null — filters that table's rows to projects contributing to that
   // month's forecast. Chart/cards/Total row stay unfiltered (the
@@ -73,6 +94,8 @@ export function renderAll() {
   if (state.rawData.length > 0) {
     if (state.viewMode === "forecast") {
       renderForecastTable(gantt, state, actions);
+    } else if (state.viewMode === "priority") {
+      renderPriorityTable(gantt, state, actions);
     } else {
       renderGantt(gantt, state, actions);
     }
@@ -290,6 +313,31 @@ export const actions = {
     renderAll();
   },
 
+  setPriorityColumns(columns) {
+    state.priorityColumns = columns;
+    savePriorityColumns(columns);
+    renderAll();
+  },
+
+  setPriorityOrder(order) {
+    state.priorityOrder = order;
+    savePriorityOrder(order);
+    renderAll();
+  },
+
+  setPriorityColumnFilter(column, values) {
+    state.priorityColumnFilters = { ...state.priorityColumnFilters, [column]: values };
+    renderAll();
+  },
+
+  setPrioritySort(col) {
+    const cur = state.prioritySort;
+    if (cur.col !== col) state.prioritySort = { col, dir: "asc" };
+    else if (cur.dir === "asc") state.prioritySort = { col, dir: "desc" };
+    else state.prioritySort = { col: null, dir: null };
+    renderAll();
+  },
+
   async refreshFromJira(background = false) {
     // No connection step: saved config if any, otherwise the server-managed
     // default JQL/credentials.
@@ -345,6 +393,8 @@ export const actions = {
 function boot() {
   state.activeFilters = loadFilters();
   state.searchTerm = loadSearchTerm();
+  state.priorityColumns = loadPriorityColumns();
+  state.priorityOrder = loadPriorityOrder();
 
   let hasCache = false;
   try {

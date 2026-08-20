@@ -8,7 +8,8 @@ globalThis.localStorage = {
   removeItem: (k) => store.delete(k),
 };
 
-const { saveFavorites, loadFavorites, loadUserPref } = await import("../../public/lite/js/prefs.js");
+const { saveFavorites, loadFavorites, loadUserPref, savePriorityColumns, loadPriorityColumns } =
+  await import("../../public/lite/js/prefs.js");
 
 test("prefs round-trip, namespaced by JIRA config email", () => {
   store.set("oem-jira-config", JSON.stringify({ email: "me@corp.com" }));
@@ -21,4 +22,11 @@ test("loadUserPref falls back when key is absent or JSON is broken", () => {
   assert.deepEqual(loadUserPref("nope", []), []);
   store.set("oem-prefs-me@corp.com:bad", "{not json");
   assert.equal(loadUserPref("bad", "fallback"), "fallback");
+});
+
+test("loadPriorityColumns defaults to Issue key + Summary until the user customizes it", () => {
+  store.set("oem-jira-config", JSON.stringify({ email: "someone-else@corp.com" }));
+  assert.deepEqual(loadPriorityColumns(), ["Issue key", "Summary"]);
+  savePriorityColumns(["Issue key", "Summary", "Status"]);
+  assert.deepEqual(loadPriorityColumns(), ["Issue key", "Summary", "Status"]);
 });

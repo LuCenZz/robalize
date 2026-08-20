@@ -37,3 +37,9 @@ export function saveFavorites(favorites, email) { saveUserPref("favorites", favo
 export function loadFavorites(email) { return loadUserPref("favorites", [], email); }
 export function saveSearchTerm(term, email) { saveUserPref("search", term, email); }
 export function loadSearchTerm(email) { return loadUserPref("search", "", email); }
+
+const DEFAULT_PRIORITY_COLUMNS = ["Issue key", "Summary"];
+export function savePriorityColumns(columns, email) { saveUserPref("priority-columns", columns, email); }
+export function loadPriorityColumns(email) { return loadUserPref("priority-columns", DEFAULT_PRIORITY_COLUMNS, email); }
+export function savePriorityOrder(order, email) { saveUserPref("priority-order", order, email); }
+export function loadPriorityOrder(email) { return loadUserPref("priority-order", [], email); }
